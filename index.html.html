@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Varun's Online — India's New Delivery Experience | Coming Soon</title>
+<!-- Tailwind + Font Awesome + Google Fonts -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&display=swap" rel="stylesheet">
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        overflow-x: hidden;
+    }
+    
+    /* modern gradient background with animated mesh */
+    .hero-glow {
+        background: radial-gradient(circle at 10% 20%, rgba(255, 176, 0, 0.08) 0%, rgba(10, 77, 104, 0.02) 90%);
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+    }
+    
+    @keyframes float-slow {
+        0% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-15px) rotate(2deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
+    }
+    
+    @keyframes float-medium {
+        0% { transform: translateY(0px) scale(1); }
+        50% { transform: translateY(-10px) scale(1.02); }
+        100% { transform: translateY(0px) scale(1); }
+    }
+    
+    @keyframes pulse-ring {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        100% { transform: scale(1.4); opacity: 0; }
+    }
+    
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    
+    @keyframes fadeSlideUp {
+        0% { opacity: 0; transform: translateY(35px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-float-slow {
+        animation: float-slow 7s ease-in-out infinite;
+    }
+    
+    .animate-float-med {
+        animation: float-medium 5s ease-in-out infinite;
+    }
+    
+    .animate-fade-slide-up {
+        animation: fadeSlideUp 0.7s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
+        opacity: 0;
+    }
+    
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+    .delay-400 { animation-delay: 0.4s; }
+    .delay-500 { animation-delay: 0.5s; }
+    .delay-600 { animation-delay: 0.6s; }
+    
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .gradient-text-primary {
+        background: linear-gradient(135deg, #0A4D68 0%, #1B7C9C 50%, #FFB000 100%);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 6s linear infinite;
+    }
+    
+    .category-card {
+        transition: all 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        background: white;
+        border: 1px solid rgba(10, 77, 104, 0.08);
+    }
+    
+    .category-card:hover {
+        transform: translateY(-8px) scale(1.02);
+        border-color: rgba(255, 176, 0, 0.4);
+        box-shadow: 0 20px 30px -12px rgba(10, 77, 104, 0.2);
+    }
+    
+    .category-card:hover .category-icon {
+        background: linear-gradient(135deg, #FFB000, #FFC533);
+        color: #0A4D68;
+        transform: scale(1.05) rotate(3deg);
+    }
+    
+    .category-icon {
+        transition: all 0.3s ease;
+        background: rgba(10, 77, 104, 0.07);
+    }
+    
+    .btn-glow {
+        transition: all 0.25s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .btn-glow:after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        transition: left 0.5s;
+    }
+    
+    .btn-glow:hover:after {
+        left: 100%;
+    }
+    
+    .btn-glow:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 25px -8px rgba(255, 176, 0, 0.5);
+    }
+    
+    /* custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #FFB000;
+        border-radius: 10px;
+    }
+    
+    .country-badge {
+        background: linear-gradient(115deg, #FFB00020, #0A4D6810);
+        border-radius: 40px;
+    }
+</style>
+</head>
+<body class="bg-gradient-to-br from-[#fef9e8] via-white to-[#f0f7fa] min-h-screen">
+
+    <!-- Animated background decorations -->
+    <div class="fixed inset-0 -z-10 overflow-hidden">
+        <div class="absolute top-0 left-0 w-[500px] h-[500px] bg-yellow-200/30 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+        <div class="absolute bottom-0 right-0 w-[600px] h-[600px] bg-teal-100/40 rounded-full blur-3xl translate-x-1/3 translate-y-1/3"></div>
+        <div class="absolute top-1/3 right-10 w-64 h-64 bg-amber-200/20 rounded-full blur-2xl"></div>
+        <div class="hero-glow"></div>
+    </div>
+
+    <main class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+        <!-- Hero Section with Logo & Brand -->
+        <div class="glass-panel rounded-3xl p-6 sm:p-10 md:p-12 shadow-2xl animate-fade-slide-up">
+            <div class="flex flex-col items-center text-center">
+                <!-- animated brand icon -->
+                <div class="relative mb-5 animate-float-slow">
+                    <div class="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#0A4D68] to-[#FFB000] opacity-20 blur-xl"></div>
+                    <div class="relative w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-gradient-to-br from-[#0A4D68] to-[#FFB000] flex items-center justify-center shadow-xl">
+                        <i class="fa-solid fa-cart-shopping-fast text-4xl md:text-5xl text-white drop-shadow-md"></i>
+                    </div>
+                </div>
+                
+                <h1 class="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight mb-3">
+                    <span class="gradient-text-primary">Varun's Online</span>
+                </h1>
+                
+                <div class="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-sm border border-yellow-200/60 mt-2 mb-4">
+                    <i class="fa-solid fa-map-pin text-[#FFB000] text-sm"></i>
+                    <span class="text-sm font-semibold text-[#0A4D68]">🇮🇳 Delivering across India — Every city, every town</span>
+                </div>
+                
+                <p class="text-lg sm:text-xl md:text-2xl font-bold text-[#0A4D68]/80 max-w-2xl mx-auto">
+                    Straight Delivery From <span class="text-[#FFB000]">Your Favourite </span> Store
+                </p>
+                
+                <div class="h-1 w-20 bg-gradient-to-r from-[#FFB000] to-[#0A4D68] rounded-full my-6"></div>
+                
+                <p class="text-gray-600 text-base sm:text-lg max-w-2xl leading-relaxed">
+                    Groceries, fresh food, electronics, medicines, home essentials & much more — delivered in minutes from your favorite local shops. Nationwide rollout begins soon.
+                </p>
+            </div>
+            
+            <!-- ALL INDIA categories grid - rich and diverse -->
+            <div class="mt-12 md:mt-14">
+                <div class="flex items-center justify-center gap-2 mb-8">
+                    <i class="fa-solid fa-india text-2xl text-[#FFB000]"></i>
+                    <h2 class="text-xl md:text-2xl font-bold text-[#0A4D68]">Everything you need, all in one place</h2>
+                </div>
+                
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-5">
+                    <!-- Category 1 -->
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-apple-whole text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Fresh Groceries</p>
+                        <p class="text-xs text-gray-400 mt-1">Fruits & Veggies</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-bowl-food text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Restaurants</p>
+                        <p class="text-xs text-gray-400 mt-1">Food Delivery</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-capsules text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Pharmacy</p>
+                        <p class="text-xs text-gray-400 mt-1">Health Essentials</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-mobile-screen-button text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Electronics</p>
+                        <p class="text-xs text-gray-400 mt-1">Gadgets & Gear</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-shirt text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Fashion</p>
+                        <p class="text-xs text-gray-400 mt-1">Clothing & More</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-house-chimney text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Home & Living</p>
+                        <p class="text-xs text-gray-400 mt-1">Decor & Utility</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-baby-carriage text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Baby Care</p>
+                        <p class="text-xs text-gray-400 mt-1">Toys & Nutrition</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-paw text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Pet Supplies</p>
+                        <p class="text-xs text-gray-400 mt-1">For your furry friends</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-book-open text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Books & Stationery</p>
+                        <p class="text-xs text-gray-400 mt-1">Learning & Office</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-dumbbell text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Fitness</p>
+                        <p class="text-xs text-gray-400 mt-1">Sports & Wellness</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-gift text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Gifts & Moments</p>
+                        <p class="text-xs text-gray-400 mt-1">Special Occasions</p>
+                    </div>
+                    <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
+                        <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
+                            <i class="fa-solid fa-truck-fast text-2xl text-[#0A4D68]"></i>
+                        </div>
+                        <p class="font-semibold text-[#0A4D68] text-sm">Daily Essentials</p>
+                        <p class="text-xs text-gray-400 mt-1">In minutes</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feature highlights - all India delivery emphasis -->
+            <div class="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/50 backdrop-blur-sm">
+                    <i class="fa-solid fa-location-dot text-2xl text-[#FFB000] mt-1"></i>
+                    <div>
+                        <h3 class="font-bold text-[#0A4D68]">Pan-India Delivery</h3>
+                        <p class="text-xs text-gray-500">From metros to tier-2/3 cities, we cover everywhere.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/50 backdrop-blur-sm">
+                    <i class="fa-regular fa-clock text-2xl text-[#FFB000] mt-1"></i>
+                    <div>
+                        <h3 class="font-bold text-[#0A4D68]">Lightning Fast</h3>
+                        <p class="text-xs text-gray-500">Under 30 mins delivery from local partners.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/50 backdrop-blur-sm">
+                    <i class="fa-solid fa-store text-2xl text-[#FFB000] mt-1"></i>
+                    <div>
+                        <h3 class="font-bold text-[#0A4D68]">Local Stores</h3>
+                        <p class="text-xs text-gray-500">Empowering neighborhood shops across India.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Notify me section - enhanced interactive -->
+            <div class="mt-12 bg-gradient-to-r from-[#0A4D68]/5 to-[#FFB000]/5 rounded-2xl p-6 sm:p-8 border border-white/50">
+                <div class="text-center max-w-xl mx-auto">
+                    <div class="inline-flex items-center gap-2 bg-white rounded-full px-4 py-1 shadow-sm mb-3">
+                        <i class="fa-regular fa-bell text-[#FFB000]"></i>
+                        <span class="text-xs font-bold uppercase tracking-wider text-[#0A4D68]">Launch Alert</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-[#0A4D68] mb-2">Be the first to know</h3>
+                    <p class="text-gray-500 text-sm mb-5">Get exclusive early access & launch offers when we go live in your city.</p>
+                    <form id="notifyForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                        <input type="email" id="emailInput" placeholder="Enter your email address" required
+                               class="flex-1 px-5 py-3 rounded-xl border border-gray-200 bg-white/90 focus:outline-none focus:ring-2 focus:ring-[#FFB000] focus:border-transparent transition text-sm">
+                        <button type="submit" class="btn-glow bg-[#FFB000] text-[#0A4D68] font-extrabold px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fa-regular fa-envelope"></i> Notify Me
+                        </button>
+                    </form>
+                    <div id="formMessage" class="text-sm mt-3 font-medium transition-all h-6"></div>
+                </div>
+            </div>
+            
+            <!-- Contact & support -->
+            <div class="mt-8 flex flex-wrap justify-center gap-5 pt-6 border-t border-gray-200/70">
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                    <i class="fa-regular fa-envelope text-[#FFB000]"></i>
+                    <a href="mailto:venkatavarun79@gmail.com" class="hover:text-[#0A4D68] transition font-medium">venkatavarun79@gmail.com</a>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                    <i class="fa-regular fa-building text-[#FFB000]"></i>
+                    <span>Corporate Office: Visakhapatnam</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                    <i class="fa-regular fa-heart text-[#FFB000]"></i>
+                    <span>Made for India, by Indians</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Social links + map / community vibe -->
+        <div class="flex flex-wrap justify-center items-center gap-6 mt-10 animate-fade-slide-up delay-600">
+            <div class="flex gap-4">
+                <a href="#" class="group w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-[#FFB000] transition-all duration-300 hover:scale-110">
+                    <i class="fa-brands fa-instagram text-[#0A4D68] group-hover:text-white text-xl"></i>
+                </a>
+                <a href="#" class="group w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-[#FFB000] transition-all duration-300 hover:scale-110">
+                    <i class="fa-brands fa-whatsapp text-[#0A4D68] group-hover:text-white text-xl"></i>
+                </a>
+                <a href="#" class="group w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-[#FFB000] transition-all duration-300 hover:scale-110">
+                    <i class="fa-brands fa-x-twitter text-[#0A4D68] group-hover:text-white text-xl"></i>
+                </a>
+                <a href="#" class="group w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-[#FFB000] transition-all duration-300 hover:scale-110">
+                    <i class="fa-brands fa-facebook text-[#0A4D68] group-hover:text-white text-xl"></i>
+                </a>
+            </div>
+            <div class="text-xs text-white/70 bg-[#0A4D68]/40 backdrop-blur-sm px-4 py-1.5 rounded-full">
+                <i class="fa-regular fa-circle-check mr-1"></i> Coming to your city soon — Delhi, Chennai, Kolkata, Pune, Ahmedabad & beyond
+            </div>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 mt-6 border-t border-white/20 backdrop-blur-sm">
+        <p class="text-xs text-gray-600">© 2026 Varun's Online — India's Local Delivery Revolution. All rights reserved.</p>
+        <p class="text-[10px] text-gray-400 mt-1">Delivering happiness across 28 states and 8 union territories.</p>
+    </footer>
+    
+    <script>
+        // Enhanced interactive notification with validation and success UI
+        const form = document.getElementById('notifyForm');
+        const emailField = document.getElementById('emailInput');
+        const messageDiv = document.getElementById('formMessage');
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = emailField.value.trim();
+            const isValid = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/i.test(email);
+            
+            if (!isValid) {
+                messageDiv.innerHTML = '<span class="text-red-500 flex items-center justify-center gap-1"><i class="fa-solid fa-circle-exclamation"></i> Please enter a valid email address.</span>';
+                messageDiv.style.color = '#dc2626';
+                emailField.classList.add('border-red-300');
+                setTimeout(() => {
+                    if (messageDiv) messageDiv.innerHTML = '';
+                    emailField.classList.remove('border-red-300');
+                }, 3500);
+                return;
+            }
+            
+            // Show loading state
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-pulse"></i> Subscribing...';
+            btn.disabled = true;
+            
+            // Simulate API / store locally (demo purpose)
+            setTimeout(() => {
+                // Success feedback
+                messageDiv.innerHTML = '<span class="text-green-600 flex items-center justify-center gap-1"><i class="fa-regular fa-circle-check"></i> Thanks! We’ll notify you as soon as Varun\'s Online launches nationwide.</span>';
+                messageDiv.style.color = '#0A4D68';
+                emailField.value = '';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                // Optional: store to localStorage for fun
+                try {
+                    let subscribers = JSON.parse(localStorage.getItem('varun_notify_list') || '[]');
+                    if (!subscribers.includes(email)) {
+                        subscribers.push(email);
+                        localStorage.setItem('varun_notify_list', JSON.stringify(subscribers));
+                    }
+                } catch(er) {}
+                
+                setTimeout(() => {
+                    if (messageDiv) messageDiv.innerHTML = '';
+                }, 5000);
+            }, 600);
+        });
+        
+        // additional entrance staggered effect (already handled via css)
+        document.querySelectorAll('.animate-fade-slide-up').forEach((el, idx) => {
+            if(!el.style.animationDelay) {
+                const delay = (idx * 0.05) + 0.1;
+                el.style.animationDelay = `${delay}s`;
+            }
+        });
+        
+        // subtle hover interactive for categories (analytics friendly)
+        const categories = document.querySelectorAll('.category-card');
+        categories.forEach(card => {
+            card.addEventListener('click', () => {
+                const catName = card.querySelector('p')?.innerText || 'category';
+                console.log(`[Varun's Online] Interest: ${catName}`);
+                // optional mini haptic feedback
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => { card.style.transform = ''; }, 120);
+            });
+        });
+    </script>
+</body>
+</html>
