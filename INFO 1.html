@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Varun's Online - Coming Soon</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    :root {
+        --primary: #0A4D68;
+        --accent: #FFB000;
+        --bg-light: #f8fafc;
+    }
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg-light);
+        color: var(--primary);
+        overflow-x: hidden;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 176, 0, 0.4); }
+        50% { box-shadow: 0 0 0 20px rgba(255, 176, 0, 0); }
+    }
+    
+    @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    .animate-float {
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    .animate-fadeInUp {
+        animation: fadeInUp 0.8s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+    .delay-4 { animation-delay: 0.4s; }
+    
+    .gradient-bg {
+        background: linear-gradient(135deg, #0A4D68 0%, #0c5f7f 50%, #0A4D68 100%);
+        background-size: 200% 200%;
+        animation: gradient-shift 15s ease infinite;
+    }
+    
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .text-gradient {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .btn-primary {
+        background: var(--accent);
+        color: var(--primary);
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(255, 176, 0, 0.3);
+    }
+    
+    .icon-bounce:hover {
+        animation: pulse-glow 1.5s infinite;
+    }
+    
+    .service-icon {
+        transition: all 0.3s ease;
+    }
+    
+    .service-item:hover .service-icon {
+        transform: scale(1.1) rotate(5deg);
+        color: var(--accent);
+    }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Background Pattern -->
+    <div class="fixed inset-0 -z-10 gradient-bg"></div>
+    <div class="fixed inset-0 -z-10 opacity-10" style="background-image: radial-gradient(circle at 20% 50%, white 0.5px, transparent 0.5px), radial-gradient(circle at 80% 80%, white 0.5px, transparent 0.5px); background-size: 50px 50px;"></div>
+    
+    <!-- Main Content -->
+    <main class="flex-1 flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <div class="w-full max-w-4xl">
+            <div class="glass-card rounded-3xl shadow-2xl p-6 sm:p-10 md:p-14 animate-fadeInUp">
+                <!-- Logo Section -->
+                <div class="text-center mb-8 animate-fadeInUp delay-1">
+                    <div class="inline-block mb-4 animate-float">
+                        <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center" style="background: linear-gradient(135deg, #0A4D68 0%, #FFB000 100%);">
+                            <i class="fa-solid fa-bag-shopping text-4xl sm:text-5xl text-white"></i>
+                        </div>
+                    <h1 class="text-4xl sm:text-5xl md:text-6xl font-black mb-2">
+                        <span class="text-gradient">Varun's Online</span>
+                    </h1>
+                </div>
+                
+                <!-- Tagline -->
+                <div class="text-center mb-6 animate-fadeInUp delay-2">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold mb-2" style="color: #0A4D68;">
+                        Visakhapatnam's Local Delivery Service
+                    </h2>
+                    <div class="inline-block">
+                        <span class="text-lg sm:text-xl font-semibold px-4 py-1 rounded-full" style="background: #FFB000; color: #0A4D68;">
+                            Launching Soon!
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="text-center mb-10 animate-fadeInUp delay-3">
+                    <p class="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                        Groceries, Food, Essentials delivered to your doorstep.From Your Favourite Local Stores.
+                    </p>
+                    <p class="text-sm sm:text-base text-gray-500 mt-3 max-w-xl mx-auto">
+                        We're working hard to bring you the fastest, most reliable delivery experience in Visakhapatnam. Stay tuned!
+                    </p>
+                </div>
+                
+                <!-- Services Icons -->
+                <div class="grid grid-cols-3 gap-4 sm:gap-6 mb-10 animate-fadeInUp delay-3">
+                    <div class="service-item text-center">
+                        <div class="service-icon w-14 h-14 sm:w-16 sm:h-16 rounded-xl mx-auto mb-3 flex items-center justify-center" style="background: rgba(10, 77, 104, 0.1); color: #0A4D68;">
+                            <i class="fa-solid fa-carrot text-2xl sm:text-3xl"></i>
+                        </div>
+                        <p class="text-xs sm:text-sm font-semibold" style="color: #0A4D68;">Groceries</p>
+                    </div>
+                    <div class="service-item text-center">
+                        <div class="service-icon w-14 h-14 sm:w-16 sm:h-16 rounded-xl mx-auto mb-3 flex items-center justify-center" style="background: rgba(10, 77, 104, 0.1); color: #0A4D68;">
+                            <i class="fa-solid fa-burger text-2xl sm:text-3xl"></i>
+                        </div>
+                        <p class="text-xs sm:text-sm font-semibold" style="color: #0A4D68;">Food</p>
+                    </div>
+                    <div class="service-item text-center">
+                        <div class="service-icon w-14 h-14 sm:w-16 sm:h-16 rounded-xl mx-auto mb-3 flex items-center justify-center" style="background: rgba(10, 77, 104, 0.1); color: #0A4D68;">
+                            <i class="fa-solid fa-basket-shopping text-2xl sm:text-3xl"></i>
+                        </div>
+                        <p class="text-xs sm:text-sm font-semibold" style="color: #0A4D68;">Essentials</p>
+                    </div>
+                </div>
+                
+                <!-- Notify Section -->
+                <div class="text-center mb-8 animate-fadeInUp delay-4">
+                    <p class="text-sm sm:text-base text-gray-600 mb-4">Want to be notified when we launch?</p>
+                    <form id="notifyForm" class="max-w-md mx-auto flex flex-col sm:flex-row gap-3">
+                        <input 
+                            type="email" 
+                            id="emailInput"
+                            placeholder="Enter your email" 
+                            required
+                            class="flex-1 px-5 py-3 rounded-xl border-2 border-gray-200 focus:border-yellow-400 focus:outline-none transition-all text-sm sm:text-base"
+                            style="focus:ring-color: #FFB000;"
+                        >
+                        <button 
+                            type="submit" 
+                            class="btn-primary px-6 py-3 rounded-xl font-bold text-sm sm:text-base whitespace-nowrap"
+                        >
+                            Notify Me
+                        </button>
+                    </form>
+                    <p id="formMessage" class="text-sm mt-3 h-5" style="color: #0A4D68;"></p>
+                </div>
+                
+                <!-- Contact -->
+                <div class="text-center pt-6 border-t border-gray-200 animate-fadeInUp delay-4">
+                    <p class="text-xs sm:text-sm text-gray-500 mb-3">Have questions? Get in touch</p>
+                    <a 
+                        href="mailto:venkatavarun79@gmail.com" 
+                        class="inline-flex items-center gap-2 px-5 py-2 rounded-lg font-semibold text-sm sm:text-base icon-bounce transition-all"
+                        style="background: rgba(10, 77, 104, 0.1); color: #0A4D68;"
+                    >
+                        <i class="fa-solid fa-envelope"></i>
+                        <span>venkatavarun79@gmail.com</span>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Social Icons -->
+            <div class="flex justify-center gap-4 mt-8 animate-fadeInUp delay-4">
+                <a href="#" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" style="color: #0A4D68;">
+                    <i class="fa-brands fa-instagram text-lg sm:text-xl"></i>
+                </a>
+                <a href="#" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" style="color: #0A4D68;">
+                    <i class="fa-brands fa-facebook text-lg sm:text-xl"></i>
+                </a>
+                <a href="#" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" style="color: #0A4D68;">
+                    <i class="fa-brands fa-x-twitter text-lg sm:text-xl"></i>
+                </a>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="py-6 px-4 text-center">
+        <p class="text-xs sm:text-sm text-white/90">
+            © 2026 Varun's Online. Visakhapatnam, Andhra Pradesh.
+        </p>
+    </footer>
+    
+    <script>
+        document.getElementById('notifyForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const emailInput = document.getElementById('emailInput');
+            const messageEl = document.getElementById('formMessage');
+            const email = emailInput.value.trim();
+            
+            if (email && email.includes('@')) {
+                messageEl.textContent = 'Thanks! We\'ll notify you when we launch.';
+                messageEl.style.color = '#0A4D68';
+                emailInput.value = '';
+                
+                setTimeout(() => {
+                    messageEl.textContent = '';
+                }, 4000);
+            } else {
+                messageEl.textContent = 'Please enter a valid email address.';
+                messageEl.style.color = '#dc2626';
+            }
+        });
+        
+        // Smooth entrance for elements
+        document.addEventListener('DOMContentLoaded', function() {
+            const elements = document.querySelectorAll('.animate-fadeInUp');
+            elements.forEach((el, index) => {
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>
