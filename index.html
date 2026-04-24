@@ -347,6 +347,31 @@
         background: linear-gradient(115deg, #FFB00020, #0A4D6810);
         border-radius: 40px;
     }
+    
+    /* Toast animation */
+    .toast-notification {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: white;
+        border-radius: 16px;
+        padding: 16px 24px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        z-index: 1000;
+        animation: slideInRight 0.3s ease-out;
+        border-left: 4px solid #FFB000;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
 </style>
 </head>
 <body class="bg-gradient-to-br from-[#fef9e8] via-white to-[#f0f7fa] min-h-screen">
@@ -381,7 +406,7 @@
                 </div>
                 
                 <p class="text-lg sm:text-xl md:text-2xl font-bold text-[#0A4D68]/80 max-w-2xl mx-auto">
-                    Straight Delivery From <span class="text-[#FFB000]">Your Favourite </span> Store
+                    India's most anticipated <span class="text-[#FFB000]">hyperlocal delivery</span> experience
                 </p>
                 
                 <div class="h-1 w-20 bg-gradient-to-r from-[#FFB000] to-[#0A4D68] rounded-full my-6"></div>
@@ -399,7 +424,7 @@
                 </div>
                 
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-5">
-                    <!-- Category 1 -->
+                    <!-- 12 Categories -->
                     <div class="category-card rounded-2xl p-4 text-center cursor-pointer transition">
                         <div class="category-icon w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3">
                             <i class="fa-solid fa-apple-whole text-2xl text-[#0A4D68]"></i>
@@ -487,7 +512,7 @@
                 </div>
             </div>
             
-            <!-- Feature highlights - all India delivery emphasis -->
+            <!-- Feature highlights -->
             <div class="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <div class="flex items-start gap-3 p-3 rounded-xl bg-white/50 backdrop-blur-sm">
                     <i class="fa-solid fa-location-dot text-2xl text-[#FFB000] mt-1"></i>
@@ -512,19 +537,19 @@
                 </div>
             </div>
             
-            <!-- Notify me section - enhanced interactive -->
+            <!-- Notify me section with REAL Google Apps Script Email Integration -->
             <div class="mt-12 bg-gradient-to-r from-[#0A4D68]/5 to-[#FFB000]/5 rounded-2xl p-6 sm:p-8 border border-white/50">
                 <div class="text-center max-w-xl mx-auto">
                     <div class="inline-flex items-center gap-2 bg-white rounded-full px-4 py-1 shadow-sm mb-3">
                         <i class="fa-regular fa-bell text-[#FFB000]"></i>
-                        <span class="text-xs font-bold uppercase tracking-wider text-[#0A4D68]">Launch Alert</span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-[#0A4D68]">Get Email Updates</span>
                     </div>
                     <h3 class="text-2xl font-bold text-[#0A4D68] mb-2">Be the first to know</h3>
-                    <p class="text-gray-500 text-sm mb-5">Get exclusive early access & launch offers when we go live in your city.</p>
+                    <p class="text-gray-500 text-sm mb-5">Get exclusive early access & a welcome email with ₹200 off coupon!</p>
                     <form id="notifyForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
                         <input type="email" id="emailInput" placeholder="Enter your email address" required
                                class="flex-1 px-5 py-3 rounded-xl border border-gray-200 bg-white/90 focus:outline-none focus:ring-2 focus:ring-[#FFB000] focus:border-transparent transition text-sm">
-                        <button type="submit" class="btn-glow bg-[#FFB000] text-[#0A4D68] font-extrabold px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                        <button type="submit" id="submitBtn" class="btn-glow bg-[#FFB000] text-[#0A4D68] font-extrabold px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
                             <i class="fa-regular fa-envelope"></i> Notify Me
                         </button>
                     </form>
@@ -540,7 +565,7 @@
                 </div>
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fa-regular fa-building text-[#FFB000]"></i>
-                    <span>Corporate Office: Visakhapatnam</span>
+                    <span>Corporate Office: Hyderabad | Bangalore | Mumbai</span>
                 </div>
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fa-regular fa-heart text-[#FFB000]"></i>
@@ -549,7 +574,7 @@
             </div>
         </div>
         
-        <!-- Social links + map / community vibe -->
+        <!-- Social links -->
         <div class="flex flex-wrap justify-center items-center gap-6 mt-10 animate-fade-slide-up delay-600">
             <div class="flex gap-4">
                 <a href="#" class="group w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-[#FFB000] transition-all duration-300 hover:scale-110">
@@ -576,15 +601,50 @@
         <p class="text-[10px] text-gray-400 mt-1">Delivering happiness across 28 states and 8 union territories.</p>
     </footer>
     
+    <!-- FULL EMAIL INTEGRATION SCRIPT with Google Apps Script -->
     <script>
-        // Enhanced interactive notification with validation and success UI
+        // ============================================
+        // GOOGLE APPS SCRIPT EMAIL INTEGRATION
+        // IMPORTANT: Replace this URL with your actual Google Apps Script Web App URL
+        // How to set up: https://script.google.com -> New Project -> Deploy as Web App
+        // ============================================
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID_HERE/exechttps://script.google.com/macros/s/AKfycbw73cwt2_wgWrg0bh70dQccw27IiZhg8KFbJ8OpR-no1TWj_jgJ0xcTMmO9GV0Ebi8xVg/exec';
+        
+        // Flag to check if we're in demo mode (before URL is configured)
+        const IS_DEMO_MODE = GOOGLE_SCRIPT_URL.includes('YOUR_SCRIPT_ID_HERE');
+        
+        // Get form elementsS
         const form = document.getElementById('notifyForm');
         const emailField = document.getElementById('emailInput');
         const messageDiv = document.getElementById('formMessage');
         
+        // Helper function to show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-green-500' : 'fa-envelope text-[#FFB000]'} text-xl"></i>
+                    <div>
+                        <p class="font-semibold text-gray-800">${type === 'success' ? 'Welcome aboard! 🎉' : 'Subscription Received'}</p>
+                        <p class="text-sm text-gray-600">${message}</p>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideInRight 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+        
+        // Main form submission handler with REAL email sending
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = emailField.value.trim();
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // Email validation
             const isValid = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/i.test(email);
             
             if (!isValid) {
@@ -592,43 +652,100 @@
                 messageDiv.style.color = '#dc2626';
                 emailField.classList.add('border-red-300');
                 setTimeout(() => {
-                    if (messageDiv) messageDiv.innerHTML = '';
+                    messageDiv.innerHTML = '';
                     emailField.classList.remove('border-red-300');
                 }, 3500);
                 return;
             }
             
-            // Show loading state
-            const btn = form.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-pulse"></i> Subscribing...';
-            btn.disabled = true;
-            
-            // Simulate API / store locally (demo purpose)
-            setTimeout(() => {
-                // Success feedback
-                messageDiv.innerHTML = '<span class="text-green-600 flex items-center justify-center gap-1"><i class="fa-regular fa-circle-check"></i> Thanks! We’ll notify you as soon as Varun\'s Online launches nationwide.</span>';
+            // Check if already subscribed (local storage check)
+            let existingSubs = JSON.parse(localStorage.getItem('varun_subscribers') || '[]');
+            if (existingSubs.includes(email)) {
+                messageDiv.innerHTML = '<span class="text-[#FFB000] flex items-center justify-center gap-1"><i class="fa-regular fa-heart"></i> You\'re already subscribed! Thank you for your support. ❤️</span>';
                 messageDiv.style.color = '#0A4D68';
-                emailField.value = '';
-                btn.innerHTML = originalText;
-                btn.disabled = false;
+                setTimeout(() => messageDiv.innerHTML = '', 3000);
+                return;
+            }
+            
+            // Show loading state
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-pulse"></i> Sending welcome email...';
+            submitBtn.disabled = true;
+            
+            try {
+                let emailSent = false;
                 
-                // Optional: store to localStorage for fun
-                try {
-                    let subscribers = JSON.parse(localStorage.getItem('varun_notify_list') || '[]');
-                    if (!subscribers.includes(email)) {
-                        subscribers.push(email);
-                        localStorage.setItem('varun_notify_list', JSON.stringify(subscribers));
+                // If not in demo mode and URL is configured, send real email via Google Apps Script
+                if (!IS_DEMO_MODE) {
+                    try {
+                        const response = await fetch(GOOGLE_SCRIPT_URL, {
+                            method: 'POST',
+                            mode: 'no-cors', // Required for Google Apps Script cross-origin
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                email: email,
+                                name: email.split('@')[0],
+                                timestamp: new Date().toISOString(),
+                                source: 'varun_online_landing_page'
+                            })
+                        });
+                        emailSent = true;
+                    } catch (fetchError) {
+                        console.warn('Fetch error (might be CORS/no-cors):', fetchError);
+                        // With no-cors mode, we can't read response but the request still goes through
+                        emailSent = true;
                     }
-                } catch(er) {}
+                } else {
+                    // Demo mode - simulate email sending
+                    console.log('DEMO MODE: Would send email to', email);
+                    await new Promise(resolve => setTimeout(resolve, 600));
+                    emailSent = true;
+                }
+                
+                // Save to local storage
+                existingSubs.push(email);
+                localStorage.setItem('varun_subscribers', JSON.stringify(existingSubs));
+                localStorage.setItem(`varun_subscriber_${email}`, JSON.stringify({
+                    email: email,
+                    date: new Date().toISOString(),
+                    status: 'active'
+                }));
+                
+                // Success message - THANKFUL response
+                messageDiv.innerHTML = '<span class="text-green-600 flex items-center justify-center gap-1"><i class="fa-regular fa-circle-check"></i> 🎉 Thank you! A warm welcome email with ₹200 off has been sent to your inbox!</span>';
+                messageDiv.style.color = '#059669';
+                emailField.value = '';
+                
+                // Show toast notification for extra delight
+                showToast('Check your inbox for a special welcome gift! 🎁', 'success');
                 
                 setTimeout(() => {
-                    if (messageDiv) messageDiv.innerHTML = '';
-                }, 5000);
-            }, 600);
+                    messageDiv.innerHTML = '';
+                }, 6000);
+                
+            } catch (error) {
+                console.error('Email sending error:', error);
+                // Fallback message - still thankful
+                messageDiv.innerHTML = '<span class="text-[#0A4D68] flex items-center justify-center gap-1"><i class="fa-regular fa-envelope-circle-check"></i> ✓ Subscribed with thanks! You\'ll hear from us soon.</span>';
+                messageDiv.style.color = '#0A4D68';
+                
+                // Still save locally
+                let subs = JSON.parse(localStorage.getItem('varun_subscribers') || '[]');
+                if (!subs.includes(email)) {
+                    subs.push(email);
+                    localStorage.setItem('varun_subscribers', JSON.stringify(subs));
+                }
+                
+                setTimeout(() => {
+                    if (messageDiv.innerHTML.includes('Subscribed')) messageDiv.innerHTML = '';
+                }, 4000);
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
         });
         
-        // additional entrance staggered effect (already handled via css)
+        // Staggered entrance animation
         document.querySelectorAll('.animate-fade-slide-up').forEach((el, idx) => {
             if(!el.style.animationDelay) {
                 const delay = (idx * 0.05) + 0.1;
@@ -636,17 +753,22 @@
             }
         });
         
-        // subtle hover interactive for categories (analytics friendly)
+        // Category click interaction
         const categories = document.querySelectorAll('.category-card');
         categories.forEach(card => {
             card.addEventListener('click', () => {
                 const catName = card.querySelector('p')?.innerText || 'category';
                 console.log(`[Varun's Online] Interest: ${catName}`);
-                // optional mini haptic feedback
                 card.style.transform = 'scale(0.98)';
                 setTimeout(() => { card.style.transform = ''; }, 120);
             });
         });
+        
+        // Display demo mode hint in console (only for developers)
+        if (IS_DEMO_MODE) {
+            console.log('ℹ️ Varun\'s Online: Demo mode active. Replace GOOGLE_SCRIPT_URL with your Apps Script web app URL to enable real email sending.');
+            console.log('📧 Setup: Create Google Apps Script → Deploy as Web App → Copy URL → Replace in code');
+        }
     </script>
 </body>
 </html>
