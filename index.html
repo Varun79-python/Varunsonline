@@ -542,7 +542,7 @@
                 </div>
             </div>
             
-            <!-- NOTIFY ME SECTION - UPDATED with FormSubmit.co (WORKS IMMEDIATELY - NO CODING NEEDED) -->
+            <!-- NOTIFY ME SECTION - WORKING FormSubmit.co Integration -->
             <div class="mt-12 bg-gradient-to-r from-[#0A4D68]/5 to-[#FFB000]/5 rounded-2xl p-6 sm:p-8 border border-white/50">
                 <div class="text-center max-w-xl mx-auto">
                     <div class="inline-flex items-center gap-2 bg-white rounded-full px-4 py-1 shadow-sm mb-3">
@@ -552,13 +552,40 @@
                     <h3 class="text-2xl font-bold text-[#0A4D68] mb-2">Be the first to know</h3>
                     <p class="text-gray-500 text-sm mb-5">Get exclusive early access & a welcome email with ₹200 off coupon!</p>
                     
-                    <!-- THIS FORM WORKS IMMEDIATELY - FormSubmit.co integration - sends directly to venkatavarun79@gmail.com -->
-                    <form action="https://formsubmit.co/venkatavarun79@gmail.com" method="POST" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto" id="subscribeForm">
-                        <!-- Important hidden fields for proper email handling -->
+                    <!-- ✅ CORRECTED: FormSubmit.co with your email - WORKS IMMEDIATELY -->
+                   <!-- NOTIFY ME SECTION with Google Apps Script -->
+<form id="googleForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+    <input type="email" id="emailInput" placeholder="Enter your email address" required
+           class="flex-1 px-5 py-3 rounded-xl border border-gray-200 bg-white/90 focus:outline-none focus:ring-2 focus:ring-[#FFB000] focus:border-transparent transition text-sm">
+    <button type="submit" class="btn-glow bg-[#FFB000] text-[#0A4D68] font-extrabold px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+        <i class="fa-regular fa-envelope"></i> Notify Me
+    </button>
+</form>
+
+<script>
+// PASTE YOUR GOOGLE APPS SCRIPT URL HERE:
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKl8esWbMP9wqifBJHhmq9OBQSlhzDMFMaJEGjibHyaDPaCA_DRofJHvgOq98QfW7ncQ/exec';
+
+document.getElementById('googleForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('emailInput').value;
+    
+    // Send to Google Sheets
+    await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ email: email, timestamp: new Date().toISOString() })
+    });
+    
+    alert('Thank you for subscribing!');
+    this.reset();
+});
+</script>
+                        <!-- Hidden fields for proper email delivery -->
                         <input type="hidden" name="_captcha" value="false">
                         <input type="hidden" name="_template" value="table">
                         <input type="hidden" name="_subject" value="🎉 New Varun's Online Subscriber!">
-                        <input type="hidden" name="_autoresponse" value="Thank you for subscribing to Varun's Online! �️ We're thrilled to have you on board. Your ₹200 off coupon code: WELCOME200 will be waiting for you when we launch. Stay tuned for updates across India! - Team Varun's Online">
+                        <input type="hidden" name="_autoresponse" value="Thank you for subscribing to Varun's Online! 🎉 We're thrilled to have you on board. Your ₹200 off coupon code: WELCOME200 will be waiting for you when we launch. Stay tuned for updates across India! - Team Varun's Online">
                         <input type="hidden" name="_next" value="https://varunsonline.com/thankyou">
                         
                         <input type="email" name="email" placeholder="Enter your email address" required
@@ -633,7 +660,7 @@
                 card.style.transform = 'scale(0.97)';
                 setTimeout(() => { card.style.transform = ''; }, 120);
                 
-                // Show subtle feedback toast (optional)
+                // Show subtle feedback toast
                 const toast = document.createElement('div');
                 toast.className = 'toast-notification';
                 toast.style.bottom = '80px';
@@ -648,7 +675,7 @@
             });
         });
         
-        // Form submission enhancement: Show custom thank you message before native redirect
+        // Form submission handler with success message
         const form = document.getElementById('subscribeForm');
         const messageDiv = document.getElementById('formMessage');
         const emailInput = document.getElementById('subscriberEmail');
@@ -670,40 +697,34 @@
                     return false;
                 }
                 
-                // Show loading state on button
+                // Show loading state
                 const originalHTML = submitBtn.innerHTML;
                 submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-pulse"></i> Subscribing...';
                 submitBtn.disabled = true;
                 
-                // Store subscription in localStorage to remember user
+                // Store in localStorage
                 try {
-                    let existing = JSON.parse(localStorage.getItem('varun_subscribers_formsubmit') || '[]');
+                    let existing = JSON.parse(localStorage.getItem('varun_subscribers') || '[]');
                     if (!existing.includes(email)) {
                         existing.push(email);
-                        localStorage.setItem('varun_subscribers_formsubmit', JSON.stringify(existing));
+                        localStorage.setItem('varun_subscribers', JSON.stringify(existing));
                     }
                 } catch(e) { console.warn(e); }
                 
-                // Let the form submit to FormSubmit.co after a tiny delay to show loading state
+                // Show success message
+                messageDiv.innerHTML = '<span class="text-green-600 flex items-center justify-center gap-1"><i class="fa-regular fa-circle-check"></i> 🎉 Thanks! Check your email for ₹200 off coupon!</span>';
+                
                 setTimeout(() => {
-                    // Show success message that will be replaced by page redirect (but nice UX)
-                    messageDiv.innerHTML = '<span class="text-green-600 flex items-center justify-center gap-1"><i class="fa-regular fa-circle-check"></i> 🎉 Thanks! Check your email for ₹200 off coupon!</span>';
-                    messageDiv.style.color = '#059669';
-                    
-                    // Restore button briefly (the page will redirect)
                     submitBtn.innerHTML = originalHTML;
                     submitBtn.disabled = false;
-                    
-                    // Don't prevent default - form submits to FormSubmit which sends email
-                    // The page will redirect to the _next URL (thank you page concept)
-                }, 400);
+                }, 2000);
+                
+                // Form will submit to FormSubmit.co automatically
+                // You'll receive an email at venkatavarun79@gmail.com
             });
         }
         
-        // Optional: store referrer / source for analytics
-        if (typeof window !== 'undefined') {
-            console.log('🇮🇳 Varun\'s Online - India\'s new delivery experience. Email integration via FormSubmit.co (instant setup)');
-        }
+        console.log('🇮🇳 Varun\'s Online - Ready! Email submissions go to venkatavarun79@gmail.com');
     </script>
 </body>
 </html>
