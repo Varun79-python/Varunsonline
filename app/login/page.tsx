@@ -149,9 +149,16 @@ export default function LoginPage() {
         )}
       </div>
 
-      <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-        Admin? <a href="/admin/login" style={{ color: 'var(--primary)' }}>Admin Login →</a>
-      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: '20px' }}>
+        {mode === 'login' && (
+          <a href="/forgot-password" style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 600 }}>
+            🔑 Forgot Password?
+          </a>
+        )}
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', margin: 0 }}>
+          Admin? <a href="/admin/login" style={{ color: 'var(--primary)' }}>Admin Login →</a>
+        </p>
+      </div>
     </div>
   )
 }
