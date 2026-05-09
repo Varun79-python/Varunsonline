@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Agent {
-  id: string; full_name: string; phone: string; email: string;
-  vehicle_type: string; vehicle_number: string; license_number: string;
+  id: string; 
+  vehicle_type: string; vehicle_number: string; license_url: string; aadhar_url: string; live_photo_url: string;
   is_approved: boolean; is_active: boolean;
   wallet_balance: number; total_deliveries: number; today_earnings: number;
   rejection_reason: string; created_at: string;
+  profiles: { full_name: string; phone: string; email: string };
 }
 
 export default function AdminAgents() {
@@ -22,7 +23,7 @@ export default function AdminAgents() {
   async function load() {
     setLoading(true)
     let q = supabase.from('delivery_agents')
-      .select('*')
+      .select('*, profiles(full_name, phone, email)')
       .order('created_at', { ascending: false })
     if (tab === 'pending') q = q.eq('is_approved', false)
     else if (tab === 'active') q = q.eq('is_approved', true)
@@ -98,15 +99,17 @@ export default function AdminAgents() {
             {agents.map(agent => (
               <tr key={agent.id}>
                 <td>
-                  <div style={{ fontWeight: 600 }}>{agent.full_name || '—'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agent.email || ''}</div>
+                  <div style={{ fontWeight: 600 }}>{agent.profiles?.full_name || 'N/A'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agent.profiles?.email || ''}</div>
                 </td>
-                <td style={{ fontWeight: 500 }}>{agent.phone || '—'}</td>
+                <td style={{ fontWeight: 500 }}>{agent.profiles?.phone || 'N/A'}</td>
                 <td>
                   <div>{agent.vehicle_type ? agent.vehicle_type.replace(/_/g, ' ') : '—'}</div>
                   {agent.vehicle_number && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.vehicle_number}</div>}
                 </td>
-                <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{agent.license_number || '—'}</td>
+                <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                  {agent.license_url ? <a href={agent.license_url} target="_blank" style={{ textDecoration: 'underline' }}>View License</a> : '—'}
+                </td>
                 <td>{agent.total_deliveries || 0}</td>
                 <td>₹{(agent.wallet_balance || 0).toFixed(0)}</td>
                 <td>
@@ -151,12 +154,11 @@ export default function AdminAgents() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
               {[
-                { label: 'Full Name', value: selected.full_name },
-                { label: 'Phone', value: selected.phone },
-                { label: 'Email', value: selected.email },
+                { label: 'Full Name', value: selected.profiles?.full_name },
+                { label: 'Phone', value: selected.profiles?.phone },
+                { label: 'Email', value: selected.profiles?.email },
                 { label: 'Vehicle Type', value: selected.vehicle_type },
                 { label: 'Vehicle Number', value: selected.vehicle_number },
-                { label: 'License Number', value: selected.license_number },
                 { label: 'Total Deliveries', value: selected.total_deliveries || 0 },
                 { label: 'Wallet Balance', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
                 { label: "Today's Earnings", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
@@ -167,6 +169,12 @@ export default function AdminAgents() {
                   <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{f.value || '—'}</div>
                 </div>
               ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              {selected.license_url && <a href={selected.license_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>📄 View License</a>}
+              {selected.aadhar_url && <a href={selected.aadhar_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>📄 View Aadhaar</a>}
+              {selected.live_photo_url && <a href={selected.live_photo_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>🖼 View Photo</a>}
             </div>
 
             {selected.rejection_reason && (
