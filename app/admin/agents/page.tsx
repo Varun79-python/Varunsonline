@@ -8,7 +8,8 @@ interface Agent {
   is_approved: boolean; is_active: boolean;
   wallet_balance: number; total_deliveries: number; today_earnings: number;
   rejection_reason: string; created_at: string;
-  profiles: { full_name: string; phone: string; email: string };
+  profiles: any;
+  profile_data?: { full_name: string; phone: string; email: string };
 }
 
 export default function AdminAgents() {
@@ -27,9 +28,14 @@ export default function AdminAgents() {
       .order('created_at', { ascending: false })
     if (tab === 'pending') q = q.eq('is_approved', false)
     else if (tab === 'active') q = q.eq('is_approved', true)
-    const { data } = await q
-    // Also try to get email from auth if not stored
-    setAgents(data || [])
+    const { data, error } = await q
+    console.log("Agents loaded:", data, "Error:", error)
+    // Handle array or object for profiles
+    const formattedData = (data || []).map(agent => ({
+      ...agent,
+      profile_data: Array.isArray(agent.profiles) ? agent.profiles[0] : agent.profiles
+    }))
+    setAgents(formattedData)
     setLoading(false)
   }
 
@@ -99,10 +105,10 @@ export default function AdminAgents() {
             {agents.map(agent => (
               <tr key={agent.id}>
                 <td>
-                  <div style={{ fontWeight: 600 }}>{agent.profiles?.full_name || 'N/A'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agent.profiles?.email || ''}</div>
+                  <div style={{ fontWeight: 600 }}>{agent.profile_data?.full_name || 'N/A'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agent.profile_data?.email || ''}</div>
                 </td>
-                <td style={{ fontWeight: 500 }}>{agent.profiles?.phone || 'N/A'}</td>
+                <td style={{ fontWeight: 500 }}>{agent.profile_data?.phone || 'N/A'}</td>
                 <td>
                   <div>{agent.vehicle_type ? agent.vehicle_type.replace(/_/g, ' ') : '—'}</div>
                   {agent.vehicle_number && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.vehicle_number}</div>}
@@ -154,9 +160,9 @@ export default function AdminAgents() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
               {[
-                { label: 'Full Name', value: selected.profiles?.full_name },
-                { label: 'Phone', value: selected.profiles?.phone },
-                { label: 'Email', value: selected.profiles?.email },
+                { label: 'Full Name', value: selected.profile_data?.full_name },
+                { label: 'Phone', value: selected.profile_data?.phone },
+                { label: 'Email', value: selected.profile_data?.email },
                 { label: 'Vehicle Type', value: selected.vehicle_type },
                 { label: 'Vehicle Number', value: selected.vehicle_number },
                 { label: 'Total Deliveries', value: selected.total_deliveries || 0 },
