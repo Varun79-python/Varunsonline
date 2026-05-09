@@ -120,7 +120,7 @@ export default function ResetPasswordPage() {
               {/* Strength indicator */}
               {password && (
                 <div style={{ marginTop: 6, display: 'flex', gap: 4 }}>
-                  {[1,2,3,4].map(i => (
+                  {[1, 2, 3, 4].map(i => (
                     <div key={i} style={{
                       flex: 1, height: 4, borderRadius: 2,
                       background: password.length >= i * 3
