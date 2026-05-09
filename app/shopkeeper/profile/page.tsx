@@ -49,7 +49,7 @@ export default function ShopkeeperProfile() {
       <h2 style={{ marginBottom: 8 }}>🏪 Shop Profile</h2>
       <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
         <span className={`badge ${shop.is_approved ? 'badge-green' : 'badge-yellow'}`}>{shop.is_approved ? '✅ Approved' : '⏳ Pending Approval'}</span>
-        {shop.is_approved && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={!!shop.is_open} onChange={e => update('is_open', e.target.checked)} /> Shop is Open</label>}
+        {!!(shop.is_approved) && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={!!shop.is_open} onChange={e => update('is_open', e.target.checked)} /> Shop is Open</label>}
       </div>
 
       {saved && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, color: 'var(--success)', fontSize: '0.88rem' }}>✅ Changes saved!</div>}

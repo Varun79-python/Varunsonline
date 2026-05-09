@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Order { id: string; order_number: string; status: string; total_amount: number; created_at: string; customer_id: string; shop_id: string; shops: { name: string } }
+interface Order { id: string; order_number: string; status: string; total_amount: number; admin_earning: number; created_at: string; customer_id: string; shop_id: string; shops: { name: string } }
 
 export default function AdminOrders() {
   const supabase = createClient()
@@ -51,7 +51,7 @@ export default function AdminOrders() {
                 <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{o.order_number}</td>
                 <td>{o.shops?.name}</td>
                 <td>₹{o.total_amount}</td>
-                <td style={{ color: 'var(--success)' }}>₹{(o as Record<string, unknown>).admin_earning as number || 0}</td>
+                <td style={{ color: 'var(--success)' }}>₹{o.admin_earning || 0}</td>
                 <td><span className={`badge ${STATUS_COLOR[o.status] || 'badge-gray'}`}>{o.status.replace(/_/g, ' ')}</span></td>
                 <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
               </tr>

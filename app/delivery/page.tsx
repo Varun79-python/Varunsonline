@@ -71,11 +71,14 @@ export default function DeliveryDashboard() {
             await supabase.rpc('credit_agent_wallet', { p_agent_id: user.id, p_amount: activeOrder.agent_earning })
           } catch { /* RPC may not exist yet */ }
         }
-      setActiveOrder(null); loadData()
+      setActiveOrder(null)
+      setAvailOrders([])
+      window.location.reload()
     } else {
       setActiveOrder(prev => prev ? { ...prev, status } : null)
     }
   }
+
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spin" style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto' }} /></div>
   if (noProfile) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><div style={{ fontSize: '4rem', marginBottom: 16 }}>🛵</div><h2 style={{ marginBottom: 8 }}>Not Registered</h2><p style={{ marginBottom: 24 }}>Register as a delivery partner to start earning</p><a href="/delivery/register" className="btn btn-primary">Register Now →</a></div>
