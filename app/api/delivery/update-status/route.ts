@@ -39,7 +39,6 @@ export async function POST(req: NextRequest) {
 
     const extra: Record<string, string> = {}
     if (status === 'picked_up') extra.picked_up_at = now
-    if (status === 'out_for_delivery') extra.out_for_delivery_at = now
     if (status === 'delivered') extra.delivered_at = now
 
     const { error: updateErr } = await supabase
