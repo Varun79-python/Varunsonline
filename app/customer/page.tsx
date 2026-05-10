@@ -50,7 +50,7 @@ export default function CustomerHome() {
   const [loading, setLoading] = useState(true)
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
-  const [userName, setUserName] = useState('')
+  const [userName, setUserName] = useState<string | null>(null)
 
   async function loadSettings() {
     const { data } = await supabase.from('platform_settings').select('key,value').eq('key', 'shop_radius_km')
@@ -84,9 +84,28 @@ export default function CustomerHome() {
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
-    supabase.auth.getUser().then(({ data }) => {
-      setUserName(data.user?.user_metadata?.full_name?.split(' ')[0] || 'there')
-    })
+
+    async function loadUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Try profiles table first (most up-to-date name)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single()
+
+      const name =
+        profile?.full_name?.trim()?.split(' ')[0] ||       // profiles table
+        user.user_metadata?.full_name?.trim()?.split(' ')[0] ||  // auth metadata
+        user.email?.split('@')[0] ||                         // email prefix
+        'there'
+
+      setUserName(name.charAt(0).toUpperCase() + name.slice(1)) // capitalize
+    }
+
+    loadUser()
     loadSettings()
     requestLocation()
   }, [])
@@ -109,7 +128,9 @@ export default function CustomerHome() {
       {/* ── Orange header ── */}
       <div style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', padding: '18px 16px 24px' }}>
         <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, margin: '0 0 2px' }}>{greeting} 👋</p>
-        <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 14px' }}>Hello, {userName}!</h2>
+        <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 14px' }}>
+          {userName === null ? 'Hello! 👋' : `Hello, ${userName}! 👋`}
+        </h2>
         {/* Search */}
         <div style={{ position: 'relative' }}>
           <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 16, pointerEvents: 'none' }}>🔍</span>
