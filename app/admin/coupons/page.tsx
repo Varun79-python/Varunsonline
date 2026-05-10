@@ -74,9 +74,29 @@ export default function AdminCoupons() {
             {coupons.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30 }}>No coupons yet</td></tr>}
             {coupons.map(c => (
               <tr key={c.id}>
-                <td style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--primary)' }}>{c.code}</td>
-                <td>{c.discount_type === 'percent' ? '%' : '₹'} off</td>
-                <td>{c.discount_type === 'percent' ? `${c.discount_value}%` : `₹${c.discount_value}`}</td>
+                <td>
+                  <span style={{
+                    display: 'inline-block',
+                    fontWeight: 800, fontFamily: 'monospace', fontSize: '0.95rem',
+                    color: '#ea580c', background: '#fff7ed',
+                    border: '1.5px solid #fed7aa',
+                    borderRadius: 6, padding: '3px 10px', letterSpacing: '0.05em'
+                  }}>
+                    {c.code || '—'}
+                  </span>
+                </td>
+                <td>
+                  <span style={{
+                    display: 'inline-block', fontSize: '0.8rem', fontWeight: 700,
+                    padding: '2px 8px', borderRadius: 6,
+                    background: c.discount_type === 'percent' ? '#eff6ff' : '#f0fdf4',
+                    color: c.discount_type === 'percent' ? '#2563eb' : '#16a34a',
+                    border: `1px solid ${c.discount_type === 'percent' ? '#bfdbfe' : '#bbf7d0'}`
+                  }}>
+                    {c.discount_type === 'percent' ? '% Percent' : '₹ Flat'}
+                  </span>
+                </td>
+                <td style={{ fontWeight: 700 }}>{c.discount_type === 'percent' ? `${c.discount_value}%` : `₹${c.discount_value}`}</td>
                 <td>₹{c.min_order_amount}</td>
                 <td>{c.used_count}</td>
                 <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{c.valid_until ? new Date(c.valid_until).toLocaleDateString('en-IN') : 'No limit'}</td>
