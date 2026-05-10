@@ -11,8 +11,6 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { load() }, [statusFilter])
-
   async function load() {
     setLoading(true)
     let q = supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(100)
@@ -21,6 +19,8 @@ export default function AdminOrders() {
     setOrders(data || [])
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [statusFilter])
 
   const filtered = search ? orders.filter(o => o.order_number.includes(search) || o.shops?.name?.toLowerCase().includes(search.toLowerCase())) : orders
 
@@ -47,11 +47,15 @@ export default function AdminOrders() {
             {loading && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30 }}>Loading...</td></tr>}
             {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30 }}>No orders found</td></tr>}
             {filtered.map(o => (
-              <tr key={o.id}>
-                <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{o.order_number}</td>
+              <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/admin/orders/${o.id}`}>
+                <td>
+                  <span style={{ fontWeight: 700, color: '#ea580c', fontFamily: 'monospace', textDecoration: 'underline', cursor: 'pointer' }}>
+                    {o.order_number}
+                  </span>
+                </td>
                 <td>{o.shops?.name}</td>
                 <td>₹{o.total_amount}</td>
-                <td style={{ color: 'var(--success)' }}>₹{o.admin_earning || 0}</td>
+                <td style={{ color: '#16a34a', fontWeight: 600 }}>₹{o.admin_earning || 0}</td>
                 <td><span className={`badge ${STATUS_COLOR[o.status] || 'badge-gray'}`}>{o.status.replace(/_/g, ' ')}</span></td>
                 <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
               </tr>

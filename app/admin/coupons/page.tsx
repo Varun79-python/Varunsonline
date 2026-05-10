@@ -52,7 +52,7 @@ export default function AdminCoupons() {
             background: 'white', borderRadius: 16, width: '100%', maxWidth: 520,
             maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column'
-          }}>
+          }} onClick={e => e.stopPropagation()}>
             {/* Modal header */}
             <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1, borderRadius: '16px 16px 0 0' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>🏷️ Create Coupon</h3>
