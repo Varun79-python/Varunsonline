@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Order { id: string; order_number: string; status: string; total_amount: number; admin_earning: number; created_at: string; customer_id: string; shop_id: string; shops: { name: string } }
+interface Order { id: string; order_number: string; status: string; total_amount: number; admin_earning: number; created_at: string; customer_id: string; shop_id: string; payment_method?: string; shops: { name: string } }
 
 export default function AdminOrders() {
   const supabase = createClient()
@@ -42,10 +42,10 @@ export default function AdminOrders() {
 
       <div className="table-container">
         <table className="data-table">
-          <thead><tr><th>Order #</th><th>Shop</th><th>Amount</th><th>Admin Earn</th><th>Status</th><th>Date</th></tr></thead>
+          <thead><tr><th>Order #</th><th>Shop</th><th>Amount</th><th>Payment</th><th>Admin Earn</th><th>Status</th><th>Date</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30 }}>Loading...</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30 }}>No orders found</td></tr>}
+            {loading && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30 }}>Loading...</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30 }}>No orders found</td></tr>}
             {filtered.map(o => (
               <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/admin/orders/${o.id}`}>
                 <td>
@@ -55,6 +55,22 @@ export default function AdminOrders() {
                 </td>
                 <td>{o.shops?.name}</td>
                 <td>₹{o.total_amount}</td>
+                <td>
+                  {(() => {
+                    const pm = o.payment_method || 'online'
+                    const cfg: Record<string, { label: string; bg: string; color: string; border: string }> = {
+                      cod:    { label: '💵 COD',    bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                      online: { label: '💳 Online', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+                      free:   { label: '🎁 Free',   bg: '#fdf4ff', color: '#9333ea', border: '#e9d5ff' },
+                    }
+                    const c = cfg[pm] || cfg.online
+                    return (
+                      <span style={{ display: 'inline-block', fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>
+                        {c.label}
+                      </span>
+                    )
+                  })()}
+                </td>
                 <td style={{ color: '#16a34a', fontWeight: 600 }}>₹{o.admin_earning || 0}</td>
                 <td><span className={`badge ${STATUS_COLOR[o.status] || 'badge-gray'}`}>{o.status.replace(/_/g, ' ')}</span></td>
                 <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
