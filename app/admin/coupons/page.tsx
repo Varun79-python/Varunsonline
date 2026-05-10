@@ -43,25 +43,77 @@ export default function AdminCoupons() {
       </div>
 
       {showForm && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowForm(false)}>
-          <div className="modal">
-            <div className="modal-header"><h3>Create Coupon</h3><button className="modal-close" onClick={() => setShowForm(false)}>✕</button></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="input-group" style={{ gridColumn: '1/-1' }}><label className="input-label">Coupon Code *</label><input className="input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. SAVE20" /></div>
-              <div className="input-group" style={{ gridColumn: '1/-1' }}><label className="input-label">Description</label><input className="input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-              <div className="input-group"><label className="input-label">Discount Type</label>
-                <select className="input" value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))}>
-                  <option value="percent">Percentage (%)</option><option value="flat">Flat Amount (₹)</option>
-                </select>
-              </div>
-              <div className="input-group"><label className="input-label">Discount Value</label><input className="input" type="number" value={form.discount_value} onChange={e => setForm(f => ({ ...f, discount_value: e.target.value }))} /></div>
-              <div className="input-group"><label className="input-label">Min Order (₹)</label><input className="input" type="number" value={form.min_order_amount} onChange={e => setForm(f => ({ ...f, min_order_amount: e.target.value }))} /></div>
-              <div className="input-group"><label className="input-label">Max Discount (₹)</label><input className="input" type="number" value={form.max_discount} onChange={e => setForm(f => ({ ...f, max_discount: e.target.value }))} placeholder="Optional" /></div>
-              <div className="input-group" style={{ gridColumn: '1/-1' }}><label className="input-label">Valid Until</label><input className="input" type="datetime-local" value={form.valid_until} onChange={e => setForm(f => ({ ...f, valid_until: e.target.value }))} /></div>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: 16
+        }} onClick={e => e.target === e.currentTarget && setShowForm(false)}>
+          <div style={{
+            background: 'white', borderRadius: 16, width: '100%', maxWidth: 520,
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column'
+          }}>
+            {/* Modal header */}
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1, borderRadius: '16px 16px 0 0' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>🏷️ Create Coupon</h3>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#64748b', lineHeight: 1, padding: '2px 6px' }}>✕</button>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Create Coupon'}</button>
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            {/* Form body */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Coupon Code */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '1rem', fontFamily: 'monospace', letterSpacing: '0.1em', fontWeight: 700, color: '#ea580c', background: '#fff7ed', outline: 'none' }}
+                  value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. SAVE20"
+                />
+              </div>
+              {/* Description */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Description</label>
+                <input style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', outline: 'none' }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. 20% off for new users" />
+              </div>
+              {/* Type + Value */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Discount Type</label>
+                  <select style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', background: 'white', outline: 'none' }} value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))}>
+                    <option value="percent">Percentage (%)</option>
+                    <option value="flat">Flat Amount (₹)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Discount Value</label>
+                  <input type="number" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', outline: 'none' }} value={form.discount_value} onChange={e => setForm(f => ({ ...f, discount_value: e.target.value }))} placeholder={form.discount_type === 'percent' ? '20' : '50'} />
+                </div>
+              </div>
+              {/* Min + Max */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Min Order (₹)</label>
+                  <input type="number" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', outline: 'none' }} value={form.min_order_amount} onChange={e => setForm(f => ({ ...f, min_order_amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Max Discount (₹)</label>
+                  <input type="number" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', outline: 'none' }} value={form.max_discount} onChange={e => setForm(f => ({ ...f, max_discount: e.target.value }))} placeholder="Optional" />
+                </div>
+              </div>
+              {/* Valid Until */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Valid Until</label>
+                <input type="datetime-local" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', color: '#1e293b', outline: 'none' }} value={form.valid_until} onChange={e => setForm(f => ({ ...f, valid_until: e.target.value }))} />
+              </div>
+            </div>
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10 }}>
+              <button
+                style={{ flex: 1, padding: '12px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', opacity: saving || !form.code || !form.discount_value ? 0.6 : 1 }}
+                onClick={save} disabled={saving || !form.code || !form.discount_value}>
+                {saving ? 'Creating...' : '✅ Create Coupon'}
+              </button>
+              <button style={{ padding: '12px 20px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }} onClick={() => setShowForm(false)}>Cancel</button>
             </div>
           </div>
         </div>
