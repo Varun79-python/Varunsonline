@@ -1,5 +1,14 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+
+// viewport must be a SEPARATE export in Next.js 13+ (not inside metadata)
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#f97316',
+}
 
 export const metadata: Metadata = {
   title: "Varun's Online — Local Shopping App",
@@ -45,12 +54,6 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   manifest: '/manifest.json',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -60,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="shortcut icon" href="/logo.png" />
-        <meta name="theme-color" content="#f97316" />
       </head>
       <body>{children}</body>
     </html>
