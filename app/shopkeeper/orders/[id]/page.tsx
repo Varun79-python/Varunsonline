@@ -174,22 +174,21 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Bill breakdown */}
+        {/* Bill — shopkeeper only sees what's relevant to them */}
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          {([
-            ['Subtotal', order.subtotal],
-            ['Delivery Charge', order.delivery_charge],
-            ['Platform Fee', order.platform_fee],
-            ...(order.discount_amount > 0 ? [['Coupon Discount', -order.discount_amount]] : []),
-          ] as [string, number][]).map(([l, v]) => (
-            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: '0.85rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{l}</span>
-              <span style={{ color: v < 0 ? 'var(--success)' : 'inherit' }}>{v < 0 ? '−' : ''}₹{Math.abs(v || 0)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: '0.85rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Items Subtotal</span>
+            <span>₹{order.subtotal || order.total_amount}</span>
+          </div>
+          {order.discount_amount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Coupon Discount</span>
+              <span style={{ color: 'var(--success)' }}>−₹{Math.abs(order.discount_amount || 0)}</span>
             </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Your Earnings</span>
-            <span style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.85rem' }}>₹{order.shopkeeper_earning}</span>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1.5px solid var(--border)' }}>
+            <span style={{ fontWeight: 700, color: 'var(--success)' }}>💰 Your Earnings</span>
+            <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: '1.05rem' }}>₹{order.shopkeeper_earning}</span>
           </div>
         </div>
       </div>

@@ -1,0 +1,78 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+export const dynamic = 'force-dynamic'
+
+// GET — list all available packed orders (no agent assigned yet)
+export async function GET() {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select(`
+        id, order_number, status, agent_earning, total_amount,
+        delivery_charge, created_at,
+        shops:shop_id(name, address_line1, city, latitude, longitude),
+        addresses:address_id(house_name, street_name, landmark, city, latitude, longitude)
+      `)
+      .eq('status', 'order_packed')
+      .is('agent_id', null)
+      .order('created_at', { ascending: false })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ orders: orders || [] })
+  } catch (err) {
+    console.error('Available orders error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
+// POST — atomically claim an order (race-condition safe)
+export async function POST(req: NextRequest) {
+  try {
+    const { orderId, agentId } = await req.json()
+    if (!orderId || !agentId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // Atomic update: only succeeds if status=order_packed AND agent_id IS NULL
+    // This prevents 2 agents accepting the same order
+    const { data, error } = await supabase
+      .from('orders')
+      .update({
+        status: 'agent_assigned',
+        agent_id: agentId,
+        assigned_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .eq('status', 'order_packed')   // guard: must still be packed
+      .is('agent_id', null)            // guard: not yet claimed by anyone
+      .select('id, order_number')
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    if (!data || data.length === 0) {
+      // No rows updated = someone else already accepted it
+      return NextResponse.json({ error: 'Order already taken by another agent', alreadyClaimed: true }, { status: 409 })
+    }
+
+    // Log status history
+    await supabase.from('order_status_history').insert({
+      order_id: orderId,
+      status: 'agent_assigned',
+      changed_by: agentId
+    })
+
+    return NextResponse.json({ success: true, order: data[0] })
+  } catch (err) {
+    console.error('Accept order error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
