@@ -62,7 +62,8 @@ export default function CustomerHome() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => loadShops(pos.coords.latitude, pos.coords.longitude),
-        () => loadShops(null, null)
+        () => loadShops(null, null),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       )
     } else loadShops(null, null)
   }
@@ -298,7 +299,16 @@ export default function CustomerHome() {
                   } as React.CSSProperties}>{shop.name}</div>
                   <div style={{ display: 'flex', gap: 6, fontSize: '0.68rem', color: '#64748b', flexWrap: 'wrap' }}>
                     {shop.rating > 0 && <span style={{ color: '#ca8a04', fontWeight: 600 }}>⭐ {shop.rating}</span>}
-                    {shop.distance != null && <span>📍 {(shop.distance as number).toFixed(1)} km</span>}
+                    {shop.distance != null && (
+                      <span style={{
+                        fontWeight: 700,
+                        color: (shop.distance as number) < 2 ? '#16a34a' : (shop.distance as number) < 5 ? '#d97706' : '#dc2626'
+                      }}>
+                        📍 {(shop.distance as number) < 1
+                          ? `${Math.round((shop.distance as number) * 1000)}m away`
+                          : `${(shop.distance as number).toFixed(1)} km away`}
+                      </span>
+                    )}
                     {!shop.distance && shop.city && <span>{shop.city}</span>}
                   </div>
                 </div>

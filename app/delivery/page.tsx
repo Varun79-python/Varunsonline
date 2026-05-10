@@ -42,6 +42,7 @@ export default function DeliveryDashboard() {
   const [agentLon, setAgentLon] = useState<number | null>(null)
   const [gpsChecking, setGpsChecking] = useState(false)
   const [distToCustomer, setDistToCustomer] = useState<number | null>(null)
+  const [distToShop, setDistToShop] = useState<number | null>(null)
 
   // OTP verification state
   const [otpInput, setOtpInput] = useState('')
@@ -83,9 +84,15 @@ export default function DeliveryDashboard() {
         const acc = pos.coords.accuracy
         setAgentLat(lat)
         setAgentLon(lon)
+        // Distance to CUSTOMER (for delivery proximity lock)
         if (order.address?.latitude > 0 && order.address?.longitude > 0) {
           const d = getDistanceKm(lat, lon, order.address.latitude, order.address.longitude)
           setDistToCustomer(parseFloat(d.toFixed(3)))
+        }
+        // Distance to SHOP (for pickup navigation)
+        if (order.shop?.latitude > 0 && order.shop?.longitude > 0) {
+          const ds = getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude)
+          setDistToShop(parseFloat(ds.toFixed(3)))
         }
         setGpsChecking(false)
         if (acc > 100) {
@@ -255,6 +262,16 @@ export default function DeliveryDashboard() {
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                 {activeOrder.shop?.address_line1 ? `${activeOrder.shop.address_line1}, ` : ''}{activeOrder.shop?.city || ''}
               </div>
+              {distToShop !== null && (
+                <div style={{
+                  marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontWeight: 800, fontSize: '0.82rem', padding: '3px 10px', borderRadius: 99,
+                  background: distToShop < 0.5 ? '#f0fdf4' : distToShop < 2 ? '#fef3c7' : '#fef2f2',
+                  color: distToShop < 0.5 ? '#16a34a' : distToShop < 2 ? '#d97706' : '#dc2626',
+                }}>
+                  📍 {distToShop < 1 ? `${Math.round(distToShop * 1000)}m to shop` : `${distToShop.toFixed(2)} km to shop`}
+                </div>
+              )}
               {(activeOrder.shop?.latitude > 0) && (
                 <a href={`https://maps.google.com/?q=${activeOrder.shop.latitude},${activeOrder.shop.longitude}`} target="_blank" rel="noreferrer"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, fontSize: '0.78rem', color: '#f97316', fontWeight: 700, background: '#fff7ed', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
@@ -263,12 +280,23 @@ export default function DeliveryDashboard() {
               )}
             </div>
 
+
             <div className="card" style={{ padding: 14, borderTop: '3px solid #22c55e' }}>
               <div style={{ fontWeight: 700, marginBottom: 8, color: '#16a34a', fontSize: '0.82rem', textTransform: 'uppercase' }}>🏠 Deliver To</div>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{activeOrder.address?.house_name || '—'}</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                 {activeOrder.address?.street_name || ''}{activeOrder.address?.landmark ? `, near ${activeOrder.address.landmark}` : ''}{activeOrder.address?.city ? `, ${activeOrder.address.city}` : ''}
               </div>
+              {distToCustomer !== null && (
+                <div style={{
+                  marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontWeight: 800, fontSize: '0.82rem', padding: '3px 10px', borderRadius: 99,
+                  background: distToCustomer < 0.1 ? '#f0fdf4' : distToCustomer < 0.5 ? '#fef3c7' : '#fef2f2',
+                  color: distToCustomer < 0.1 ? '#16a34a' : distToCustomer < 0.5 ? '#d97706' : '#dc2626',
+                }}>
+                  📍 {distToCustomer < 1 ? `${Math.round(distToCustomer * 1000)}m to customer` : `${distToCustomer.toFixed(2)} km to customer`}
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                 {(activeOrder.address?.latitude > 0) ? (
                   <a href={`https://maps.google.com/?q=${activeOrder.address.latitude},${activeOrder.address.longitude}`} target="_blank" rel="noreferrer"
