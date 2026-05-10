@@ -113,7 +113,7 @@ export default function CheckoutContent() {
     const shopEarning = subtotal - pfee
     const { data: order } = await supabase.from('orders').insert({
       customer_id: userId, shop_id: cart[0].shop_id, address_id: selectedAddr,
-      status: 'payment_confirmed', payment_method: 'free', payment_status: 'free',
+      status: 'payment_confirmed', payment_method: 'free', payment_status: 'paid',
       subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
       discount_amount: couponDiscount, total_amount: 0,
       shopkeeper_earning: shopEarning, agent_earning: agentEarning,

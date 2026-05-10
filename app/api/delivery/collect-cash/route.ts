@@ -23,11 +23,11 @@ export async function POST(req: NextRequest) {
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     if (order.agent_id !== agentId) return NextResponse.json({ error: 'Not your order' }, { status: 403 })
     if (order.payment_method !== 'cod') return NextResponse.json({ error: 'Not a COD order' }, { status: 400 })
-    if (order.payment_status === 'cod_collected') return NextResponse.json({ error: 'Cash already recorded' }, { status: 409 })
+    if (order.payment_status === 'paid') return NextResponse.json({ error: 'Cash already recorded' }, { status: 409 })
 
     // Mark payment collected
     await supabase.from('orders').update({
-      payment_status: 'cod_collected',
+      payment_status: 'paid',
       cod_collected_at: new Date().toISOString()
     }).eq('id', orderId)
 

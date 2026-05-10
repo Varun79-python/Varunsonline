@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         address_id: addressId,
         status: 'payment_confirmed',
         payment_method: 'cod',
-        payment_status: 'cod_pending',
+        payment_status: 'pending',
         subtotal,
         platform_fee: platformFee,
         delivery_charge: deliveryCharge,
