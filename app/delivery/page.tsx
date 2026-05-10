@@ -42,6 +42,12 @@ export default function DeliveryDashboard() {
   const [gpsChecking, setGpsChecking] = useState(false)
   const [distToCustomer, setDistToCustomer] = useState<number | null>(null)
 
+  // OTP verification state
+  const [otpInput, setOtpInput] = useState('')
+  const [otpError, setOtpError] = useState('')
+  const [otpLocked, setOtpLocked] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
+
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 4000)
@@ -161,6 +167,7 @@ export default function DeliveryDashboard() {
         setActiveOrder(null)
         setDistToCustomer(null)
         setAgentLat(null); setAgentLon(null)
+        setOtpInput(''); setOtpError('')
         await fetchAvailable()
         showToast('🎉 Delivery complete! Earnings credited.')
       } else {
@@ -344,17 +351,105 @@ export default function DeliveryDashboard() {
             )}
             {activeOrder.status === 'out_for_delivery' && (
               <div>
-                <button
-                  className="btn btn-success btn-full"
-                  disabled={updatingStatus || !withinRange}
-                  onClick={() => updateStatus(activeOrder.id, 'delivered')}
-                  style={{ opacity: withinRange ? 1 : 0.4, cursor: withinRange ? 'pointer' : 'not-allowed' }}
-                >
-                  {updatingStatus ? '⏳ Updating...' : withinRange ? '🎉 Mark Delivered' : `🔒 Too Far (${distToCustomer !== null ? `${(distToCustomer * 1000).toFixed(0)}m` : '?'})`}
-                </button>
-                {!withinRange && distToCustomer === null && !gpsChecking && (
-                  <button onClick={() => refreshGPS(activeOrder)} className="btn btn-secondary btn-full" style={{ marginTop: 8 }}>
-                    📡 Get My Location to Enable Delivery
+                {/* Proximity indicator */}
+                {activeOrder.address?.latitude > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{
+                      padding: '10px 14px', borderRadius: 8, fontSize: '0.83rem', fontWeight: 600,
+                      background: withinRange ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
+                      border: `1px solid ${withinRange ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                      color: withinRange ? '#16a34a' : '#dc2626',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    }}>
+                      <span>
+                        {distToCustomer !== null
+                          ? `📍 ${(distToCustomer * 1000).toFixed(0)}m from customer ${withinRange ? '✅ In range' : '— move closer!'}`
+                          : '📡 Checking your location...'}
+                      </span>
+                      <button onClick={() => refreshGPS(activeOrder)} disabled={gpsChecking}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>
+                        {gpsChecking ? '⏳' : '🔄'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* OTP Entry — ask customer for their code */}
+                {withinRange || !activeOrder.address?.latitude ? (
+                  <div style={{ border: '2.5px solid #22c55e', borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', background: 'rgba(34,197,94,0.1)', borderBottom: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.2rem' }}>🔐</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#16a34a' }}>Enter Customer Delivery Code</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ask customer to show the 4-digit code from their app</div>
+                      </div>
+                    </div>
+                    <div style={{ padding: 16 }}>
+                      <input
+                        type="tel"
+                        maxLength={4}
+                        pattern="[0-9]{4}"
+                        placeholder="----"
+                        value={otpInput}
+                        disabled={otpLocked || otpVerifying}
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                          setOtpInput(v)
+                          setOtpError('')
+                        }}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          fontSize: '2.5rem', fontWeight: 800, letterSpacing: '0.8em',
+                          textAlign: 'center', fontFamily: 'monospace',
+                          border: `2px solid ${otpError ? '#ef4444' : '#22c55e'}`,
+                          borderRadius: 10, padding: '12px 8px',
+                          background: otpLocked ? '#f1f5f9' : 'white',
+                          color: otpLocked ? '#94a3b8' : '#16a34a',
+                          outline: 'none', marginBottom: 10,
+                          cursor: otpLocked ? 'not-allowed' : 'text',
+                        }}
+                      />
+                      {otpError && (
+                        <div style={{ fontSize: '0.82rem', color: '#dc2626', background: 'rgba(239,68,68,0.08)', padding: '8px 12px', borderRadius: 8, marginBottom: 10, textAlign: 'center', fontWeight: 600 }}>
+                          ❌ {otpError}
+                        </div>
+                      )}
+                      <button
+                        className="btn btn-success btn-full"
+                        disabled={otpInput.length !== 4 || otpVerifying || otpLocked}
+                        style={{ opacity: (otpInput.length === 4 && !otpLocked) ? 1 : 0.5 }}
+                        onClick={async () => {
+                          if (!agentId || otpInput.length !== 4) return
+                          setOtpVerifying(true)
+                          try {
+                            const res = await fetch('/api/delivery/verify-otp', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ orderId: activeOrder.id, agentId, enteredOtp: otpInput })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              setActiveOrder(null)
+                              setDistToCustomer(null)
+                              setOtpInput(''); setOtpError('')
+                              await fetchAvailable()
+                              showToast('🎉 Delivery verified & complete!')
+                            } else if (data.locked) {
+                              setOtpLocked(true)
+                              setOtpError(data.error || 'Locked — too many wrong attempts')
+                            } else {
+                              setOtpError(data.error || 'Invalid code')
+                            }
+                          } finally { setOtpVerifying(false) }
+                        }}
+                      >
+                        {otpVerifying ? '⏳ Verifying...' : otpLocked ? '🔒 Locked' : '✅ Verify & Mark Delivered'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => refreshGPS(activeOrder)} className="btn btn-secondary btn-full">
+                    📡 Get My Location to Continue
                   </button>
                 )}
               </div>

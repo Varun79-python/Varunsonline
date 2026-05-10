@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
     if (action === 'accept') {
       if (order.status !== 'payment_confirmed')
         return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
-      updateData = { status: 'shop_accepted', accepted_at: now }
+      const otp = Math.floor(1000 + Math.random() * 9000).toString()
+      updateData = { status: 'shop_accepted', accepted_at: now, delivery_otp: otp }
 
     } else if (action === 'reject') {
       if (order.status !== 'payment_confirmed')

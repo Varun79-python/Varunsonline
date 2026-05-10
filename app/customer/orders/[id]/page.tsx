@@ -12,7 +12,13 @@ const STEPS = [
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: '🚴' },
   { key: 'delivered', label: 'Delivered!', icon: '🎉' },
 ]
-const ORDER_RANK: Record<string, number> = { placed: 0, payment_pending: 0, payment_confirmed: 1, shop_accepted: 2, order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7 }
+const ORDER_RANK: Record<string, number> = {
+  placed: 0, payment_pending: 0, payment_confirmed: 1, shop_accepted: 2,
+  order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7
+}
+
+// Statuses when OTP should be visible to customer
+const OTP_VISIBLE_STATUSES = ['shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery']
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,6 +26,7 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Record<string, unknown> | null>(null)
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [address, setAddress] = useState<Record<string, unknown> | null>(null)
+  const [showOtp, setShowOtp] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -46,6 +53,8 @@ export default function OrderDetailPage() {
 
   const currentRank = ORDER_RANK[order.status as string] || 0
   const isTerminal = ['delivered', 'cancelled', 'rejected'].includes(order.status as string)
+  const otpVisible = OTP_VISIBLE_STATUSES.includes(order.status as string)
+  const deliveryOtp = order.delivery_otp as string | null
 
   return (
     <div className="fade-in" style={{ maxWidth: 580, margin: '0 auto' }}>
@@ -54,6 +63,82 @@ export default function OrderDetailPage() {
         <h2 style={{ marginBottom: 4 }}>{order.order_number as string}</h2>
         <p style={{ color: 'var(--text-muted)' }}>from {(order.shops as Record<string, unknown>)?.name as string}</p>
       </div>
+
+      {/* ── Delivery OTP Box ── */}
+      {otpVisible && deliveryOtp && (
+        <div style={{
+          marginBottom: 20,
+          border: '2.5px solid #22c55e',
+          borderRadius: 16,
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.03))',
+          overflow: 'hidden'
+        }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(34,197,94,0.1)' }}>
+            <span style={{ fontSize: '1.2rem' }}>🔐</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#16a34a' }}>Delivery Verification Code</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Share ONLY with delivery agent at doorstep</div>
+            </div>
+          </div>
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            {showOtp ? (
+              <>
+                <div style={{
+                  fontSize: '3.2rem', fontWeight: 900, letterSpacing: '0.5em',
+                  color: '#16a34a', fontFamily: 'monospace',
+                  background: 'white', padding: '16px 24px', borderRadius: 12,
+                  border: '2px dashed rgba(34,197,94,0.4)', display: 'inline-block',
+                  marginBottom: 12, userSelect: 'none'
+                }}>
+                  {deliveryOtp}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                  ⚠️ Do not share this code until the agent is at your door
+                </div>
+                <button onClick={() => setShowOtp(false)} style={{
+                  background: 'none', border: '1px solid rgba(34,197,94,0.4)',
+                  color: '#16a34a', padding: '6px 16px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem'
+                }}>
+                  🙈 Hide Code
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{
+                  fontSize: '3.2rem', fontWeight: 900, letterSpacing: '0.5em',
+                  color: '#94a3b8', fontFamily: 'monospace',
+                  padding: '16px 24px', marginBottom: 12, filter: 'blur(6px)',
+                  userSelect: 'none'
+                }}>
+                  ••••
+                </div>
+                <button onClick={() => setShowOtp(true)} style={{
+                  background: '#16a34a', border: 'none', color: 'white',
+                  padding: '10px 24px', borderRadius: 10, cursor: 'pointer',
+                  fontWeight: 700, fontSize: '0.9rem', boxShadow: '0 4px 12px rgba(22,163,74,0.3)'
+                }}>
+                  👁️ Reveal Code
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delivered — OTP used */}
+      {order.status === 'delivered' && (order.otp_verified as boolean) && (
+        <div style={{
+          marginBottom: 20, padding: '14px 18px', borderRadius: 12,
+          background: 'rgba(34,197,94,0.08)', border: '1.5px solid rgba(34,197,94,0.2)',
+          display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          <span style={{ fontSize: '1.5rem' }}>✅</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#16a34a', fontSize: '0.9rem' }}>Delivery Verified Successfully!</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Code was verified by the delivery agent</div>
+          </div>
+        </div>
+      )}
 
       {/* Timeline */}
       {!['cancelled', 'rejected'].includes(order.status as string) && (
@@ -106,7 +191,6 @@ export default function OrderDetailPage() {
               🗺️ View on Google Maps
             </a>
           ) : null}
-
         </div>
       )}
     </div>
