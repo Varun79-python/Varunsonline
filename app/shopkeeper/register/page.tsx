@@ -22,8 +22,19 @@ export default function ShopRegisterPage() {
   function getGPS() {
     setGettingGPS(true)
     navigator.geolocation.getCurrentPosition(
-      pos => { setForm(f => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude })); setGettingGPS(false) },
-      () => setGettingGPS(false)
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords
+        setForm(f => ({ ...f, latitude, longitude }))
+        setGettingGPS(false)
+        if (accuracy > 100) {
+          alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Your shop location may be inaccurate. Move outside and try again.`)
+        }
+      },
+      err => {
+        setGettingGPS(false)
+        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied.' : err.code === 2 ? 'Position unavailable.' : 'Timed out.'))
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     )
   }
 

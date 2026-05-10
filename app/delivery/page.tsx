@@ -80,6 +80,7 @@ export default function DeliveryDashboard() {
       pos => {
         const lat = pos.coords.latitude
         const lon = pos.coords.longitude
+        const acc = pos.coords.accuracy
         setAgentLat(lat)
         setAgentLon(lon)
         if (order.address?.latitude > 0 && order.address?.longitude > 0) {
@@ -87,9 +88,15 @@ export default function DeliveryDashboard() {
           setDistToCustomer(parseFloat(d.toFixed(3)))
         }
         setGpsChecking(false)
+        if (acc > 100) {
+          showToast(`⚠️ Your GPS accuracy is poor (±${Math.round(acc)}m). Distance reading may be inaccurate.`, false)
+        }
       },
-      () => setGpsChecking(false),
-      { enableHighAccuracy: true, timeout: 8000 }
+      err => {
+        setGpsChecking(false)
+        showToast('GPS failed: ' + (err.code === 1 ? 'Allow location access.' : 'Position unavailable.'), false)
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     )
   }
 

@@ -26,6 +26,7 @@ export default function CustomerProfile() {
   const [editForm, setEditForm] = useState({ ...blankEdit })
   const [editSaving, setEditSaving] = useState(false)
   const [editGPS, setEditGPS] = useState(false)
+  const [editGpsAccuracy, setEditGpsAccuracy] = useState<number | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -75,9 +76,22 @@ export default function CustomerProfile() {
 
   function getEditGPS() {
     setEditGPS(true)
+    setEditGpsAccuracy(null)
     navigator.geolocation.getCurrentPosition(
-      pos => { setEditForm(f => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude })); setEditGPS(false) },
-      () => setEditGPS(false)
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords
+        setEditForm(f => ({ ...f, latitude, longitude }))
+        setEditGpsAccuracy(accuracy)
+        setEditGPS(false)
+        if (accuracy > 100) {
+          alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area and try again.`)
+        }
+      },
+      err => {
+        setEditGPS(false)
+        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied.' : err.code === 2 ? 'Position unavailable.' : 'Timed out.'))
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     )
   }
 
@@ -219,7 +233,15 @@ export default function CustomerProfile() {
                   <button onClick={getEditGPS} disabled={editGPS} style={{ background: '#f1f5f9', border: '1px solid #d1d5db', borderRadius: 8, padding: '7px 14px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
                     {editGPS ? '📡 Detecting...' : '📍 Update GPS Location'}
                   </button>
-                  {editForm.latitude !== 0 && <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>✅ GPS ready</span>}
+                  {editForm.latitude !== 0 && editGpsAccuracy !== null && (() => {
+                    const acc = Math.round(editGpsAccuracy)
+                    const cfg = acc < 20 ? { color: '#16a34a', bg: '#f0fdf4', label: `✅ ±${acc}m` }
+                      : acc < 50 ? { color: '#d97706', bg: '#fef3c7', label: `✓ ±${acc}m` }
+                      : acc < 100 ? { color: '#ea580c', bg: '#fff7ed', label: `⚠️ ±${acc}m Fair` }
+                      : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m Poor!` }
+                    return <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                  })()}
+                  {editForm.latitude !== 0 && editGpsAccuracy === null && <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>✅ GPS ready</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '10px', background: '#f97316', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>

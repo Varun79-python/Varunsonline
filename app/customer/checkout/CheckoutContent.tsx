@@ -17,6 +17,7 @@ export default function CheckoutContent() {
   const [selectedAddr, setSelectedAddr] = useState<string>('')
   const [showNewAddr, setShowNewAddr] = useState(false)
   const [gettingGPS, setGettingGPS] = useState(false)
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null)
   const [addr, setAddr] = useState({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', phone: '', latitude: 0, longitude: 0 })
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'address' | 'summary'>('address')
@@ -62,9 +63,22 @@ export default function CheckoutContent() {
 
   function getGPS() {
     setGettingGPS(true)
+    setGpsAccuracy(null)
     navigator.geolocation.getCurrentPosition(
-      pos => { setAddr(a => ({ ...a, latitude: pos.coords.latitude, longitude: pos.coords.longitude })); setGettingGPS(false) },
-      () => setGettingGPS(false)
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords
+        setAddr(a => ({ ...a, latitude, longitude }))
+        setGpsAccuracy(accuracy)
+        setGettingGPS(false)
+        if (accuracy > 100) {
+          alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
+        }
+      },
+      err => {
+        setGettingGPS(false)
+        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied — please allow location access.' : err.code === 2 ? 'Position unavailable.' : 'Timed out. Try again.'))
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     )
   }
 
@@ -346,7 +360,22 @@ export default function CheckoutContent() {
                   <button className="btn btn-secondary btn-sm" onClick={getGPS} disabled={gettingGPS}>
                     {gettingGPS ? '📡 Detecting...' : '📍 Get GPS Location'}
                   </button>
-                  {addr.latitude !== 0 && <span style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: 600 }}>✅ GPS captured</span>}
+                  {addr.latitude !== 0 && gpsAccuracy !== null && (() => {
+                    const acc = Math.round(gpsAccuracy)
+                    const cfg = acc < 20
+                      ? { color: '#16a34a', bg: '#f0fdf4', label: `✅ ±${acc}m — Excellent` }
+                      : acc < 50
+                      ? { color: '#d97706', bg: '#fef3c7', label: `✓ ±${acc}m — Good` }
+                      : acc < 100
+                      ? { color: '#ea580c', bg: '#fff7ed', label: `⚠️ ±${acc}m — Fair` }
+                      : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m — Poor, retry!` }
+                    return (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}33` }}>
+                        {cfg.label}
+                      </span>
+                    )
+                  })()}
+                  {addr.latitude !== 0 && gpsAccuracy === null && <span style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: 600 }}>✅ GPS captured</span>}
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={saveAddress}>💾 Save Address</button>
               </div>
