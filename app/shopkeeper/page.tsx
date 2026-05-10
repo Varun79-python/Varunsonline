@@ -34,36 +34,20 @@ export default function ShopkeeperDashboard() {
     } catch {}
   }
 
-  // Fetch pending orders then their items in a separate query
+  // Fetch pending orders + items via server API (bypasses RLS)
   const fetchPending = useCallback(async (shopId: string) => {
-    // Step 1: Fetch orders with status = payment_confirmed
-    const { data: orders, error: ordErr } = await supabase
-      .from('orders')
-      .select('id, order_number, status, total_amount, created_at')
-      .eq('shop_id', shopId)
-      .eq('status', 'payment_confirmed')
-      .order('created_at', { ascending: false })
-
-    if (ordErr || !orders || orders.length === 0) {
+    try {
+      const res = await fetch(`/api/shopkeeper/pending-orders?shopId=${shopId}`)
+      const data = await res.json()
+      if (res.ok && data.orders) {
+        setPendingOrders(data.orders)
+      } else {
+        setPendingOrders([])
+      }
+    } catch {
       setPendingOrders([])
-      return
     }
-
-    // Step 2: Fetch items for those order IDs
-    const orderIds = orders.map((o: { id: string }) => o.id)
-    const { data: allItems } = await supabase
-      .from('order_items')
-      .select('id, order_id, product_name, quantity, unit_price, total_price, product_image_url')
-      .in('order_id', orderIds)
-
-    // Step 3: Merge items into orders
-    const merged: Order[] = orders.map((o: { id: string; order_number: string; status: string; total_amount: number; created_at: string }) => ({
-      ...o,
-      items: (allItems || []).filter((i: { order_id: string }) => i.order_id === o.id)
-    }))
-
-    setPendingOrders(merged)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     let mounted = true

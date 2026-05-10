@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
       updateData = { status: 'shop_accepted', accepted_at: now }
     } else if (action === 'reject') {
       updateData = { status: 'rejected', rejection_reason: reason || '' }
+    } else if (action === 'pack') {
+      updateData = { status: 'order_packed', packed_at: now }
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
