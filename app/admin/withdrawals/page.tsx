@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Withdrawal {
   id: string; amount: number; payment_method: string; upi_id: string
   bank_account_number: string; status: string; requested_at: string; user_type: string
+  user_id: string
   profiles: { full_name: string; email: string }
 }
 
@@ -12,12 +13,12 @@ export default function AdminWithdrawals() {
   const supabase = createClient()
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
 
-  useEffect(() => { load() }, [])
-
   async function load() {
     const { data } = await supabase.from('withdraw_requests').select('*, profiles(full_name, email)').order('requested_at', { ascending: false })
     setWithdrawals(data || [])
   }
+
+  useEffect(() => { load() }, [])
 
   async function process(id: string, status: 'paid' | 'rejected') {
     const note = status === 'rejected' ? prompt('Rejection reason?') : null
@@ -26,9 +27,15 @@ export default function AdminWithdrawals() {
     if (status === 'paid') {
       const w = withdrawals.find(x => x.id === id)
       if (w) {
-        await supabase.from('wallet_transactions').insert({ user_id: w.profiles as unknown as { id: string }, user_type: w.user_type, type: 'debit', amount: w.amount, description: 'Withdrawal processed by admin' })
+        await supabase.from('wallet_transactions').insert({ user_id: w.user_id, user_type: w.user_type, type: 'debit', amount: w.amount, description: 'Withdrawal processed by admin' })
         const table = w.user_type === 'shopkeeper' ? 'shops' : 'delivery_agents'
-        await supabase.from(table).update({ wallet_balance: supabase.rpc('decrement', { x: w.amount }) }).eq('id', w.profiles as unknown as { id: string })
+        const idColumn = w.user_type === 'shopkeeper' ? 'owner_id' : 'id'
+        
+        const { data: record } = await supabase.from(table).select('wallet_balance').eq(idColumn, w.user_id).single()
+        if (record) {
+          const newBalance = (record.wallet_balance || 0) - w.amount
+          await supabase.from(table).update({ wallet_balance: newBalance }).eq(idColumn, w.user_id)
+        }
       }
     }
   }

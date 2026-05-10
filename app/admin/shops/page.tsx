@@ -10,8 +10,6 @@ export default function AdminShops() {
   const [tab, setTab] = useState<'pending' | 'active' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { load() }, [tab])
-
   async function load() {
     setLoading(true)
     let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
@@ -21,6 +19,8 @@ export default function AdminShops() {
     setShops(data || [])
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [tab])
 
   async function approve(shopId: string) {
     await supabase.from('shops').update({ is_approved: true, is_active: true }).eq('id', shopId)

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { processEarnings } from '../utils'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -71,12 +73,8 @@ export async function POST(req: NextRequest) {
       changed_by: agentId
     })
 
-    // Credit agent wallet
-    if (order.agent_earning > 0) {
-      try {
-        await supabase.rpc('credit_agent_wallet', { p_agent_id: agentId, p_amount: order.agent_earning })
-      } catch { /* RPC optional */ }
-    }
+    // Credit agent and shopkeeper wallets
+    await processEarnings(supabase, orderId)
 
     const isCod = order.payment_method === 'cod'
 

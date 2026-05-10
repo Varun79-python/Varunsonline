@@ -20,8 +20,6 @@ export default function DeliveryOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
 
-  useEffect(() => { load() }, [filter])
-
   async function load() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -36,6 +34,8 @@ export default function DeliveryOrdersPage() {
     setOrders(data || [])
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [filter])
 
   const totalEarned = orders.filter(o => o.status === 'delivered').reduce((s, o) => s + (o.agent_earning || 0), 0)
 
