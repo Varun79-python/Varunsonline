@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+
 interface Shop {
   id: string; name: string; category: string; description: string
   shop_image_url: string; rating: number; total_orders: number
@@ -126,9 +127,22 @@ export default function CustomerHome() {
     <div style={{ background: '#f8fafc', minHeight: '100%' }}>
 
       {/* ── Orange header ── */}
-      <div style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', padding: '18px 16px 24px' }}>
+      <div style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', padding: '18px 16px 24px', position: 'relative' }}>
+        {/* Logout button — mobile only, top-right of header */}
+        <button
+          onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+          style={{
+            position: 'absolute', top: 14, right: 14,
+            background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.4)',
+            borderRadius: 99, color: 'white', cursor: 'pointer',
+            padding: '5px 13px', fontSize: '0.75rem', fontWeight: 700,
+            backdropFilter: 'blur(4px)', letterSpacing: '0.2px',
+          }}
+        >
+          Logout
+        </button>
         <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, margin: '0 0 2px' }}>{greeting} 👋</p>
-        <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 14px' }}>
+        <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 14px', paddingRight: 80 }}>
           {userName === null ? 'Hello! 👋' : `Hello, ${userName}! 👋`}
         </h2>
         {/* Search */}

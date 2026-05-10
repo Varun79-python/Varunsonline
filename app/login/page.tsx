@@ -79,12 +79,29 @@ export default function LoginPage() {
   const selectedRole = roles.find(r => r.id === role)!
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      {/* Brand */}
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🛒</div>
-        <h1 className="gradient-text" style={{ fontSize: '2rem', marginBottom: '6px' }}>Varun&apos;s Online</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Your favourite local shops, delivered home</p>
+    <div style={{ minHeight: '100vh', background: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      {/* Logo + Brand */}
+      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{
+          width: 130, height: 130, borderRadius: 24,
+          background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 12px',
+          boxShadow: '0 4px 24px rgba(249,115,22,0.15), 0 1px 4px rgba(0,0,0,0.08)',
+          border: '1.5px solid #fed7aa',
+          overflow: 'hidden',
+        }}>
+          <img
+            src="/logo.png"
+            alt="Varun's Online"
+            style={{ width: '110px', height: '110px', objectFit: 'contain' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.removeAttribute('hidden') }}
+          />
+          <span hidden style={{ fontSize: '3rem' }}>🛒</span>
+        </div>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px', background: 'linear-gradient(135deg, #f97316, #ea580c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Varun&apos;s Online
+        </h1>
+        <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>Your favourite local shops, delivered home</p>
       </div>
 
       {/* Role Selector */}
