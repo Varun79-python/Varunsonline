@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     // Fetch shop, address, and order items in parallel (all bypass RLS)
     const [shopRes, addrRes, itemsRes] = await Promise.all([
       supabase.from('shops').select('name, address_line1, city, latitude, longitude').eq('id', order.shop_id).single(),
-      supabase.from('addresses').select('house_name, street_name, landmark, city, latitude, longitude').eq('id', order.address_id).single(),
+      supabase.from('addresses').select('house_name, street_name, landmark, city, latitude, longitude, phone').eq('id', order.address_id).single(),
       supabase.from('order_items').select('id, product_name, quantity, unit_price, total_price, product_image_url').eq('order_id', order.id)
     ])
 

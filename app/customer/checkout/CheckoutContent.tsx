@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-interface Address { id: string; label: string; house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number }
+interface Address { id: string; label: string; house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }
 interface CartItem { product_id: string; name: string; price: number; quantity: number; shop_id: string; shop_name: string; image_url: string }
 
 declare global { interface Window { Razorpay: new (opts: Record<string, unknown>) => { open: () => void } } }
@@ -17,7 +17,7 @@ export default function CheckoutContent() {
   const [selectedAddr, setSelectedAddr] = useState<string>('')
   const [showNewAddr, setShowNewAddr] = useState(false)
   const [gettingGPS, setGettingGPS] = useState(false)
-  const [addr, setAddr] = useState({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', latitude: 0, longitude: 0 })
+  const [addr, setAddr] = useState({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', phone: '', latitude: 0, longitude: 0 })
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'address' | 'summary'>('address')
   const [deliveryCharge, setDeliveryCharge] = useState(30)
@@ -69,6 +69,10 @@ export default function CheckoutContent() {
   async function saveAddress() {
     if (!addr.house_name || !addr.street_name || !addr.city) {
       alert('Please fill House Name, Street and City')
+      return
+    }
+    if (!addr.phone) {
+      alert('Please enter your phone number for the delivery agent')
       return
     }
     const { data: { user } } = await supabase.auth.getUser()
@@ -246,6 +250,10 @@ export default function CheckoutContent() {
                   <div className="input-group">
                     <label className="input-label">Pincode</label>
                     <input className="input" placeholder="500001" value={addr.pincode} onChange={e => setAddr(a => ({ ...a, pincode: e.target.value }))} />
+                  </div>
+                  <div className="input-group" style={{ gridColumn: '1/-1' }}>
+                    <label className="input-label">📞 Phone Number * <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(shared with delivery agent only)</span></label>
+                    <input className="input" type="tel" placeholder="+91 9XXXXXXXXX" value={addr.phone} onChange={e => setAddr(a => ({ ...a, phone: e.target.value }))} required />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
