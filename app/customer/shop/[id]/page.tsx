@@ -74,8 +74,8 @@ export default function ShopPage() {
   if (!shop) return <div style={{ padding: 40, textAlign: 'center' }}>Shop not found</div>
 
   return (
-    <div className="fade-in">
-      {/* Shop Header */}
+    <div className="fade-in" style={{ paddingBottom: 140 }}>
+      {/* Shop Header */
       <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 24, border: '1px solid var(--border)' }}>
         {shop.shop_image_url
           ? <img src={shop.shop_image_url} alt={shop.name} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
@@ -112,7 +112,7 @@ export default function ShopPage() {
           return (
             <div key={cat} style={{ marginBottom: 28 }}>
               {cat && <h3 style={{ marginBottom: 14, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>{cat}</h3>}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 12 }}>
                 {catProds.map(p => {
                   const qty = getQty(p.id)
                   const discPct = p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0
@@ -152,13 +152,6 @@ export default function ShopPage() {
         })
       )}
 
-      {/* Floating cart */}
-      {cartCount > 0 && (
-        <div className="cart-float" onClick={() => router.push('/customer/cart')}>
-          🛒 {cartCount} items
-          <span style={{ borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: 12 }}>₹{cartTotal.toFixed(0)} • Checkout →</span>
-        </div>
-      )}
     </div>
   )
 }
