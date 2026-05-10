@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       .update({
         status: 'agent_assigned',
         agent_id: agentId,
-        assigned_at: new Date().toISOString()
       })
       .eq('id', orderId)
       .eq('status', 'order_packed')   // guard: must still be packed
