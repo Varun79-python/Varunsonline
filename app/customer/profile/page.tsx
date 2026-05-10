@@ -88,17 +88,20 @@ export default function CustomerProfile() {
       return
     }
     setEditSaving(true)
-    const updateData = {
-      label: editForm.label,
+
+    // Build payload — only include fields that have values to avoid schema errors
+    const updateData: Record<string, unknown> = {
       house_name: editForm.house_name,
       street_name: editForm.street_name,
-      landmark: editForm.landmark,
       city: editForm.city,
-      pincode: editForm.pincode,
-      phone: editForm.phone,
-      latitude: editForm.latitude || null,
-      longitude: editForm.longitude || null,
     }
+    if (editForm.label) updateData.label = editForm.label
+    if (editForm.landmark !== undefined) updateData.landmark = editForm.landmark || null
+    if (editForm.pincode) updateData.pincode = editForm.pincode
+    if (editForm.phone) updateData.phone = editForm.phone
+    if (editForm.latitude && editForm.latitude !== 0) updateData.latitude = editForm.latitude
+    if (editForm.longitude && editForm.longitude !== 0) updateData.longitude = editForm.longitude
+
     const { error } = await supabase.from('addresses').update(updateData).eq('id', editingId)
     if (error) {
       alert('Failed to update: ' + error.message)
