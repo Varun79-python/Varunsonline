@@ -2,13 +2,66 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: "Varun's Online — Local Shopping Delivered",
-  description: 'Order from your favourite local shops. Fast delivery to your doorstep.',
+  title: "Varun's Online — Local Shopping App",
+  description: "Order from your favourite local shops in Vizag & nearby cities. Fast delivery to your doorstep. Groceries, Restaurants, Bakery and more.",
+  keywords: ["local shopping", "online delivery", "Vizag", "Varun's Online", "grocery delivery", "restaurant delivery"],
+  authors: [{ name: "Varun's Online" }],
+  creator: "Varun's Online",
+  publisher: "Varun's Online",
+  metadataBase: new URL('https://www.varunsonline.com'),
+  icons: {
+    icon: [
+      { url: '/logo.png', sizes: '32x32', type: 'image/png' },
+      { url: '/logo.png', sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
+  openGraph: {
+    title: "Varun's Online — Local Shopping App",
+    description: "Order from your favourite local shops. Fast delivery to your doorstep.",
+    url: 'https://www.varunsonline.com',
+    siteName: "Varun's Online",
+    images: [
+      {
+        url: '/logo.png',
+        width: 1024,
+        height: 1024,
+        alt: "Varun's Online — Local Shopping App",
+      }
+    ],
+    locale: 'en_IN',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Varun's Online — Local Shopping App",
+    description: "Order from your favourite local shops. Fast delivery to your doorstep.",
+    images: ['/logo.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  manifest: '/manifest.json',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="shortcut icon" href="/logo.png" />
+        <meta name="theme-color" content="#f97316" />
+      </head>
       <body>{children}</body>
     </html>
   )

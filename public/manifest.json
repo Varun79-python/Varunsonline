@@ -1,0 +1,14 @@
+{
+  "name": "Varun's Online",
+  "short_name": "VarunsOnline",
+  "description": "Order from your favourite local shops. Fast delivery to your doorstep.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#f97316",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+  ]
+}
