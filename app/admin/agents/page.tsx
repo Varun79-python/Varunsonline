@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Agent {
-  id: string; 
-  vehicle_type: string; vehicle_number: string; license_url: string; aadhar_url: string; live_photo_url: string;
-  is_approved: boolean; is_active: boolean;
-  wallet_balance: number; total_deliveries: number; today_earnings: number;
-  rejection_reason: string; created_at: string;
-  profiles: any;
-  profile_data?: { full_name: string; phone: string; email: string };
+  id: string
+  full_name: string; phone: string; email: string
+  vehicle_type: string; vehicle_number: string; license_number: string
+  license_url: string; aadhar_url: string; live_photo_url: string
+  is_approved: boolean; is_active: boolean; is_available: boolean
+  wallet_balance: number; total_deliveries: number; today_earnings: number
+  rejection_reason: string; upi_id: string; created_at: string
 }
 
 export default function AdminAgents() {
@@ -24,27 +24,26 @@ export default function AdminAgents() {
   async function load() {
     setLoading(true)
     let q = supabase.from('delivery_agents')
-      .select('*, profiles(full_name, phone, email)')
+      .select('*')
       .order('created_at', { ascending: false })
     if (tab === 'pending') q = q.eq('is_approved', false)
     else if (tab === 'active') q = q.eq('is_approved', true)
     const { data, error } = await q
-    console.log("Agents loaded:", data, "Error:", error)
-    // Handle array or object for profiles
-    const formattedData = (data || []).map(agent => ({
-      ...agent,
-      profile_data: Array.isArray(agent.profiles) ? agent.profiles[0] : agent.profiles
-    }))
-    setAgents(formattedData)
+    if (error) console.error('Agents load error:', error)
+    setAgents(data || [])
     setLoading(false)
   }
 
   async function approve(agent: Agent) {
-    await supabase.from('delivery_agents').update({ is_approved: true, is_active: true }).eq('id', agent.id)
+    await supabase.from('delivery_agents')
+      .update({ is_approved: true, is_active: true })
+      .eq('id', agent.id)
     try {
       await supabase.from('notifications').insert({
-        user_id: agent.id, title: '🎉 Application Approved!',
-        body: 'You can now start accepting deliveries!', type: 'agent_approved'
+        user_id: agent.id,
+        title: '🎉 Application Approved!',
+        body: 'You can now start accepting deliveries on Varun\'s Online!',
+        type: 'agent_approved'
       })
     } catch { /* notifications optional */ }
     load()
@@ -52,30 +51,34 @@ export default function AdminAgents() {
   }
 
   async function reject(agent: Agent) {
-    const reason = prompt('Enter rejection reason:')
+    const reason = prompt('Enter rejection reason (shown to agent):')
     if (!reason) return
-    await supabase.from('delivery_agents').update({ is_approved: false, rejection_reason: reason }).eq('id', agent.id)
+    await supabase.from('delivery_agents')
+      .update({ is_approved: false, rejection_reason: reason })
+      .eq('id', agent.id)
     load()
     setSelected(null)
   }
 
   async function deactivate(agent: Agent) {
-    if (!confirm('Deactivate this agent?')) return
-    await supabase.from('delivery_agents').update({ is_approved: false, is_active: false }).eq('id', agent.id)
+    if (!confirm(`Deactivate ${agent.full_name || 'this agent'}?`)) return
+    await supabase.from('delivery_agents')
+      .update({ is_approved: false, is_active: false })
+      .eq('id', agent.id)
     load()
     setSelected(null)
   }
 
-  const counts = {
-    pending: agents.filter(a => !a.is_approved).length,
-    active: agents.filter(a => a.is_approved).length,
-  }
-
   return (
     <div className="fade-in">
-      <h2 style={{ marginBottom: 20 }}>🛵 Delivery Agents</h2>
+      <div className="flex-between" style={{ marginBottom: 20 }}>
+        <h2>🛵 Delivery Agents</h2>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          {agents.length} agent{agents.length !== 1 ? 's' : ''}
+        </span>
+      </div>
 
-      <div className="tabs" style={{ marginBottom: 20, maxWidth: 440 }}>
+      <div className="tabs" style={{ marginBottom: 20, maxWidth: 380 }}>
         {(['pending', 'active', 'all'] as const).map(t => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -87,8 +90,7 @@ export default function AdminAgents() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Phone</th>
+              <th>Name &amp; Contact</th>
               <th>Vehicle</th>
               <th>License No.</th>
               <th>Deliveries</th>
@@ -98,48 +100,48 @@ export default function AdminAgents() {
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading...</td></tr>}
+            {loading && (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                Loading agents...
+              </td></tr>
+            )}
             {!loading && agents.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No agents found</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                No {tab === 'all' ? '' : tab} agents found
+              </td></tr>
             )}
             {agents.map(agent => (
               <tr key={agent.id}>
                 <td>
-                  <div style={{ fontWeight: 600 }}>{agent.profile_data?.full_name || 'N/A'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agent.profile_data?.email || ''}</div>
+                  <div style={{ fontWeight: 600 }}>{agent.full_name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No name</span>}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.phone || '—'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{agent.email || '—'}</div>
                 </td>
-                <td style={{ fontWeight: 500 }}>{agent.profile_data?.phone || 'N/A'}</td>
                 <td>
-                  <div>{agent.vehicle_type ? agent.vehicle_type.replace(/_/g, ' ') : '—'}</div>
+                  <div style={{ fontWeight: 500 }}>{agent.vehicle_type || '—'}</div>
                   {agent.vehicle_number && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.vehicle_number}</div>}
                 </td>
-                <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                  {agent.license_url ? <a href={agent.license_url} target="_blank" style={{ textDecoration: 'underline' }}>View License</a> : '—'}
+                <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                  {agent.license_number || '—'}
                 </td>
                 <td>{agent.total_deliveries || 0}</td>
                 <td>₹{(agent.wallet_balance || 0).toFixed(0)}</td>
                 <td>
                   <span className={`badge ${agent.is_approved ? 'badge-green' : 'badge-yellow'}`}>
-                    {agent.is_approved ? 'Active' : 'Pending'}
+                    {agent.is_approved ? '✓ Active' : '⏳ Pending'}
                   </span>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => setSelected(agent)}
-                      style={{ fontSize: '0.78rem' }}
-                    >
+                    <button className="btn btn-outline btn-sm" onClick={() => setSelected(agent)}>
                       👁 View
                     </button>
-                    {!agent.is_approved && (
-                      <>
-                        <button className="btn btn-success btn-sm" onClick={() => approve(agent)} style={{ fontSize: '0.78rem' }}>✅ Approve</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => reject(agent)} style={{ fontSize: '0.78rem' }}>❌ Reject</button>
-                      </>
-                    )}
+                    {!agent.is_approved && <>
+                      <button className="btn btn-success btn-sm" onClick={() => approve(agent)}>✅ Approve</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => reject(agent)}>❌ Reject</button>
+                    </>}
                     {agent.is_approved && (
-                      <button className="btn btn-danger btn-sm" onClick={() => deactivate(agent)} style={{ fontSize: '0.78rem' }}>🚫 Deactivate</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => deactivate(agent)}>🚫 Deactivate</button>
                     )}
                   </div>
                 </td>
@@ -152,36 +154,54 @@ export default function AdminAgents() {
       {/* Detail Modal */}
       {selected && (
         <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
             <div className="modal-header">
               <h3>🛵 Agent Details</h3>
               <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               {[
-                { label: 'Full Name', value: selected.profile_data?.full_name },
-                { label: 'Phone', value: selected.profile_data?.phone },
-                { label: 'Email', value: selected.profile_data?.email },
+                { label: 'Full Name', value: selected.full_name },
+                { label: 'Phone', value: selected.phone },
+                { label: 'Email', value: selected.email },
                 { label: 'Vehicle Type', value: selected.vehicle_type },
                 { label: 'Vehicle Number', value: selected.vehicle_number },
-                { label: 'Total Deliveries', value: selected.total_deliveries || 0 },
+                { label: 'License Number', value: selected.license_number },
+                { label: 'UPI ID', value: selected.upi_id },
                 { label: 'Wallet Balance', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
                 { label: "Today's Earnings", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
+                { label: 'Total Deliveries', value: String(selected.total_deliveries || 0) },
+                { label: 'Availability', value: selected.is_available ? '🟢 Online' : '🔴 Offline' },
                 { label: 'Registered On', value: new Date(selected.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
               ].map(f => (
-                <div key={f.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 14px' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{f.label}</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{f.value || '—'}</div>
+                <div key={f.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{f.label}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{f.value || '—'}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              {selected.license_url && <a href={selected.license_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>📄 View License</a>}
-              {selected.aadhar_url && <a href={selected.aadhar_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>📄 View Aadhaar</a>}
-              {selected.live_photo_url && <a href={selected.live_photo_url} target="_blank" className="btn btn-outline btn-sm" style={{ flex: 1 }}>🖼 View Photo</a>}
-            </div>
+            {/* Document Links */}
+            {(selected.license_url || selected.aadhar_url || selected.live_photo_url) && (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                {selected.aadhar_url && (
+                  <a href={selected.aadhar_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
+                    📄 View Aadhaar
+                  </a>
+                )}
+                {selected.license_url && (
+                  <a href={selected.license_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
+                    📄 View License
+                  </a>
+                )}
+                {selected.live_photo_url && (
+                  <a href={selected.live_photo_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
+                    🖼 View Selfie
+                  </a>
+                )}
+              </div>
+            )}
 
             {selected.rejection_reason && (
               <div style={{ background: 'var(--danger-light)', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: 'var(--danger)' }}>
@@ -189,15 +209,13 @@ export default function AdminAgents() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              {!selected.is_approved && (
-                <>
-                  <button className="btn btn-success" onClick={() => approve(selected)}>✅ Approve Agent</button>
-                  <button className="btn btn-danger" onClick={() => reject(selected)}>❌ Reject</button>
-                </>
-              )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              {!selected.is_approved && <>
+                <button className="btn btn-success" onClick={() => approve(selected)}>✅ Approve Agent</button>
+                <button className="btn btn-danger" onClick={() => reject(selected)}>❌ Reject</button>
+              </>}
               {selected.is_approved && (
-                <button className="btn btn-danger" onClick={() => deactivate(selected)}>🚫 Deactivate Agent</button>
+                <button className="btn btn-danger" onClick={() => deactivate(selected)}>🚫 Deactivate</button>
               )}
               <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
             </div>
