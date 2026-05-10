@@ -12,7 +12,20 @@ export default function ShopkeeperDashboard() {
   const [todayEarnings, setTodayEarnings] = useState(0)
   const [loading, setLoading] = useState(true)
   const [noShop, setNoShop] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  function playAlert() {
+    try {
+      const ctx = new AudioContext()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880; gain.gain.value = 0.3
+      osc.start(); osc.stop(ctx.currentTime + 0.3)
+      setTimeout(() => { osc.frequency.value = 660; osc.start(); osc.stop(ctx.currentTime + 0.3) }, 400)
+    } catch {}
+  }
 
   useEffect(() => {
     let mounted = true
@@ -45,28 +58,30 @@ export default function ShopkeeperDashboard() {
     return () => { mounted = false; if (channel) { supabase.removeChannel(channel); channel = null } }
   }, [])
 
-  function playAlert() {
-    try {
-      const ctx = new AudioContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain); gain.connect(ctx.destination)
-      osc.frequency.value = 880; gain.gain.value = 0.3
-      osc.start(); osc.stop(ctx.currentTime + 0.3)
-      setTimeout(() => { osc.frequency.value = 660; osc.start(); osc.stop(ctx.currentTime + 0.3) }, 400)
-    } catch {}
-  }
-
   async function acceptOrder(orderId: string) {
-    await supabase.from('orders').update({ status: 'shop_accepted', accepted_at: new Date().toISOString() }).eq('id', orderId)
-    await supabase.from('order_status_history').insert({ order_id: orderId, status: 'shop_accepted' })
-    setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+    if (actionLoading) return
+    setActionLoading(orderId)
+    const { error } = await supabase.from('orders').update({ status: 'shop_accepted', accepted_at: new Date().toISOString() }).eq('id', orderId)
+    if (!error) {
+      await supabase.from('order_status_history').insert({ order_id: orderId, status: 'shop_accepted' })
+      setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+    } else {
+      alert('Failed to accept order. Please refresh and try again.')
+    }
+    setActionLoading(null)
   }
 
   async function rejectOrder(orderId: string) {
-    const reason = prompt('Reason for rejection?')
-    await supabase.from('orders').update({ status: 'rejected', rejection_reason: reason }).eq('id', orderId)
-    setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+    if (actionLoading) return
+    const reason = prompt('Reason for rejection?') || ''
+    setActionLoading(orderId)
+    const { error } = await supabase.from('orders').update({ status: 'rejected', rejection_reason: reason }).eq('id', orderId)
+    if (!error) {
+      setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+    } else {
+      alert('Failed to reject order. Please try again.')
+    }
+    setActionLoading(null)
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spin" style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto' }} /></div>
@@ -137,8 +152,12 @@ export default function ShopkeeperDashboard() {
                 <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>₹{order.total_amount}</span>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => acceptOrder(order.id)}>✅ Accept</button>
-                <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => rejectOrder(order.id)}>❌ Reject</button>
+                <button className="btn btn-success btn-sm" style={{ flex: 1 }} disabled={actionLoading === order.id} onClick={() => acceptOrder(order.id)}>
+                  {actionLoading === order.id ? '⏳ Processing...' : '✅ Accept'}
+                </button>
+                <button className="btn btn-danger btn-sm" style={{ flex: 1 }} disabled={actionLoading === order.id} onClick={() => rejectOrder(order.id)}>
+                  {actionLoading === order.id ? '⏳...' : '❌ Reject'}
+                </button>
                 <a href={`/shopkeeper/orders/${order.id}`} className="btn btn-secondary btn-sm">View →</a>
               </div>
             </div>

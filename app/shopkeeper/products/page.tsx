@@ -106,25 +106,35 @@ export default function ProductsPage() {
       )}
 
       {/* Products Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-        {filtered.map(p => (
-          <div key={p.id} className="card" style={{ opacity: p.is_available ? 1 : 0.6 }}>
-            {p.image_url ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} /> : <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', marginBottom: 12 }}>🛍️</div>}
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8 }}>{p.category} • Stock: {p.stock_quantity}</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{p.price}</span>
-              {p.mrp > p.price && <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textDecoration: 'line-through' }}>₹{p.mrp}</span>}
-              <span className={`badge ${p.is_available ? 'badge-green' : 'badge-gray'}`} style={{ marginLeft: 'auto' }}>{p.is_available ? 'Active' : 'Hidden'}</span>
+      {filtered.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🛍️</div>
+          <h3 style={{ marginBottom: 8 }}>{search ? 'No products match your search' : 'No Products Yet'}</h3>
+          <p style={{ marginBottom: 20 }}>{search ? 'Try a different search term' : 'Add your first product to start selling!'}</p>
+          {!search && <button className="btn btn-primary" onClick={openNew}>+ Add First Product</button>}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          {filtered.map(p => (
+            <div key={p.id} className="card" style={{ opacity: p.is_available ? 1 : 0.6 }}>
+              {p.image_url ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} /> : <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', marginBottom: 12 }}>🛍️</div>}
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8 }}>{p.category} • Stock: {p.stock_quantity}</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{p.price}</span>
+                {p.mrp > p.price && <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textDecoration: 'line-through' }}>₹{p.mrp}</span>}
+                <span className={`badge ${p.is_available ? 'badge-green' : 'badge-gray'}`} style={{ marginLeft: 'auto' }}>{p.is_available ? 'Active' : 'Hidden'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => openEdit(p)}>✏️ Edit</button>
+                <button className="btn btn-outline btn-sm" onClick={() => toggleAvail(p)}>{p.is_available ? 'Hide' : 'Show'}</button>
+                <button className="btn btn-danger btn-sm" onClick={() => deleteProduct(p.id)}>🗑️</button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => openEdit(p)}>✏️ Edit</button>
-              <button className="btn btn-outline btn-sm" onClick={() => toggleAvail(p)}>{p.is_available ? 'Hide' : 'Show'}</button>
-              <button className="btn btn-danger btn-sm" onClick={() => deleteProduct(p.id)}>🗑️</button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
     </div>
   )
 }
