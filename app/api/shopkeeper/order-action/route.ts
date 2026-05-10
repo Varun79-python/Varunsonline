@@ -22,22 +22,30 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-    if (order.status !== 'payment_confirmed') {
-      return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
-    }
 
     const now = new Date().toISOString()
     let updateData: Record<string, string> = {}
 
+    // Each action requires the correct preceding status
     if (action === 'accept') {
+      if (order.status !== 'payment_confirmed')
+        return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
       updateData = { status: 'shop_accepted', accepted_at: now }
+
     } else if (action === 'reject') {
+      if (order.status !== 'payment_confirmed')
+        return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
       updateData = { status: 'rejected', rejection_reason: reason || '' }
+
     } else if (action === 'pack') {
+      if (order.status !== 'shop_accepted')
+        return NextResponse.json({ error: 'Order must be accepted before packing', currentStatus: order.status }, { status: 409 })
       updateData = { status: 'order_packed', packed_at: now }
+
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
+
 
     const { error: updateError } = await supabase
       .from('orders')
