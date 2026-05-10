@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     // Fetch order — verify this agent is assigned
     const { data: order, error: fetchErr } = await supabase
       .from('orders')
-      .select('id, status, delivery_otp, otp_verified, otp_attempts, agent_id, agent_earning, order_number')
+      .select('id, status, delivery_otp, otp_verified, otp_attempts, agent_id, agent_earning, total_amount, payment_method, order_number')
       .eq('id', orderId)
       .single()
 
@@ -78,9 +78,15 @@ export async function POST(req: NextRequest) {
       } catch { /* RPC optional */ }
     }
 
+    const isCod = order.payment_method === 'cod'
+
     return NextResponse.json({
       success: true,
-      message: `✅ Delivery confirmed for ${order.order_number}!`
+      isCod,
+      amount: order.total_amount,
+      message: isCod
+        ? `✅ OTP verified! Collect ₹${order.total_amount} cash from customer.`
+        : `✅ Delivery confirmed for ${order.order_number}!`
     })
 
   } catch (err) {

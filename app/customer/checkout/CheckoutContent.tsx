@@ -28,6 +28,8 @@ export default function CheckoutContent() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0)
   const pfee = Math.round((subtotal * platformFeePercent) / 100)
   const total = subtotal + deliveryCharge + pfee - couponDiscount
+  const [paymentMode, setPaymentMode] = useState<'online' | 'cod'>('online')
+  const [codLoading, setCodLoading] = useState(false)
 
   useEffect(() => {
     setCart(JSON.parse(localStorage.getItem('vo_cart') || '[]'))
@@ -106,10 +108,73 @@ export default function CheckoutContent() {
     }
   }
 
+  async function placeFreeOrder(userId: string) {
+    const agentEarning = Math.round(deliveryCharge * 0.8)
+    const shopEarning = subtotal - pfee
+    const { data: order } = await supabase.from('orders').insert({
+      customer_id: userId, shop_id: cart[0].shop_id, address_id: selectedAddr,
+      status: 'payment_confirmed', payment_method: 'free', payment_status: 'free',
+      subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
+      discount_amount: couponDiscount, total_amount: 0,
+      shopkeeper_earning: shopEarning, agent_earning: agentEarning,
+      admin_earning: pfee + (deliveryCharge - agentEarning),
+      coupon_code: couponCode || null,
+    }).select().single()
+    if (order) {
+      await supabase.from('order_items').insert(cart.map(i => ({
+        order_id: order.id, product_id: i.product_id, product_name: i.name,
+        product_image_url: i.image_url, quantity: i.quantity,
+        unit_price: i.price, total_price: i.price * i.quantity
+      })))
+      await supabase.from('order_status_history').insert({ order_id: order.id, status: 'payment_confirmed', changed_by: userId })
+      localStorage.removeItem('vo_cart')
+      router.push(`/customer/orders/${order.id}`)
+    }
+  }
+
+  async function placeCodOrder() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !selectedAddr || cart.length === 0) return
+    setCodLoading(true)
+    const agentEarning = Math.round(deliveryCharge * 0.8)
+    const shopEarning = subtotal - pfee
+    try {
+      const res = await fetch('/api/orders/place-cod', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: user.id, shopId: cart[0].shop_id, addressId: selectedAddr,
+          cart, subtotal, deliveryCharge, platformFee: pfee,
+          couponDiscount, total, agentEarning, shopEarning,
+          adminEarning: pfee + (deliveryCharge - agentEarning),
+          couponCode: couponCode || null
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        localStorage.removeItem('vo_cart')
+        router.push(`/customer/orders/${data.orderId}`)
+      } else {
+        alert('Failed to place order: ' + (data.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Failed to place COD order. Please try again.')
+    } finally {
+      setCodLoading(false)
+    }
+  }
+
   async function placeOrder() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !selectedAddr || cart.length === 0) return
     setLoading(true)
+
+    // Free order (₹0 total) — skip Razorpay entirely
+    if (total <= 0) {
+      await placeFreeOrder(user.id)
+      setLoading(false)
+      return
+    }
 
     const agentEarning = Math.round(deliveryCharge * 0.8)
     const shopEarning = subtotal - pfee
@@ -355,14 +420,59 @@ export default function CheckoutContent() {
             </div>
           </div>
 
-          <button
-            className="btn btn-primary btn-full btn-lg"
-            onClick={placeOrder}
-            disabled={loading || !selectedAddr || cart.length === 0}
-            style={{ fontSize: '1rem' }}
-          >
-            {loading ? '⏳ Processing...' : `💳 Pay ₹${total.toFixed(0)} Securely`}
-          </button>
+          {/* Payment Mode Selector */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h3 style={{ marginBottom: 14, fontSize: '1rem' }}>💳 Payment Method</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label style={{
+                display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 10,
+                border: `2px solid ${paymentMode === 'online' ? '#f97316' : '#e2e8f0'}`,
+                cursor: 'pointer', background: paymentMode === 'online' ? '#fff7ed' : 'white'
+              }}>
+                <input type="radio" name="payment" value="online" checked={paymentMode === 'online'} onChange={() => setPaymentMode('online')} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>💳 Pay Online</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>UPI, Card, Net Banking</div>
+                </div>
+              </label>
+              <label style={{
+                display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 10,
+                border: `2px solid ${paymentMode === 'cod' ? '#16a34a' : '#e2e8f0'}`,
+                cursor: 'pointer', background: paymentMode === 'cod' ? '#f0fdf4' : 'white'
+              }}>
+                <input type="radio" name="payment" value="cod" checked={paymentMode === 'cod'} onChange={() => setPaymentMode('cod')} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>💵 Cash on Delivery</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Pay when delivered</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {paymentMode === 'cod' ? (
+            <>
+              <div style={{ background: '#fefce8', border: '1.5px solid #fde047', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: '0.83rem', color: '#854d0e' }}>
+                💡 <strong>Cash on Delivery:</strong> Pay ₹{total.toFixed(0)} in cash to the delivery agent. They will show you a QR code or collect cash at your doorstep.
+              </div>
+              <button
+                className="btn btn-full btn-lg"
+                onClick={placeCodOrder}
+                disabled={codLoading || !selectedAddr}
+                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, padding: '14px', fontSize: '1rem', cursor: 'pointer', opacity: (!selectedAddr || codLoading) ? 0.6 : 1 }}
+              >
+                {codLoading ? '⏳ Placing Order...' : `💵 Place COD Order — ₹${total.toFixed(0)}`}
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn btn-primary btn-full btn-lg"
+              onClick={placeOrder}
+              disabled={loading || !selectedAddr || cart.length === 0}
+              style={{ fontSize: '1rem' }}
+            >
+              {loading ? '⏳ Processing...' : total <= 0 ? '🎉 Place Free Order' : `💳 Pay ₹${total.toFixed(0)} Securely`}
+            </button>
+          )}
 
           <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 10 }}>
             🔒 Secured by Razorpay · By ordering you agree to our terms

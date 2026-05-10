@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     // Fetch active order for this agent
     const { data: order } = await supabase
       .from('orders')
-      .select('id, order_number, status, agent_earning, total_amount, delivery_charge, created_at, shop_id, address_id')
+      .select('id, order_number, status, agent_earning, total_amount, delivery_charge, created_at, shop_id, address_id, payment_method')
       .eq('agent_id', agentId)
       .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
       .maybeSingle()

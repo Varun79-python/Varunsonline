@@ -8,6 +8,7 @@ interface OrderItem { id: string; product_name: string; quantity: number; unit_p
 interface Order {
   id: string; order_number: string; status: string; agent_earning: number
   total_amount: number; delivery_charge: number; created_at: string
+  payment_method?: string
   shop: Shop; address: Address; items: OrderItem[]; distanceKm: number | null
 }
 interface AvailOrder {
@@ -47,6 +48,12 @@ export default function DeliveryDashboard() {
   const [otpError, setOtpError] = useState('')
   const [otpLocked, setOtpLocked] = useState(false)
   const [otpVerifying, setOtpVerifying] = useState(false)
+  // COD cash collection state
+  const [codPending, setCodPending] = useState(false)
+  const [codAmount, setCodAmount] = useState(0)
+  const [codCollecting, setCodCollecting] = useState(false)
+  const [codCollected, setCodCollected] = useState(false)
+  const [showQR, setShowQR] = useState(false)
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
@@ -429,11 +436,18 @@ export default function DeliveryDashboard() {
                             })
                             const data = await res.json()
                             if (data.success) {
-                              setActiveOrder(null)
-                              setDistToCustomer(null)
-                              setOtpInput(''); setOtpError('')
-                              await fetchAvailable()
-                              showToast('🎉 Delivery verified & complete!')
+                              if (data.isCod) {
+                                // COD: show cash collection UI
+                                setCodPending(true)
+                                setCodAmount(data.amount)
+                                showToast('✅ OTP verified! Now collect cash from customer.')
+                              } else {
+                                setActiveOrder(null)
+                                setDistToCustomer(null)
+                                setOtpInput(''); setOtpError('')
+                                await fetchAvailable()
+                                showToast('🎉 Delivery verified & complete!')
+                              }
                             } else if (data.locked) {
                               setOtpLocked(true)
                               setOtpError(data.error || 'Locked — too many wrong attempts')
@@ -451,6 +465,73 @@ export default function DeliveryDashboard() {
                   <button onClick={() => refreshGPS(activeOrder)} className="btn btn-secondary btn-full">
                     📡 Get My Location to Continue
                   </button>
+                )}
+
+                {/* COD Cash Collection UI (shown after OTP verified) */}
+                {codPending && (
+                  <div style={{ marginTop: 16, border: '2.5px solid #f59e0b', borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.4rem' }}>💵</span>
+                      <div>
+                        <div style={{ fontWeight: 800, color: '#92400e', fontSize: '1rem' }}>Collect ₹{codAmount} from Customer</div>
+                        <div style={{ fontSize: '0.72rem', color: '#78350f' }}>This is a Cash on Delivery order</div>
+                      </div>
+                    </div>
+                    <div style={{ padding: 16, background: 'white' }}>
+                      {/* QR Toggle */}
+                      <button
+                        onClick={() => setShowQR(!showQR)}
+                        style={{ width: '100%', padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', marginBottom: 12, fontSize: '0.88rem' }}
+                      >
+                        {showQR ? '❌ Hide QR' : '📱 Show Payment QR (Customer Scan)'}
+                      </button>
+                      {showQR && (
+                        <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${process.env.NEXT_PUBLIC_PLATFORM_UPI_ID || 'varunsonline@upi'}&pn=VarunsOnline&am=${codAmount}&cu=INR&tn=Order%20${activeOrder.order_number}`)}`}
+                            alt="UPI Payment QR"
+                            style={{ width: 220, height: 220, borderRadius: 12, border: '3px solid #e2e8f0' }}
+                          />
+                          <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 6 }}>Customer scans this QR to pay ₹{codAmount} via UPI</p>
+                        </div>
+                      )}
+                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0' }}>— OR —</div>
+                      <button
+                        onClick={async () => {
+                          if (!agentId) return
+                          setCodCollecting(true)
+                          try {
+                            const res = await fetch('/api/delivery/collect-cash', {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ orderId: activeOrder.id, agentId })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              setCodCollected(true)
+                              setCodPending(false)
+                              // Update agent wallet display
+                              setAgent(prev => prev ? { ...prev, wallet_balance: data.newWalletBalance } : prev)
+                              setActiveOrder(null)
+                              setDistToCustomer(null)
+                              await fetchAvailable()
+                              showToast(data.newWalletBalance < 0
+                                ? `⚠️ Cash recorded! Wallet: ₹${data.newWalletBalance} (negative — remit to platform)`
+                                : '✅ Cash collected & recorded!', data.newWalletBalance >= 0)
+                            } else {
+                              showToast(data.error || 'Failed', false)
+                            }
+                          } finally { setCodCollecting(false) }
+                        }}
+                        disabled={codCollecting}
+                        style={{ width: '100%', padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: '0.95rem', opacity: codCollecting ? 0.6 : 1 }}
+                      >
+                        {codCollecting ? '⏳ Recording...' : '💵 Mark Cash Collected from Customer'}
+                      </button>
+                      <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 8, textAlign: 'center' }}>
+                        ⚠️ Marking cash collected will deduct ₹{codAmount} from your wallet. You must remit this to the platform.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
