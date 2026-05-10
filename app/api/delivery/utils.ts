@@ -19,7 +19,7 @@ export async function processEarnings(supabase: SupabaseClient, orderId: string)
       // Get current agent
       const { data: agent } = await supabase
         .from('delivery_agents')
-        .select('wallet_balance, total_earnings, today_earnings')
+        .select('wallet_balance, total_earnings, today_earnings, total_deliveries')
         .eq('id', order.agent_id)
         .single()
       
@@ -30,6 +30,7 @@ export async function processEarnings(supabase: SupabaseClient, orderId: string)
             wallet_balance: (agent.wallet_balance || 0) + order.agent_earning,
             total_earnings: (agent.total_earnings || 0) + order.agent_earning,
             today_earnings: (agent.today_earnings || 0) + order.agent_earning,
+            total_deliveries: (agent.total_deliveries || 0) + 1,
           })
           .eq('id', order.agent_id)
 
@@ -49,7 +50,7 @@ export async function processEarnings(supabase: SupabaseClient, orderId: string)
       // Get current shop
       const { data: shop } = await supabase
         .from('shops')
-        .select('id, wallet_balance, total_earnings, owner_id')
+        .select('id, wallet_balance, total_earnings, owner_id, total_orders')
         .eq('id', order.shop_id)
         .single()
       
@@ -59,6 +60,7 @@ export async function processEarnings(supabase: SupabaseClient, orderId: string)
           .update({
             wallet_balance: (shop.wallet_balance || 0) + order.shopkeeper_earning,
             total_earnings: (shop.total_earnings || 0) + order.shopkeeper_earning,
+            total_orders: (shop.total_orders || 0) + 1,
           })
           .eq('id', shop.id)
 

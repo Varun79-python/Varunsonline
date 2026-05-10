@@ -66,7 +66,7 @@ export default function ShopkeeperDashboard() {
       const today = new Date().toISOString().split('T')[0]
       const { data: todayOrders } = await supabase
         .from('orders').select('shopkeeper_earning')
-        .eq('shop_id', shopData.id).eq('payment_status', 'paid').gte('created_at', today)
+        .eq('shop_id', shopData.id).eq('status', 'delivered').gte('created_at', today)
       setTodayEarnings(todayOrders?.reduce((s: number, o: { shopkeeper_earning: number }) => s + (o.shopkeeper_earning || 0), 0) || 0)
 
       await fetchPending(shopData.id)
