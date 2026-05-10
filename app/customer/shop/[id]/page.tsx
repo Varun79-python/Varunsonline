@@ -75,7 +75,7 @@ export default function ShopPage() {
 
   return (
     <div className="fade-in" style={{ paddingBottom: 140 }}>
-      {/* Shop Header */
+      {/* Shop Header */}
       <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 24, border: '1px solid var(--border)' }}>
         {shop.shop_image_url
           ? <img src={shop.shop_image_url} alt={shop.name} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
