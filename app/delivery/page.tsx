@@ -16,6 +16,14 @@ interface AvailOrder {
 }
 interface Agent { id: string; is_approved: boolean; is_available: boolean; wallet_balance: number; today_earnings: number; total_deliveries: number }
 
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 export default function DeliveryDashboard() {
   const supabase = createClient()
   const [agent, setAgent] = useState<Agent | null>(null)
@@ -25,9 +33,19 @@ export default function DeliveryDashboard() {
   const [noProfile, setNoProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3500) }
+  // Geolocation state for proximity lock
+  const [agentLat, setAgentLat] = useState<number | null>(null)
+  const [agentLon, setAgentLon] = useState<number | null>(null)
+  const [gpsChecking, setGpsChecking] = useState(false)
+  const [distToCustomer, setDistToCustomer] = useState<number | null>(null)
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 4000)
+  }
 
   const fetchAvailable = useCallback(async () => {
     const res = await fetch('/api/delivery/orders')
@@ -40,6 +58,27 @@ export default function DeliveryDashboard() {
     const data = await res.json()
     return data.order as Order | null
   }, [])
+
+  // Get agent's live GPS location
+  function refreshGPS(order: Order) {
+    if (!navigator.geolocation) return
+    setGpsChecking(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude
+        const lon = pos.coords.longitude
+        setAgentLat(lat)
+        setAgentLon(lon)
+        if (order.address?.latitude > 0 && order.address?.longitude > 0) {
+          const d = getDistanceKm(lat, lon, order.address.latitude, order.address.longitude)
+          setDistToCustomer(parseFloat(d.toFixed(3)))
+        }
+        setGpsChecking(false)
+      },
+      () => setGpsChecking(false),
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }
 
   useEffect(() => {
     let mounted = true
@@ -61,12 +100,15 @@ export default function DeliveryDashboard() {
       if (!active) await fetchAvailable()
       setLoading(false)
 
+      // Auto-get GPS if there's an active order
+      if (active) refreshGPS(active)
+
       channel = supabase.channel(`delivery-live-${user.id}`)
       channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async () => {
         if (!mounted) return
         const act = await fetchActive(user.id)
         setActiveOrder(act)
-        if (!act) await fetchAvailable()
+        if (!act) { await fetchAvailable(); setDistToCustomer(null) }
         else setAvailOrders([])
       }).subscribe()
     }
@@ -86,34 +128,51 @@ export default function DeliveryDashboard() {
       })
       const data = await res.json()
       if (res.status === 409 || data.alreadyClaimed) {
-        showToast('⚡ Order already taken! Refreshing...')
-        await fetchAvailable()
-        return
+        showToast('⚡ Order already taken! Refreshing...', false)
+        await fetchAvailable(); return
       }
-      if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`); return }
+      if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`, false); return }
       const act = await fetchActive(agentId)
       setActiveOrder(act)
       setAvailOrders([])
+      if (act) refreshGPS(act)
       showToast(`✅ Order ${order.order_number} accepted!`)
     } finally { setAccepting(null) }
   }
 
+  // ──── STATUS UPDATE — via server API (bypasses RLS) ────
   async function updateStatus(orderId: string, status: string) {
-    const now = new Date().toISOString()
-    const extra = status === 'picked_up' ? { picked_up_at: now } : status === 'delivered' ? { delivered_at: now } : {}
-    await supabase.from('orders').update({ status, ...extra }).eq('id', orderId)
-    await supabase.from('order_status_history').insert({ order_id: orderId, status })
-    if (status === 'delivered') {
-      if (agentId && activeOrder) {
-        try { await supabase.rpc('credit_agent_wallet', { p_agent_id: agentId, p_amount: activeOrder.agent_earning }) } catch {}
+    if (!agentId || updatingStatus) return
+    setUpdatingStatus(true)
+    try {
+      const res = await fetch('/api/delivery/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, agentId, status })
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        showToast(`❌ ${data.error || 'Failed to update status'}`, false)
+        return
       }
-      setActiveOrder(null)
-      await fetchAvailable()
-      showToast('🎉 Delivery complete! Earnings credited.')
-    } else {
-      setActiveOrder(prev => prev ? { ...prev, status } : null)
-    }
+
+      if (status === 'delivered') {
+        setActiveOrder(null)
+        setDistToCustomer(null)
+        setAgentLat(null); setAgentLon(null)
+        await fetchAvailable()
+        showToast('🎉 Delivery complete! Earnings credited.')
+      } else {
+        setActiveOrder(prev => prev ? { ...prev, status } : null)
+        showToast(status === 'picked_up' ? '📦 Picked up from shop!' : '🚴 Out for delivery!')
+      }
+    } finally { setUpdatingStatus(false) }
   }
+
+  // Is agent close enough to deliver? (within 100m OR no GPS coords saved for address)
+  const noAddressGPS = !activeOrder?.address?.latitude || activeOrder.address.latitude === 0
+  const withinRange = noAddressGPS || (distToCustomer !== null && distToCustomer <= 0.1)
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spin" style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto' }} /></div>
   if (noProfile) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><div style={{ fontSize: '4rem', marginBottom: 16 }}>🛵</div><h2 style={{ marginBottom: 8 }}>Not Registered</h2><p style={{ marginBottom: 24 }}>Register as a delivery partner to start earning</p><a href="/delivery/register" className="btn btn-primary">Register Now →</a></div>
@@ -121,9 +180,15 @@ export default function DeliveryDashboard() {
 
   return (
     <div className="fade-in">
+      {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: 'white', border: '1.5px solid var(--border)', borderRadius: 10, padding: '12px 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontWeight: 600, fontSize: '0.92rem' }}>
-          {toast}
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999, background: 'white',
+          border: `1.5px solid ${toast.ok ? '#22c55e' : '#ef4444'}`,
+          borderRadius: 10, padding: '12px 20px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontWeight: 600, fontSize: '0.92rem'
+        }}>
+          {toast.msg}
         </div>
       )}
 
@@ -155,9 +220,7 @@ export default function DeliveryDashboard() {
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 800, color: 'var(--success)', fontSize: '1rem' }}>₹{activeOrder.agent_earning} earn</div>
                 {activeOrder.distanceKm !== null && (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
-                    📍 {activeOrder.distanceKm} km trip
-                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, marginTop: 2 }}>📍 {activeOrder.distanceKm} km trip</div>
                 )}
               </div>
             </div>
@@ -165,9 +228,8 @@ export default function DeliveryDashboard() {
 
           {/* Shop → Customer */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {/* Pickup */}
             <div className="card" style={{ padding: 14, borderTop: '3px solid #f97316' }}>
-              <div style={{ fontWeight: 700, marginBottom: 8, color: '#f97316', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🏪 Pick Up</div>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: '#f97316', fontSize: '0.82rem', textTransform: 'uppercase' }}>🏪 Pick Up</div>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{activeOrder.shop?.name || '—'}</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                 {activeOrder.shop?.address_line1 ? `${activeOrder.shop.address_line1}, ` : ''}{activeOrder.shop?.city || ''}
@@ -180,28 +242,24 @@ export default function DeliveryDashboard() {
               )}
             </div>
 
-            {/* Deliver */}
             <div className="card" style={{ padding: 14, borderTop: '3px solid #22c55e' }}>
-              <div style={{ fontWeight: 700, marginBottom: 8, color: '#16a34a', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🏠 Deliver To</div>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: '#16a34a', fontSize: '0.82rem', textTransform: 'uppercase' }}>🏠 Deliver To</div>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{activeOrder.address?.house_name || '—'}</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                 {activeOrder.address?.street_name || ''}{activeOrder.address?.landmark ? `, near ${activeOrder.address.landmark}` : ''}{activeOrder.address?.city ? `, ${activeOrder.address.city}` : ''}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {/* GPS map link */}
                 {(activeOrder.address?.latitude > 0) ? (
                   <a href={`https://maps.google.com/?q=${activeOrder.address.latitude},${activeOrder.address.longitude}`} target="_blank" rel="noreferrer"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
                     🗺️ Open Maps
                   </a>
                 ) : (
-                  /* Text-search fallback when no GPS saved */
                   <a href={`https://maps.google.com/search?q=${encodeURIComponent(`${activeOrder.address?.house_name || ''} ${activeOrder.address?.street_name || ''} ${activeOrder.address?.city || ''}`)}`} target="_blank" rel="noreferrer"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
                     🔍 Search Maps
                   </a>
                 )}
-                {/* Call customer button */}
                 {activeOrder.address?.phone && (
                   <a href={`tel:${activeOrder.address.phone}`}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
@@ -233,21 +291,74 @@ export default function DeliveryDashboard() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)' }}>×{item.quantity}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹{item.total_price}</div>
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          {/* Package ID + action */}
+          {/* Proximity check + Action */}
           <div className="card" style={{ padding: '14px 16px' }}>
             <div style={{ background: '#fff7ed', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: '0.85rem' }}>
-              <strong>Verify Order ID on Package:</strong> <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '1rem' }}>{activeOrder.order_number}</span>
+              <strong>Verify Order ID on Package:</strong>{' '}
+              <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '1rem' }}>{activeOrder.order_number}</span>
             </div>
-            {activeOrder.status === 'agent_assigned' && <button className="btn btn-primary btn-full" onClick={() => updateStatus(activeOrder.id, 'picked_up')}>✅ Picked Up from Shop</button>}
-            {activeOrder.status === 'picked_up' && <button className="btn btn-primary btn-full" onClick={() => updateStatus(activeOrder.id, 'out_for_delivery')}>🚴 Out for Delivery</button>}
-            {activeOrder.status === 'out_for_delivery' && <button className="btn btn-success btn-full" onClick={() => updateStatus(activeOrder.id, 'delivered')}>🎉 Mark Delivered</button>}
+
+            {/* Proximity indicator — only show for Mark Delivered step */}
+            {activeOrder.status === 'out_for_delivery' && activeOrder.address?.latitude > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, fontSize: '0.83rem', fontWeight: 600,
+                  background: withinRange ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${withinRange ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                  color: withinRange ? '#16a34a' : '#dc2626',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <span>
+                    {distToCustomer !== null
+                      ? `📍 ${(distToCustomer * 1000).toFixed(0)}m from customer ${withinRange ? '✅ In range' : '— move closer!'}`
+                      : '📡 Checking your location...'}
+                  </span>
+                  <button onClick={() => refreshGPS(activeOrder)} disabled={gpsChecking}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>
+                    {gpsChecking ? '⏳' : '🔄'}
+                  </button>
+                </div>
+                {!withinRange && distToCustomer !== null && (
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+                    You must be within <strong>100m</strong> of the delivery address to mark as Delivered.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {activeOrder.status === 'agent_assigned' && (
+              <button className="btn btn-primary btn-full" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'picked_up')}>
+                {updatingStatus ? '⏳ Updating...' : '✅ Picked Up from Shop'}
+              </button>
+            )}
+            {activeOrder.status === 'picked_up' && (
+              <button className="btn btn-primary btn-full" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'out_for_delivery')}>
+                {updatingStatus ? '⏳ Updating...' : '🚴 Out for Delivery'}
+              </button>
+            )}
+            {activeOrder.status === 'out_for_delivery' && (
+              <div>
+                <button
+                  className="btn btn-success btn-full"
+                  disabled={updatingStatus || !withinRange}
+                  onClick={() => updateStatus(activeOrder.id, 'delivered')}
+                  style={{ opacity: withinRange ? 1 : 0.4, cursor: withinRange ? 'pointer' : 'not-allowed' }}
+                >
+                  {updatingStatus ? '⏳ Updating...' : withinRange ? '🎉 Mark Delivered' : `🔒 Too Far (${distToCustomer !== null ? `${(distToCustomer * 1000).toFixed(0)}m` : '?'})`}
+                </button>
+                {!withinRange && distToCustomer === null && !gpsChecking && (
+                  <button onClick={() => refreshGPS(activeOrder)} className="btn btn-secondary btn-full" style={{ marginTop: 8 }}>
+                    📡 Get My Location to Enable Delivery
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
