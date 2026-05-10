@@ -76,12 +76,33 @@ export default function CheckoutContent() {
       return
     }
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase.from('addresses').insert({ customer_id: user.id, ...addr }).select().single()
+    if (!user) { alert('Please login first'); return }
+
+    const payload = {
+      customer_id: user.id,
+      label: addr.label || 'Home',
+      house_name: addr.house_name,
+      street_name: addr.street_name,
+      landmark: addr.landmark || null,
+      city: addr.city,
+      pincode: addr.pincode || null,
+      phone: addr.phone,
+      latitude: addr.latitude !== 0 ? addr.latitude : null,
+      longitude: addr.longitude !== 0 ? addr.longitude : null,
+    }
+
+    const { data, error } = await supabase.from('addresses').insert(payload).select().single()
+    if (error) {
+      console.error('Save address error:', error)
+      alert('Failed to save address: ' + error.message)
+      return
+    }
     if (data) {
       setAddresses(a => [...a, data])
       setSelectedAddr(data.id)
       setShowNewAddr(false)
+      // Reset form
+      setAddr({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', phone: '', latitude: 0, longitude: 0 })
     }
   }
 
