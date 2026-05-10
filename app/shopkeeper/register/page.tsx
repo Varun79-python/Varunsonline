@@ -15,7 +15,7 @@ export default function ShopRegisterPage() {
     address_line1: '', address_line2: '', landmark: '', city: '', state: '', pincode: '',
     phone: '', email: '', upi_id: '',
     latitude: 0, longitude: 0,
-    shop_image_url: '',
+    shop_image_url: '', gender: '',
   })
   const [aadharUrl, setAadharUrl] = useState('')
 
@@ -33,6 +33,8 @@ export default function ShopRegisterPage() {
     if (!user) return
     const { data: shop, error } = await supabase.from('shops').insert({ ...form, owner_id: user.id }).select().single()
     if (error) { alert(error.message); setSaving(false); return }
+    // Save gender to profiles
+    await supabase.from('profiles').update({ gender: form.gender }).eq('id', user.id)
     if (aadharUrl && shop) {
       await supabase.from('shop_documents').insert({ shop_id: shop.id, doc_type: 'aadhar_front', file_url: aadharUrl, file_name: 'Aadhaar' })
     }
@@ -74,7 +76,17 @@ export default function ShopRegisterPage() {
             <div className="input-group"><label className="input-label">Phone Number *</label><input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div className="input-group"><label className="input-label">Email</label><input className="input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div className="input-group"><label className="input-label">Shop Image URL (optional)</label><input className="input" value={form.shop_image_url} onChange={e => setForm(f => ({ ...f, shop_image_url: e.target.value }))} placeholder="https://..." /></div>
-            <button className="btn btn-primary" disabled={!form.name || !form.phone} onClick={() => setStep(2)}>Next →</button>
+            <div className="input-group">
+              <label className="input-label">Gender <span style={{ color: '#ef4444' }}>*</span></label>
+              <select className="input" required value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} style={{ width: '100%' }}>
+                <option value="" disabled>Select Gender</option>
+                <option value="male">👨 Male</option>
+                <option value="female">👩 Female</option>
+                <option value="other">🌈 Other</option>
+                <option value="prefer_not_to_say">🤐 Prefer not to say</option>
+              </select>
+            </div>
+            <button className="btn btn-primary" disabled={!form.name || !form.phone || !form.gender} onClick={() => setStep(2)}>Next →</button>
           </div>
         </div>
       )}

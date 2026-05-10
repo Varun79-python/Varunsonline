@@ -7,7 +7,7 @@ export default function DeliveryRegisterPage() {
   const supabase = createClient()
   const router = useRouter()
   const [form, setForm] = useState({
-    full_name: '', phone: '', email: '',
+    full_name: '', phone: '', email: '', gender: '',
     license_number: '', aadhar_url: '', license_url: '', live_photo_url: '',
     vehicle_type: 'Bike', vehicle_number: '', upi_id: ''
   })
@@ -32,6 +32,7 @@ export default function DeliveryRegisterPage() {
           full_name: agent.full_name || user.user_metadata?.full_name || '',
           phone: agent.phone || '',
           email: agent.email || user.email || '',
+          gender: agent.gender || '',
           license_number: agent.license_number || '',
           aadhar_url: agent.aadhar_url || '',
           license_url: agent.license_url || '',
@@ -57,10 +58,11 @@ export default function DeliveryRegisterPage() {
       ...form,
     })
 
-    // Also update the profiles table name/phone
+    // Also update the profiles table name/phone/gender
     await supabase.from('profiles').update({
       full_name: form.full_name,
-      phone: form.phone
+      phone: form.phone,
+      gender: form.gender
     }).eq('id', user.id)
 
     setSaving(false)
@@ -109,6 +111,17 @@ export default function DeliveryRegisterPage() {
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
               placeholder="10-digit mobile number" />
           </div>
+        </div>
+
+        <div className="input-group">
+          <label className="input-label">Gender <span style={{ color: '#ef4444' }}>*</span></label>
+          <select className="input" required value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} style={{ width: '100%' }}>
+            <option value="" disabled>Select Gender</option>
+            <option value="male">👨 Male</option>
+            <option value="female">👩 Female</option>
+            <option value="other">🌈 Other</option>
+            <option value="prefer_not_to_say">🤐 Prefer not to say</option>
+          </select>
         </div>
 
         <div className="input-group">

@@ -16,9 +16,8 @@ export default function DeliveryProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [email, setEmail] = useState('')
+  const [gender, setGender] = useState('')
   const [form, setForm] = useState({ full_name: '', phone: '', vehicle_type: '', vehicle_number: '' })
-
-  useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -29,14 +28,18 @@ export default function DeliveryProfilePage() {
       setAgent(data)
       setForm({ full_name: data.full_name || '', phone: data.phone || '', vehicle_type: data.vehicle_type || '', vehicle_number: data.vehicle_number || '' })
     }
+    const { data: profile } = await supabase.from('profiles').select('gender').eq('id', user.id).single()
+    if (profile?.gender) setGender(profile.gender)
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [])
 
   async function save() {
     if (!agent) return
     setSaving(true)
     await supabase.from('delivery_agents').update(form).eq('id', agent.id)
-    await supabase.from('profiles').update({ full_name: form.full_name }).eq('id', agent.id)
+    await supabase.from('profiles').update({ full_name: form.full_name, gender }).eq('id', agent.id)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
     setAgent(a => a ? { ...a, ...form } : a)
@@ -148,6 +151,17 @@ export default function DeliveryProfilePage() {
               <label className="input-label">Vehicle Number</label>
               <input className="input" value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="e.g. TS09AB1234" />
             </div>
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Gender</label>
+            <select className="input" value={gender} onChange={e => setGender(e.target.value)} style={{ width: '100%' }}>
+              <option value="">Select Gender</option>
+              <option value="male">👨 Male</option>
+              <option value="female">👩 Female</option>
+              <option value="other">🌈 Other</option>
+              <option value="prefer_not_to_say">🤐 Prefer not to say</option>
+            </select>
           </div>
 
           {saved && (

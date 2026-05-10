@@ -7,6 +7,7 @@ const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electro
 export default function ShopkeeperProfile() {
   const supabase = createClient()
   const [shop, setShop] = useState<Record<string, unknown> | null>(null)
+  const [gender, setGender] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [gettingGPS, setGettingGPS] = useState(false)
@@ -19,6 +20,8 @@ export default function ShopkeeperProfile() {
       const { data } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
       if (!data) { setNoShop(true); return }
       setShop(data)
+      const { data: profile } = await supabase.from('profiles').select('gender').eq('id', user.id).single()
+      if (profile?.gender) setGender(profile.gender)
     }
     load()
   }, [])
@@ -28,6 +31,8 @@ export default function ShopkeeperProfile() {
   async function save() {
     if (!shop) return
     setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) await supabase.from('profiles').update({ gender }).eq('id', user.id)
     await supabase.from('shops').update({ name: shop.name, description: shop.description, category: shop.category, address_line1: shop.address_line1, landmark: shop.landmark, city: shop.city, phone: shop.phone, upi_id: shop.upi_id, bank_account_number: shop.bank_account_number, bank_ifsc: shop.bank_ifsc, is_open: shop.is_open, latitude: shop.latitude, longitude: shop.longitude }).eq('id', shop.id as string)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
@@ -65,6 +70,16 @@ export default function ShopkeeperProfile() {
           </div>
           <div className="input-group"><label className="input-label">Description</label><textarea className="input" rows={3} value={shop.description as string || ''} onChange={e => update('description', e.target.value)} /></div>
           <div className="input-group"><label className="input-label">Phone</label><input className="input" value={shop.phone as string || ''} onChange={e => update('phone', e.target.value)} /></div>
+          <div className="input-group">
+            <label className="input-label">Gender (Personal)</label>
+            <select className="input" value={gender} onChange={e => setGender(e.target.value)} style={{ width: '100%' }}>
+              <option value="">Select Gender</option>
+              <option value="male">👨 Male</option>
+              <option value="female">👩 Female</option>
+              <option value="other">🌈 Other</option>
+              <option value="prefer_not_to_say">🤐 Prefer not to say</option>
+            </select>
+          </div>
         </div>
       </div>
 

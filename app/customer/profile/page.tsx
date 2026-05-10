@@ -2,9 +2,17 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+const GENDER_OPTIONS = [
+  { value: '', label: 'Select Gender' },
+  { value: 'male', label: '👨 Male' },
+  { value: 'female', label: '👩 Female' },
+  { value: 'other', label: '🌈 Other' },
+  { value: 'prefer_not_to_say', label: '🤐 Prefer not to say' },
+]
+
 export default function CustomerProfile() {
   const supabase = createClient()
-  const [profile, setProfile] = useState({ full_name: '', phone: '', email: '' })
+  const [profile, setProfile] = useState({ full_name: '', phone: '', email: '', gender: '' })
   const [addresses, setAddresses] = useState<Record<string, unknown>[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -13,8 +21,8 @@ export default function CustomerProfile() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: p } = await supabase.from('profiles').select('full_name, phone, email').eq('id', user.id).single()
-      if (p) setProfile(p)
+      const { data: p } = await supabase.from('profiles').select('full_name, phone, email, gender').eq('id', user.id).single()
+      if (p) setProfile({ full_name: p.full_name || '', phone: p.phone || '', email: p.email || '', gender: p.gender || '' })
       const { data: a } = await supabase.from('addresses').select('*').eq('customer_id', user.id)
       setAddresses(a || [])
     }
@@ -25,7 +33,11 @@ export default function CustomerProfile() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from('profiles').update({ full_name: profile.full_name, phone: profile.phone }).eq('id', user.id)
+    await supabase.from('profiles').update({
+      full_name: profile.full_name,
+      phone: profile.phone,
+      gender: profile.gender
+    }).eq('id', user.id)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -34,6 +46,8 @@ export default function CustomerProfile() {
     await supabase.from('addresses').delete().eq('id', id)
     setAddresses(prev => prev.filter(a => a.id !== id))
   }
+
+  const genderLabel = GENDER_OPTIONS.find(o => o.value === profile.gender)?.label || '—'
 
   return (
     <div className="fade-in" style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -44,10 +58,32 @@ export default function CustomerProfile() {
       <div className="card" style={{ marginBottom: 24 }}>
         <h3 style={{ marginBottom: 18 }}>Personal Info</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="input-group"><label className="input-label">Full Name</label><input className="input" value={profile.full_name} onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))} /></div>
-          <div className="input-group"><label className="input-label">Phone Number</label><input className="input" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} /></div>
-          <div className="input-group"><label className="input-label">Email</label><input className="input" value={profile.email} disabled style={{ opacity: 0.6 }} /></div>
-          <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>{saving ? 'Saving...' : 'Save Profile'}</button>
+          <div className="input-group">
+            <label className="input-label">Full Name</label>
+            <input className="input" value={profile.full_name} onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Phone Number</label>
+            <input className="input" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Email</label>
+            <input className="input" value={profile.email} disabled style={{ opacity: 0.6 }} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Gender</label>
+            <select className="input" value={profile.gender} onChange={e => setProfile(p => ({ ...p, gender: e.target.value }))} style={{ width: '100%' }}>
+              {GENDER_OPTIONS.map(o => (
+                <option key={o.value} value={o.value} disabled={o.value === '' && profile.gender !== ''}>{o.label}</option>
+              ))}
+            </select>
+            {profile.gender && (
+              <div style={{ marginTop: 4, fontSize: '0.78rem', color: 'var(--text-muted)' }}>Current: {genderLabel}</div>
+            )}
+          </div>
+          <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>
+            {saving ? 'Saving...' : '💾 Save Profile'}
+          </button>
         </div>
       </div>
 
@@ -59,7 +95,8 @@ export default function CustomerProfile() {
             <div>
               <div style={{ fontWeight: 600 }}>{a.house_name as string}</div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{a.street_name as string}{a.landmark ? `, near ${a.landmark}` : ''}, {a.city as string}</div>
-              {a.latitude ? <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 4 }}>📍 {(a.latitude as number).toFixed(5)}, {(a.longitude as number).toFixed(5)}</div> : null}
+              {(a.phone as string) && <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4 }}>📞 {a.phone as string}</div>}
+              {a.latitude ? <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 2 }}>📍 {(a.latitude as number).toFixed(5)}, {(a.longitude as number).toFixed(5)}</div> : null}
             </div>
             <button onClick={() => deleteAddress(a.id as string)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1.1rem' }}>🗑️</button>
           </div>

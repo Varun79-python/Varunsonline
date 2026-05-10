@@ -11,6 +11,27 @@ const roles = [
   { id: 'delivery_agent' as Role, label: 'Delivery Agent', icon: '🛵', desc: 'Deliver orders & earn', color: '#22c55e' },
 ]
 
+const GENDER_OPTIONS = [
+  { value: '', label: 'Select Gender' },
+  { value: 'male', label: '👨 Male' },
+  { value: 'female', label: '👩 Female' },
+  { value: 'other', label: '🌈 Other' },
+  { value: 'prefer_not_to_say', label: '🤐 Prefer not to say' },
+]
+
+// Inline SVG eye icons — no lucide-react needed
+const EyeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+  </svg>
+)
+const EyeOffIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+)
+
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -20,6 +41,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [gender, setGender] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -35,14 +58,15 @@ export default function LoginPage() {
     setError(''); setSuccess(''); setLoading(true)
     try {
       if (mode === 'register') {
+        if (!gender) { setError('Please select your gender'); setLoading(false); return }
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email, password,
-          options: { data: { full_name: name, role, phone } }
+          options: { data: { full_name: name, role, phone, gender } }
         })
         if (signUpErr) throw signUpErr
         if (data.user) {
           await supabase.from('profiles').upsert({
-            id: data.user.id, email, full_name: name, phone, role
+            id: data.user.id, email, full_name: name, phone, role, gender
           })
           if (role === 'delivery_agent') {
             await supabase.from('delivery_agents').upsert({ id: data.user.id })
@@ -53,22 +77,15 @@ export default function LoginPage() {
       } else {
         const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
         if (signInErr) throw signInErr
-
         const user = data.user
-
-        // Get role from user_metadata first (set at registration — no DB needed)
         let userRole: string = user.user_metadata?.role || ''
-
-        // Fallback: try profiles table
         if (!userRole) {
           const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-          userRole = profile?.role || role // final fallback: use the role the user selected on screen
+          userRole = profile?.role || role
         }
-
         if (userRole === 'admin') { router.push('/admin'); return }
         router.push(dashboardRoute[userRole as Role] || dashboardRoute[role])
       }
-
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -87,15 +104,10 @@ export default function LoginPage() {
           background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 12px',
           boxShadow: '0 4px 24px rgba(249,115,22,0.15), 0 1px 4px rgba(0,0,0,0.08)',
-          border: '1.5px solid #fed7aa',
-          overflow: 'hidden',
+          border: '1.5px solid #fed7aa', overflow: 'hidden',
         }}>
-          <img
-            src="/logo.png"
-            alt="Varun's Online"
-            style={{ width: '110px', height: '110px', objectFit: 'contain' }}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.removeAttribute('hidden') }}
-          />
+          <img src="/logo.png" alt="Varun's Online" style={{ width: '110px', height: '110px', objectFit: 'contain' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.removeAttribute('hidden') }} />
           <span hidden style={{ fontSize: '3rem' }}>🛒</span>
         </div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px', background: 'linear-gradient(135deg, #f97316, #ea580c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -112,8 +124,7 @@ export default function LoginPage() {
             border: role === r.id ? `2px solid ${r.color}` : '2px solid var(--border)',
             background: role === r.id ? `${r.color}18` : 'var(--card)',
             color: 'var(--text)', fontFamily: 'inherit', transition: 'all 0.2s',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-            minWidth: '130px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '130px',
           }}>
             <span style={{ fontSize: '1.8rem' }}>{r.icon}</span>
             <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.label}</span>
@@ -129,8 +140,8 @@ export default function LoginPage() {
           <button className={`tab ${mode === 'register' ? 'active' : ''}`} onClick={() => setMode('register')}>Register</button>
         </div>
 
-        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', color: '#fca5a5', fontSize: '0.88rem' }}>{error}</div>}
-        {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', color: '#86efac', fontSize: '0.88rem' }}>{success}</div>}
+        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', color: '#dc2626', fontSize: '0.88rem' }}>{error}</div>}
+        {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', color: '#16a34a', fontSize: '0.88rem' }}>{success}</div>}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {mode === 'register' && (
@@ -145,17 +156,66 @@ export default function LoginPage() {
               </div>
             </>
           )}
+
           <div className="input-group">
             <label className="input-label">Email Address</label>
             <input className="input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
+
+          {/* Password with eye toggle */}
           <div className="input-group">
             <label className="input-label">Password</label>
-            <input className="input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+            <div style={{ position: 'relative' }}>
+              <input
+                className="input"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={6}
+                style={{ paddingRight: password ? 44 : undefined }}
+              />
+              {password && (
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(s => !s)}
+                  style={{
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 4,
+                  }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Gender — register only */}
+          {mode === 'register' && (
+            <div className="input-group">
+              <label className="input-label">Gender <span style={{ color: '#ef4444' }}>*</span></label>
+              <select
+                className="input"
+                value={gender}
+                onChange={e => setGender(e.target.value)}
+                required
+                style={{ width: '100%' }}
+              >
+                {GENDER_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value} disabled={o.value === ''}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}
             style={{ background: `linear-gradient(135deg, ${selectedRole.color}, ${selectedRole.color}cc)`, boxShadow: `0 4px 20px ${selectedRole.color}40` }}>
-            {loading ? <span className="spin" style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} /> : (mode === 'login' ? `Login as ${selectedRole.label}` : `Create ${selectedRole.label} Account`)}
+            {loading
+              ? <span className="spin" style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} />
+              : (mode === 'login' ? `Login as ${selectedRole.label}` : `Create ${selectedRole.label} Account`)}
           </button>
         </form>
 
