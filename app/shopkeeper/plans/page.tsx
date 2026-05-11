@@ -31,6 +31,9 @@ export default function ShopkeeperPlans() {
   // Shopkeeper chooses which type they want first
   const [selectedType, setSelectedType] = useState<'all' | 'percentage' | 'fixed_monthly'>('all')
 
+  const [nowTime, setNowTime] = useState<number>(0)
+  useEffect(() => { setNowTime(Date.now()) }, [])
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -158,7 +161,7 @@ export default function ShopkeeperPlans() {
   )
 
   const expiresAt = activeSub?.expires_at ? new Date(activeSub.expires_at) : null
-  const daysLeft = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400000) : null
+  const daysLeft = expiresAt && nowTime > 0 ? Math.ceil((expiresAt.getTime() - nowTime) / 86400000) : null
   const isPercentagePlan = activeSub?.subscription_plans?.plan_type === 'percentage'
 
   return (

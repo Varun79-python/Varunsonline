@@ -18,6 +18,9 @@ export default function ShopkeeperDashboard() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const shopIdRef = useRef<string | null>(null)
 
+  const [nowTime, setNowTime] = useState<number>(0)
+  useEffect(() => { setNowTime(Date.now()) }, [])
+
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
@@ -227,7 +230,7 @@ export default function ShopkeeperDashboard() {
           return null
         }
         const expiry = new Date(expiresAt)
-        const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / 86400000)
+        const daysLeft = nowTime > 0 ? Math.ceil((expiry.getTime() - nowTime) / 86400000) : 0
         if (daysLeft <= 0) {
           return (
             <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
