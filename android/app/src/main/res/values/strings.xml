@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Varun\'s Online</string>
+    <string name="title_activity_main">Varun\'s Online</string>
+    <string name="package_name">com.varunsonline.app</string>
+    <string name="custom_url_scheme">com.varunsonline.app</string>
+</resources>

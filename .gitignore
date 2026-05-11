@@ -43,4 +43,14 @@ scripts/
 *.tsbuildinfo
 next-env.d.ts
 
+# Android / Capacitor
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+/dist/
+
 .vercel

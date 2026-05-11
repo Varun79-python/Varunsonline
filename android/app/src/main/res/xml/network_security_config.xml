@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config for VarunsOnline
+    Enforces HTTPS for all domains used by the app.
+    Supabase, Razorpay, and Vercel all support HTTPS — no cleartext needed.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Your live site on Vercel -->
+        <domain includeSubdomains="true">varunsonline.com</domain>
+        <domain includeSubdomains="true">varunsonline.vercel.app</domain>
+
+        <!-- Supabase backend (auth, database, storage) -->
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">supabase.in</domain>
+
+        <!-- Razorpay payment gateway -->
+        <domain includeSubdomains="true">razorpay.com</domain>
+        <domain includeSubdomains="true">checkout.razorpay.com</domain>
+    </domain-config>
+</network-security-config>

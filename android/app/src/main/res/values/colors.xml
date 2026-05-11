@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- VarunsOnline brand orange -->
+    <color name="colorPrimary">#f97316</color>
+    <color name="colorPrimaryDark">#ea6c0a</color>
+    <color name="colorAccent">#f97316</color>
+    <!-- Splash background -->
+    <color name="splashBackground">#f97316</color>
+</resources>
