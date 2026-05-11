@@ -131,12 +131,15 @@ export default function CustomerProfile() {
   const inputStyle = { width: '100%', boxSizing: 'border-box' as const, padding: '9px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: '0.88rem', color: '#1e293b', outline: 'none', background: 'white' }
 
   return (
-    <div className="fade-in" style={{ maxWidth: 560, margin: '0 auto' }}>
-      <h2 style={{ marginBottom: 24 }}>👤 My Profile</h2>
+    <div className="fade-in" style={{ width: '100%' }}>
+      <div style={{ padding: '16px 16px 0', marginBottom: 18 }}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>👤 My Profile</h2>
+      </div>
 
-      {saved && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, color: 'var(--success)', fontSize: '0.88rem' }}>✅ Profile saved!</div>}
+      {saved && <div style={{ margin: '0 16px 16px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, color: 'var(--success)', fontSize: '0.88rem' }}>✅ Profile saved!</div>}
 
-      <div className="card" style={{ marginBottom: 24 }}>
+      <div style={{ padding: '0 16px 24px' }}>
+      <div className="card" style={{ marginBottom: 20 }}>
         <h3 style={{ marginBottom: 18 }}>Personal Info</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="input-group">
@@ -162,7 +165,7 @@ export default function CustomerProfile() {
               <div style={{ marginTop: 4, fontSize: '0.78rem', color: 'var(--text-muted)' }}>Current: {genderLabel}</div>
             )}
           </div>
-          <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>
+          <button className="btn btn-primary btn-full" onClick={saveProfile} disabled={saving}>
             {saving ? 'Saving...' : '💾 Save Profile'}
           </button>
         </div>
@@ -184,20 +187,21 @@ export default function CustomerProfile() {
                 {(a.phone as string) && <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4 }}>📞 {a.phone as string}</div>}
                 {a.latitude ? <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: 2 }}>📍 GPS saved</div> : null}
               </div>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button
                   onClick={() => editingId === a.id ? setEditingId(null) : startEdit(a)}
-                  style={{ background: editingId === a.id ? '#f1f5f9' : '#fff7ed', border: `1px solid ${editingId === a.id ? '#d1d5db' : '#fed7aa'}`, color: editingId === a.id ? '#64748b' : '#ea580c', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
-                  {editingId === a.id ? '✕ Cancel' : '✏️ Edit'}
+                  style={{ background: editingId === a.id ? '#f1f5f9' : '#fff7ed', border: `1px solid ${editingId === a.id ? '#d1d5db' : '#fed7aa'}`, color: editingId === a.id ? '#64748b' : '#ea580c', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, minHeight: 36, touchAction: 'manipulation' }}>
+                  {editingId === a.id ? '✕' : '✏️ Edit'}
                 </button>
-                <button onClick={() => deleteAddress(a.id as string)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1.1rem', padding: '4px 6px' }}>🗑️</button>
+                <button onClick={() => deleteAddress(a.id as string)} style={{ background: 'none', border: '1px solid #fecaca', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.78rem', padding: '8px 12px', borderRadius: 8, minHeight: 36, touchAction: 'manipulation' }}>🗑️</button>
               </div>
             </div>
 
             {/* Inline edit form */}
             {editingId === a.id && (
               <div style={{ marginTop: 14, padding: 14, background: '#f8fafc', borderRadius: 10, border: '1.5px solid #e2e8f0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                {/* Responsive grid: 1-col on phone, 2-col on tablet */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 10 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label>
                     <select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>
@@ -253,6 +257,7 @@ export default function CustomerProfile() {
             )}
           </div>
         ))}
+      </div>
       </div>
     </div>
   )

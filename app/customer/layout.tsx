@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar'
 
 const navItems = [
   { href: '/customer', icon: '🏠', label: 'Home' },
-  { href: '/customer/orders', icon: '📦', label: 'My Orders' },
+  { href: '/customer/orders', icon: '📦', label: 'Orders' },
   { href: '/customer/cart', icon: '🛒', label: 'Cart' },
   { href: '/customer/profile', icon: '👤', label: 'Profile' },
 ]
@@ -29,9 +29,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     refreshCart()
-    // Listen for storage changes (from other tabs or same page)
     window.addEventListener('storage', refreshCart)
-    // Poll every 1.5s for same-tab updates
     const interval = setInterval(refreshCart, 1500)
     return () => { window.removeEventListener('storage', refreshCart); clearInterval(interval) }
   }, [refreshCart])
@@ -80,34 +78,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </button>
         </div>
 
-        {/* Page content — bottom padding accounts for nav + cart bar */}
-        <div style={{ paddingBottom: cartCount > 0 ? 130 : 74 }}>
+        {/* Page content */}
+        <div className="cust-page-wrap">
           {children}
         </div>
       </div>
 
       {/* ===== MOBILE BOTTOM BARS ===== */}
 
-      {/* Cart summary bar — appears ABOVE nav when cart has items */}
+      {/* Cart summary bar — sits above bottom nav */}
       {cartCount > 0 && (
         <div
           onClick={() => router.push('/customer/cart')}
-          style={{
-            position: 'fixed',
-            bottom: 64,
-            left: 0, right: 0,
-            height: 56,
-            background: '#f97316',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
-            zIndex: 49,
-            cursor: 'pointer',
-            boxShadow: '0 -3px 16px rgba(249,115,22,0.28)',
-            // Only visible on mobile
-          }}
           className="mobile-cart-bar"
         >
           <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
@@ -120,78 +102,139 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       )}
 
       {/* Bottom navigation bar */}
-      <nav
-        style={{
-          position: 'fixed',
-          bottom: 0, left: 0, right: 0,
-          height: 64,
-          background: 'white',
-          borderTop: '1px solid #eee',
-          display: 'flex',
-          zIndex: 50,
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
-        className="mobile-bottom-nav"
-      >
+      <nav className="mobile-bottom-nav">
         {navItems.map(item => {
           const isActive = pathname === item.href || (item.href !== '/customer' && pathname.startsWith(item.href))
           return (
             <a
               key={item.href}
               href={item.href}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 3,
-                textDecoration: 'none',
-                color: isActive ? '#f97316' : '#94a3b8',
-                fontSize: '0.65rem',
-                fontWeight: isActive ? 700 : 500,
-                position: 'relative',
-                transition: 'color 0.15s',
-              }}
+              className={`mob-nav-item${isActive ? ' mob-nav-active' : ''}`}
             >
-              <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>{item.icon}</span>
-              <span>{item.label}</span>
+              <span className="mob-nav-icon">{item.icon}</span>
+              <span className="mob-nav-label">{item.label}</span>
               {/* Cart badge */}
               {item.label === 'Cart' && cartCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: 6, right: '50%', transform: 'translateX(80%)',
-                  background: '#f97316', color: 'white',
-                  fontSize: '0.6rem', fontWeight: 800,
-                  width: 16, height: 16, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '1.5px solid white',
-                }}>
+                <span className="mob-nav-badge">
                   {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}
-              {/* Active indicator dot */}
-              {isActive && (
-                <span style={{
-                  position: 'absolute', bottom: 2,
-                  width: 4, height: 4, borderRadius: '50%', background: '#f97316'
-                }} />
-              )}
+              {/* Active indicator pill */}
+              {isActive && <span className="mob-nav-pip" />}
             </a>
           )
         })}
       </nav>
 
-      {/* CSS to control visibility on mobile vs desktop */}
       <style>{`
+        /* ── Mobile-only components hidden on desktop ── */
         .mobile-cart-bar { display: none; }
         .mobile-bottom-nav { display: none; }
+
+        /* ── Desktop: page wrap with standard padding ── */
+        .cust-page-wrap { padding-bottom: 24px; }
+
+        /* ══════════════════════════════════════════════
+           MOBILE  ≤ 768px
+        ══════════════════════════════════════════════ */
         @media (max-width: 768px) {
-          .mobile-cart-bar { display: flex !important; }
-          .mobile-bottom-nav { display: flex !important; }
           .main-content { margin-left: 0 !important; }
           .sidebar { display: none; }
           .topbar { display: none; }
           .page-content { padding: 0 !important; }
+
+          /* Page content: no side padding (pages manage their own),
+             bottom padding = nav (60px) + cart bar (52px) + safe-area */
+          .cust-page-wrap {
+            padding-bottom: calc(${cartCount > 0 ? '112px' : '60px'} + env(safe-area-inset-bottom, 0px));
+          }
+
+          /* ── Cart bar ── */
+          .mobile-cart-bar {
+            display: flex !important;
+            position: fixed;
+            bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+            left: 0; right: 0;
+            height: 52px;
+            background: #f97316;
+            color: white;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 49;
+            cursor: pointer;
+            box-shadow: 0 -2px 12px rgba(249,115,22,0.3);
+            touch-action: manipulation;
+          }
+
+          /* ── Bottom nav ── */
+          .mobile-bottom-nav {
+            display: flex !important;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: calc(60px + env(safe-area-inset-bottom, 0px));
+            background: white;
+            border-top: 1px solid #f1f5f9;
+            z-index: 50;
+            box-shadow: 0 -1px 0 #e2e8f0, 0 -4px 16px rgba(0,0,0,0.06);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+          }
+
+          /* ── Nav items ── */
+          .mob-nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            text-decoration: none;
+            color: #94a3b8;
+            position: relative;
+            min-height: 60px;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            transition: color 0.12s;
+          }
+          .mob-nav-item.mob-nav-active { color: #f97316; }
+
+          .mob-nav-icon { font-size: 1.4rem; line-height: 1; }
+          .mob-nav-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.2px; }
+          .mob-nav-active .mob-nav-label { font-weight: 700; }
+
+          /* Active indicator — pill at top of item */
+          .mob-nav-pip {
+            position: absolute;
+            top: 0;
+            width: 24px; height: 3px;
+            background: #f97316;
+            border-radius: 0 0 4px 4px;
+          }
+
+          /* Cart badge */
+          .mob-nav-badge {
+            position: absolute;
+            top: 7px;
+            right: calc(50% - 16px);
+            background: #f97316;
+            color: white;
+            font-size: 0.55rem;
+            font-weight: 800;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 99px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            padding: 0 2px;
+          }
+        }
+
+        /* ── Very small phones (≤360px width) ── */
+        @media (max-width: 360px) {
+          .mob-nav-icon { font-size: 1.2rem; }
+          .mob-nav-label { font-size: 0.58rem; }
         }
       `}</style>
     </div>

@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-
 interface Shop {
   id: string; name: string; category: string; description: string
   shop_image_url: string; rating: number; total_orders: number
@@ -30,15 +29,15 @@ const CATEGORIES = [
   { label: 'Other', icon: '📦' },
 ]
 
-const CAT_ACTIVE_BG: Record<string, string> = {
-  Grocery: '#dcfce7', Bakery: '#fef9c3', Restaurant: '#fee2e2',
-  Electronics: '#dbeafe', Clothing: '#ede9fe', Stationary: '#cffafe',
-  Other: '#f1f5f9', All: '#fff7ed',
-}
 const CAT_COLOR: Record<string, string> = {
   Grocery: '#16a34a', Bakery: '#ca8a04', Restaurant: '#dc2626',
   Electronics: '#2563eb', Clothing: '#7c3aed', Stationary: '#0891b2',
   Other: '#64748b', All: '#f97316',
+}
+const CAT_BG: Record<string, string> = {
+  Grocery: '#dcfce7', Bakery: '#fef9c3', Restaurant: '#fee2e2',
+  Electronics: '#dbeafe', Clothing: '#ede9fe', Stationary: '#cffafe',
+  Other: '#f1f5f9', All: '#fff7ed',
 }
 
 export default function CustomerHome() {
@@ -86,27 +85,16 @@ export default function CustomerHome() {
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
-
     async function loadUser() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      // Try profiles table first (most up-to-date name)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single()
-
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       const name =
-        profile?.full_name?.trim()?.split(' ')[0] ||       // profiles table
-        user.user_metadata?.full_name?.trim()?.split(' ')[0] ||  // auth metadata
-        user.email?.split('@')[0] ||                         // email prefix
-        'there'
-
-      setUserName(name.charAt(0).toUpperCase() + name.slice(1)) // capitalize
+        profile?.full_name?.trim()?.split(' ')[0] ||
+        user.user_metadata?.full_name?.trim()?.split(' ')[0] ||
+        user.email?.split('@')[0] || 'there'
+      setUserName(name.charAt(0).toUpperCase() + name.slice(1))
     }
-
     loadUser()
     loadSettings()
     requestLocation()
@@ -125,111 +113,92 @@ export default function CustomerHome() {
   useEffect(() => { applyFilters() }, [applyFilters])
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100%' }}>
+    <div className="ch-root">
 
-      {/* ── Orange header ── */}
-      <div style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', padding: '18px 16px 24px', position: 'relative' }}>
-        {/* Logout button — mobile only, top-right of header */}
-        <button
-          onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
-          style={{
-            position: 'absolute', top: 14, right: 14,
-            background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.4)',
-            borderRadius: 99, color: 'white', cursor: 'pointer',
-            padding: '5px 13px', fontSize: '0.75rem', fontWeight: 700,
-            backdropFilter: 'blur(4px)', letterSpacing: '0.2px',
-          }}
-        >
-          Logout
-        </button>
-        <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, margin: '0 0 2px' }}>{greeting} 👋</p>
-        <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 14px', paddingRight: 80 }}>
-          {userName === null ? 'Hello! 👋' : `Hello, ${userName}! 👋`}
-        </h2>
+      {/* ── Sticky header: greeting + search ── */}
+      <div className="ch-header">
+        <div className="ch-header-top">
+          <div>
+            <p className="ch-greeting">{greeting} 👋</p>
+            <h2 className="ch-hello">
+              {userName === null ? 'Hello!' : `Hello, ${userName}!`}
+            </h2>
+          </div>
+          <button
+            onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+            className="ch-logout"
+          >
+            Logout
+          </button>
+        </div>
+
         {/* Search */}
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 16, pointerEvents: 'none' }}>🔍</span>
+        <div className="ch-search-wrap">
+          <span className="ch-search-icon">🔍</span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search shops or categories..."
-            style={{
-              width: '100%', padding: '12px 14px 12px 40px',
-              borderRadius: 10, border: 'none', outline: 'none',
-              fontSize: '0.9rem', fontFamily: 'inherit',
-              background: 'white', color: '#0f172a',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-              boxSizing: 'border-box',
-            } as React.CSSProperties}
+            className="ch-search-input"
           />
           {search && (
-            <button onClick={() => setSearch('')} style={{
-              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, padding: 0
-            }}>✕</button>
+            <button onClick={() => setSearch('')} className="ch-search-clear">✕</button>
           )}
         </div>
       </div>
 
-      {/* ── Category strip — horizontal scroll, max 90px tall ── */}
-      <div style={{
-        background: 'white', borderBottom: '1px solid #f1f5f9',
-        overflowX: 'auto', overflowY: 'hidden',
-        display: 'flex', gap: 4, padding: '10px 12px',
-        scrollSnapType: 'x mandatory', scrollbarWidth: 'none',
-        maxHeight: 90, minHeight: 80,
-        WebkitOverflowScrolling: 'touch',
-      } as React.CSSProperties}>
+      {/* ── Category strip ── */}
+      <div className="ch-cats">
         {CATEGORIES.map(cat => {
           const active = category === cat.label
           return (
             <button
               key={cat.label}
               onClick={() => setCategory(cat.label)}
-              style={{
-                flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: 4, padding: '6px 10px', borderRadius: 10, border: 'none',
-                cursor: 'pointer', fontFamily: 'inherit', scrollSnapAlign: 'start',
-                background: active ? CAT_ACTIVE_BG[cat.label] : 'transparent',
-                outline: active ? `2px solid ${CAT_COLOR[cat.label]}` : '2px solid transparent',
-                outlineOffset: -2, transition: 'all 0.15s', minWidth: 58,
-              }}
+              className={`ch-cat-btn${active ? ' ch-cat-active' : ''}`}
+              style={active ? {
+                background: CAT_BG[cat.label],
+                outline: `2px solid ${CAT_COLOR[cat.label]}`,
+              } : {}}
             >
-              <span style={{
-                width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: '1.15rem',
-                background: active ? CAT_COLOR[cat.label] : '#f1f5f9',
-                color: active ? 'white' : 'inherit',
-              }}>{cat.icon}</span>
-              <span style={{
-                fontSize: '0.65rem', fontWeight: active ? 700 : 500,
-                color: active ? CAT_COLOR[cat.label] : '#64748b', whiteSpace: 'nowrap',
-              }}>{cat.label}</span>
+              <span
+                className="ch-cat-icon"
+                style={{
+                  background: active ? CAT_COLOR[cat.label] : '#f1f5f9',
+                  color: active ? 'white' : 'inherit',
+                }}
+              >{cat.icon}</span>
+              <span
+                className="ch-cat-label"
+                style={{ color: active ? CAT_COLOR[cat.label] : '#64748b', fontWeight: active ? 700 : 500 }}
+              >{cat.label}</span>
             </button>
           )
         })}
       </div>
 
-      {/* ── Section header ── */}
-      <div style={{ padding: '12px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
-          {loading ? 'Finding shops...' : `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`}
+      {/* ── Section label ── */}
+      <div className="ch-section-hdr">
+        <span className="ch-section-title">
+          {loading
+            ? 'Finding shops...'
+            : `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`}
         </span>
-        {radiusKm && !loading && <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Within {radiusKm} km</span>}
+        {radiusKm && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
 
       {/* ── Shop grid ── */}
-      <div style={{ padding: '0 16px 16px' }}>
+      <div className="ch-grid-wrap">
 
         {/* Loading skeletons */}
         {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'calc(50% - 6px) calc(50% - 6px)', gap: 12 }}>
-            {[1,2,3,4].map(i => (
-              <div key={i} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1.5px solid #e2e8f0' }}>
-                <div className="skeleton" style={{ height: 95 }} />
-                <div style={{ padding: 10 }}>
-                  <div className="skeleton" style={{ height: 12, marginBottom: 7, width: '72%' }} />
-                  <div className="skeleton" style={{ height: 10, width: '48%' }} />
+          <div className="ch-grid">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="ch-skeleton-card">
+                <div className="skeleton ch-skeleton-img" />
+                <div style={{ padding: '10px 10px 12px' }}>
+                  <div className="skeleton" style={{ height: 11, marginBottom: 7, width: '72%', borderRadius: 6 }} />
+                  <div className="skeleton" style={{ height: 9, width: '50%', borderRadius: 6 }} />
                 </div>
               </div>
             ))}
@@ -238,78 +207,60 @@ export default function CustomerHome() {
 
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
-          <div style={{
-            textAlign: 'center', padding: '48px 20px',
-            background: 'white', borderRadius: 14, border: '1.5px solid #e2e8f0'
-          }}>
+          <div className="ch-empty">
             <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🏪</div>
             <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No shops near you yet</h3>
-            <p style={{ fontSize: '0.83rem', color: '#64748b' }}>We&apos;re adding more daily!</p>
+            <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>We&apos;re adding more daily!</p>
             {category !== 'All' && (
-              <button
-                onClick={() => setCategory('All')}
-                style={{
-                  marginTop: 14, background: '#f97316', color: 'white', border: 'none',
-                  borderRadius: 99, padding: '8px 20px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer'
-                }}
-              >Show All Shops</button>
+              <button onClick={() => setCategory('All')} className="ch-show-all-btn">
+                Show All Shops
+              </button>
             )}
           </div>
         )}
 
-        {/* 2-column shop grid — always 2 cols regardless of count */}
+        {/* Shop cards */}
         {!loading && filtered.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'calc(50% - 6px) calc(50% - 6px)', gap: 12 }}>
+          <div className="ch-grid">
             {filtered.map(shop => (
               <div
                 key={shop.id}
                 onClick={() => router.push(`/customer/shop/${shop.id}`)}
-                style={{
-                  background: 'white', borderRadius: 12,
-                  border: '1.5px solid #e8edf2', overflow: 'hidden',
-                  cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-                  display: 'flex', flexDirection: 'column',
-                }}
+                className="ch-shop-card"
               >
                 {/* Image */}
-                <div style={{ height: 95, background: '#f1f5f9', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                <div className="ch-card-img-wrap">
                   {shop.shop_image_url
-                    ? <img src={shop.shop_image_url} alt={shop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    ? <img src={shop.shop_image_url} alt={shop.name} className="ch-card-img" />
+                    : <div className="ch-card-img-fallback">
                         <span style={{ fontSize: '2rem' }}>
                           {CATEGORIES.find(c => c.label === shop.category)?.icon || '🏪'}
                         </span>
                       </div>
                   }
-                  <div style={{
-                    position: 'absolute', bottom: 5, left: 5,
-                    background: CAT_COLOR[shop.category] || '#64748b',
-                    color: 'white', fontSize: '0.58rem', fontWeight: 800,
-                    padding: '2px 6px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.4px'
-                  }}>{shop.category}</div>
+                  {/* Category pill */}
+                  <div
+                    className="ch-card-cat-pill"
+                    style={{ background: CAT_COLOR[shop.category] || '#64748b' }}
+                  >{shop.category}</div>
                 </div>
 
                 {/* Info */}
-                <div style={{ padding: '8px 10px', flex: 1 }}>
-                  <div style={{
-                    fontWeight: 700, fontSize: '0.84rem', color: '#0f172a',
-                    marginBottom: 4, lineHeight: 1.3,
-                    display: '-webkit-box', overflow: 'hidden',
-                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                  } as React.CSSProperties}>{shop.name}</div>
-                  <div style={{ display: 'flex', gap: 6, fontSize: '0.68rem', color: '#64748b', flexWrap: 'wrap' }}>
-                    {shop.rating > 0 && <span style={{ color: '#ca8a04', fontWeight: 600 }}>⭐ {shop.rating}</span>}
+                <div className="ch-card-body">
+                  <div className="ch-card-name">{shop.name}</div>
+                  <div className="ch-card-meta">
+                    {shop.rating > 0 && <span className="ch-card-rating">⭐ {shop.rating}</span>}
                     {shop.distance != null && (
-                      <span style={{
-                        fontWeight: 700,
-                        color: (shop.distance as number) < 2 ? '#16a34a' : (shop.distance as number) < 5 ? '#d97706' : '#dc2626'
+                      <span className="ch-card-dist" style={{
+                        color: (shop.distance as number) < 2 ? '#16a34a'
+                          : (shop.distance as number) < 5 ? '#d97706' : '#dc2626'
                       }}>
                         📍 {(shop.distance as number) < 1
-                          ? `${Math.round((shop.distance as number) * 1000)}m away`
-                          : `${(shop.distance as number).toFixed(1)} km away`}
+                          ? `${Math.round((shop.distance as number) * 1000)}m`
+                          : `${(shop.distance as number).toFixed(1)} km`}
                       </span>
                     )}
-                    {!shop.distance && shop.city && <span>{shop.city}</span>}
+                    {!shop.distance && shop.city && <span className="ch-card-city">{shop.city}</span>}
                   </div>
                 </div>
               </div>
@@ -317,6 +268,207 @@ export default function CustomerHome() {
           </div>
         )}
       </div>
+
+      {/* ── Scoped styles ── */}
+      <style>{`
+        .ch-root {
+          background: #f8fafc;
+          min-height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        /* ---- Header ---- */
+        .ch-header {
+          background: linear-gradient(145deg, #f97316, #ea580c);
+          padding: 16px 16px 18px;
+          position: sticky;
+          top: 0;
+          z-index: 30;
+        }
+        .ch-header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          margin-bottom: 14px;
+        }
+        .ch-greeting { color: rgba(255,255,255,0.82); font-size: 0.78rem; margin: 0 0 2px; }
+        .ch-hello { color: white; font-size: clamp(1.1rem, 5vw, 1.4rem); font-weight: 800; margin: 0; }
+        .ch-logout {
+          background: rgba(255,255,255,0.2);
+          border: 1.5px solid rgba(255,255,255,0.4);
+          border-radius: 99px; color: white;
+          cursor: pointer; padding: 6px 14px;
+          font-size: 0.75rem; font-weight: 700;
+          white-space: nowrap; flex-shrink: 0;
+          margin-top: 2px;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .ch-logout:active { background: rgba(255,255,255,0.3); }
+
+        /* ---- Search ---- */
+        .ch-search-wrap { position: relative; }
+        .ch-search-icon {
+          position: absolute; left: 13px; top: 50%;
+          transform: translateY(-50%); font-size: 15px;
+          pointer-events: none;
+        }
+        .ch-search-input {
+          width: 100%; padding: 12px 40px 12px 40px;
+          border-radius: 12px; border: none; outline: none;
+          font-size: 15px; font-family: inherit;
+          background: white; color: #0f172a;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+          -webkit-appearance: none;
+          touch-action: manipulation;
+        }
+        .ch-search-clear {
+          position: absolute; right: 12px; top: 50%;
+          transform: translateY(-50%);
+          background: none; border: none; cursor: pointer;
+          color: #94a3b8; font-size: 13px; padding: 4px 6px;
+          touch-action: manipulation;
+        }
+
+        /* ---- Category strip ---- */
+        .ch-cats {
+          background: white;
+          border-bottom: 1px solid #f1f5f9;
+          display: flex; gap: 4px;
+          padding: 10px 12px;
+          overflow-x: auto; overflow-y: hidden;
+          scroll-snap-type: x mandatory;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+        }
+        .ch-cats::-webkit-scrollbar { display: none; }
+
+        .ch-cat-btn {
+          flex-shrink: 0;
+          display: flex; flex-direction: column; align-items: center;
+          gap: 4px; padding: 6px 8px;
+          border-radius: 10px; border: none; cursor: pointer;
+          font-family: inherit; scroll-snap-align: start;
+          background: transparent;
+          outline: 2px solid transparent;
+          outline-offset: -2px;
+          transition: background 0.12s;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          min-width: 54px;
+        }
+        .ch-cat-btn:active { opacity: 0.8; }
+
+        .ch-cat-icon {
+          width: 36px; height: 36px;
+          border-radius: 10px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1.1rem; transition: background 0.12s;
+        }
+        .ch-cat-label {
+          font-size: 0.62rem;
+          white-space: nowrap;
+          transition: color 0.12s;
+        }
+
+        /* ---- Section header ---- */
+        .ch-section-hdr {
+          padding: 10px 14px 6px;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .ch-section-title { font-weight: 700; font-size: 0.85rem; color: #0f172a; }
+        .ch-section-sub { font-size: 0.7rem; color: #94a3b8; }
+
+        /* ---- Grid ---- */
+        .ch-grid-wrap { padding: 0 12px 12px; flex: 1; }
+        .ch-grid {
+          display: grid;
+          /* Responsive: 2 cols on narrow, more on wider screens */
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+        }
+
+        /* ---- Shop card ---- */
+        .ch-shop-card {
+          background: white;
+          border-radius: 14px;
+          border: 1.5px solid #e8edf2;
+          overflow: hidden;
+          cursor: pointer;
+          display: flex; flex-direction: column;
+          box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          transition: transform 0.12s;
+        }
+        .ch-shop-card:active { transform: scale(0.97); }
+
+        .ch-card-img-wrap {
+          /* Responsive image height: 40% of card width = taller on big phones */
+          aspect-ratio: 5 / 3;
+          background: #f1f5f9;
+          position: relative; overflow: hidden; flex-shrink: 0;
+        }
+        .ch-card-img { width: 100%; height: 100%; object-fit: cover; }
+        .ch-card-img-fallback {
+          width: 100%; height: 100%;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .ch-card-cat-pill {
+          position: absolute; bottom: 5px; left: 6px;
+          color: white; font-size: 0.55rem; font-weight: 800;
+          padding: 2px 7px; border-radius: 99px;
+          text-transform: uppercase; letter-spacing: 0.3px;
+        }
+
+        .ch-card-body { padding: 8px 10px 10px; flex: 1; }
+        .ch-card-name {
+          font-weight: 700; font-size: 0.82rem; color: #0f172a;
+          margin-bottom: 4px; line-height: 1.3;
+          display: -webkit-box; overflow: hidden;
+          -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        }
+        .ch-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+        .ch-card-rating { font-size: 0.66rem; color: #ca8a04; font-weight: 700; }
+        .ch-card-dist   { font-size: 0.66rem; font-weight: 700; }
+        .ch-card-city   { font-size: 0.66rem; color: #64748b; }
+
+        /* ---- Skeleton ---- */
+        .ch-skeleton-card {
+          border-radius: 14px; overflow: hidden;
+          background: white; border: 1.5px solid #e2e8f0;
+        }
+        .ch-skeleton-img { aspect-ratio: 5/3; }
+
+        /* ---- Empty state ---- */
+        .ch-empty {
+          text-align: center; padding: 40px 20px;
+          background: white; border-radius: 14px;
+          border: 1.5px solid #e2e8f0; margin-top: 4px;
+        }
+        .ch-show-all-btn {
+          background: #f97316; color: white; border: none;
+          border-radius: 99px; padding: 9px 22px;
+          font-weight: 700; font-size: 0.85rem; cursor: pointer;
+          touch-action: manipulation;
+        }
+
+        /* ── Wider phones / tablets: 3+ columns ── */
+        @media (min-width: 480px) {
+          .ch-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .ch-grid-wrap { padding: 0 14px 14px; }
+          .ch-card-name { font-size: 0.88rem; }
+        }
+        @media (min-width: 640px) {
+          .ch-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        }
+        @media (min-width: 1024px) {
+          .ch-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+          .ch-header { position: relative; }
+        }
+      `}</style>
     </div>
   )
 }
