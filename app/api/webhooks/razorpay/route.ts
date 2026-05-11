@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
             .single()
 
           if (order?.shops) {
-            const shop = order.shops as { owner_id: string; name: string }
+            const shop = order.shops as unknown as { owner_id: string; name: string }
             let customerName = 'a customer'
             if (order.user_id) {
               const { data: prof } = await supabase

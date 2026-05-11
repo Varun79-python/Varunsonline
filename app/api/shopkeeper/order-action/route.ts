@@ -164,8 +164,8 @@ export async function POST(req: NextRequest) {
           .eq('id', orderId)
           .single()
 
-        const shopName = (orderDetails?.shops as { name: string } | null)?.name || 'the shop'
-        const city = (orderDetails?.addresses as { city: string } | null)?.city || 'customer'
+        const shopName = (orderDetails?.shops as unknown as { name: string } | null)?.name || 'the shop'
+        const city = (orderDetails?.addresses as unknown as { city: string } | null)?.city || 'customer'
         const orderNum = orderDetails?.order_number || orderId.slice(0, 8).toUpperCase()
 
         // Fire-and-forget — push failure must NOT break the order flow
