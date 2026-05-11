@@ -62,16 +62,24 @@ ALTER TABLE public.shop_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- SUBSCRIPTION PLANS POLICIES
--- Admin has full access; shopkeepers/customers can read active ones
+-- Admin has FULL access to all plans (active or not)
+-- Shopkeepers/customers can only READ active plans
 -- ============================================================
 DROP POLICY IF EXISTS "Anyone can view active plans" ON public.subscription_plans;
 DROP POLICY IF EXISTS "Admin manages plans" ON public.subscription_plans;
+DROP POLICY IF EXISTS "Admin views all plans" ON public.subscription_plans;
 
+-- Shopkeepers see only active plans
 CREATE POLICY "Anyone can view active plans" ON public.subscription_plans
   FOR SELECT USING (is_active = TRUE);
 
+-- Admin can SELECT/INSERT/UPDATE/DELETE all plans (active or not)
 CREATE POLICY "Admin manages plans" ON public.subscription_plans
-  FOR ALL USING (
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+  WITH CHECK (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
@@ -89,7 +97,11 @@ CREATE POLICY "Shopkeeper inserts own subscriptions" ON public.shop_subscription
   FOR INSERT WITH CHECK (shop_id IN (SELECT id FROM public.shops WHERE owner_id = auth.uid()));
 
 CREATE POLICY "Admin manages subscriptions" ON public.shop_subscriptions
-  FOR ALL USING (
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+  WITH CHECK (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
