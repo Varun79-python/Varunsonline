@@ -154,8 +154,8 @@ export default function AdminPlans() {
 
       {/* Create / Edit Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal-overlay" style={{ alignItems: 'center', overflowY: 'auto', padding: '20px' }}>
+          <div className="modal" style={{ maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto', margin: 'auto' }}>
             <div className="modal-header">
               <h3>{editPlan ? '✏️ Edit Plan' : '➕ Create Plan'}</h3>
               <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
