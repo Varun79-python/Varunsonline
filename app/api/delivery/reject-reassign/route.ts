@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
 
     type Agent = { id: string; full_name: string; total_deliveries: number; last_lat: number | null; last_lon: number | null }
 
-    const shopLat = (order.shops as { latitude: number; longitude: number } | null)?.latitude ?? null
-    const shopLon = (order.shops as { latitude: number; longitude: number } | null)?.longitude ?? null
+    const shopLat = (order.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
+    const shopLon = (order.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
     const best = (agents as Agent[])
       .map(a => {

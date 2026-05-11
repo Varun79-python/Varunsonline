@@ -27,8 +27,8 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
       .eq('id', orderId)
       .single()
 
-    const shopLat = (ord?.shops as { latitude: number; longitude: number } | null)?.latitude ?? null
-    const shopLon = (ord?.shops as { latitude: number; longitude: number } | null)?.longitude ?? null
+    const shopLat = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
+    const shopLon = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
     function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
       const R = 6371

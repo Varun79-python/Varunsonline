@@ -69,8 +69,8 @@ export async function POST(req: Request) {
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     }
 
-    const shopLat = (order.shops as { latitude: number; longitude: number } | null)?.latitude ?? null
-    const shopLon = (order.shops as { latitude: number; longitude: number } | null)?.longitude ?? null
+    const shopLat = (order.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
+    const shopLon = (order.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
     const scored = (agents as Agent[]).map(a => {
       let distScore = 9999
