@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
+interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order { id: string; order_number: string; status: string; total_amount: number; created_at: string; items: OrderItem[] }
 
@@ -16,6 +16,7 @@ export default function ShopkeeperDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [togglingOpen, setTogglingOpen] = useState(false)
   const shopIdRef = useRef<string | null>(null)
 
   const [nowTime, setNowTime] = useState<number>(0)
@@ -204,12 +205,62 @@ export default function ShopkeeperDashboard() {
             {shop?.rating && shop.rating > 0 && <span className="badge badge-yellow">⭐ {shop.rating}</span>}
           </div>
         </div>
-        <button className="btn btn-outline btn-sm" onClick={async () => {
-          if (!shop) return
-          await supabase.from('shops').update({ is_open: !shop.is_active }).eq('id', shop.id)
-          setShop(s => s ? { ...s, is_active: !s.is_active } : s)
-        }}>🔄 Toggle Open/Close</button>
       </div>
+
+      {/* Shop Open/Closed Status Toggle — prominent card */}
+      {shop?.is_active && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: shop.is_open ? '#f0fdf4' : '#fef2f2',
+          border: `1.5px solid ${shop.is_open ? '#86efac' : '#fca5a5'}`,
+          borderRadius: 12, padding: '14px 18px', marginBottom: 20, gap: 12, flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: '1.8rem' }}>{shop.is_open ? '🟢' : '🔴'}</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1rem', color: shop.is_open ? '#15803d' : '#dc2626' }}>
+                Shop is Currently {shop.is_open ? 'OPEN' : 'CLOSED'}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 2 }}>
+                {shop.is_open
+                  ? 'Customers can see and order from your shop.'
+                  : 'Your shop is hidden from customers. Toggle to go online.'}
+              </div>
+            </div>
+          </div>
+          <button
+            disabled={togglingOpen}
+            onClick={async () => {
+              if (!shop) return
+              const next = !shop.is_open
+              const confirmed = window.confirm(
+                next
+                  ? 'Open your shop? Customers will be able to see and order from you.'
+                  : 'Close your shop? Customers will NOT be able to see or order from you until you reopen.'
+              )
+              if (!confirmed) return
+              setTogglingOpen(true)
+              const { error } = await supabase.from('shops').update({ is_open: next }).eq('id', shop.id)
+              if (error) {
+                showToast('❌ Failed to update shop status.', 'error')
+              } else {
+                setShop(s => s ? { ...s, is_open: next } : s)
+                showToast(next ? '🟢 Shop is now OPEN!' : '🔴 Shop is now CLOSED.', next ? 'success' : 'error')
+              }
+              setTogglingOpen(false)
+            }}
+            style={{
+              background: shop.is_open ? '#dc2626' : '#16a34a',
+              color: 'white', border: 'none', borderRadius: 10,
+              padding: '10px 20px', fontWeight: 800, fontSize: '0.9rem',
+              cursor: togglingOpen ? 'not-allowed' : 'pointer',
+              opacity: togglingOpen ? 0.6 : 1, whiteSpace: 'nowrap'
+            }}
+          >
+            {togglingOpen ? '⏳ Updating...' : shop.is_open ? '🔴 Close Shop' : '🟢 Open Shop'}
+          </button>
+        </div>
+      )}
 
       {/* Subscription Status Banner */}
       {(() => {

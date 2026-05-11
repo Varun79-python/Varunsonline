@@ -36,6 +36,7 @@ export default function DeliveryDashboard() {
   const [accepting, setAccepting] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [togglingAvail, setTogglingAvail] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   // Geolocation state for proximity lock
@@ -245,6 +246,66 @@ export default function DeliveryDashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── Availability Status Toggle ── */}
+      {!activeOrder && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: agent?.is_available ? '#f0fdf4' : '#fef2f2',
+          border: `1.5px solid ${agent?.is_available ? '#86efac' : '#fca5a5'}`,
+          borderRadius: 12, padding: '14px 18px', marginBottom: 20, gap: 12, flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: '1.8rem' }}>{agent?.is_available ? '🟢' : '🔴'}</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1rem', color: agent?.is_available ? '#15803d' : '#dc2626' }}>
+                You are {agent?.is_available ? 'ONLINE' : 'OFFLINE'}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 2 }}>
+                {agent?.is_available
+                  ? 'You will receive delivery orders.'
+                  : 'Toggle to go online and start receiving orders.'}
+              </div>
+            </div>
+          </div>
+          <button
+            disabled={togglingAvail}
+            onClick={async () => {
+              if (!agentId || !agent) return
+              const next = !agent.is_available
+              const confirmed = window.confirm(
+                next
+                  ? 'Go ONLINE? You will start receiving delivery orders.'
+                  : 'Go OFFLINE? You will stop receiving new orders until you come back online.'
+              )
+              if (!confirmed) return
+              setTogglingAvail(true)
+              const { error } = await supabase
+                .from('delivery_agents')
+                .update({ is_available: next })
+                .eq('id', agentId)
+              if (error) {
+                showToast('❌ Failed to update status.', false)
+              } else {
+                setAgent(a => a ? { ...a, is_available: next } : a)
+                if (next) await fetchAvailable()
+                else setAvailOrders([])
+                showToast(next ? '🟢 You are now ONLINE!' : '🔴 You are now OFFLINE.')
+              }
+              setTogglingAvail(false)
+            }}
+            style={{
+              background: agent?.is_available ? '#dc2626' : '#16a34a',
+              color: 'white', border: 'none', borderRadius: 10,
+              padding: '10px 20px', fontWeight: 800, fontSize: '0.9rem',
+              cursor: togglingAvail ? 'not-allowed' : 'pointer',
+              opacity: togglingAvail ? 0.6 : 1, whiteSpace: 'nowrap'
+            }}
+          >
+            {togglingAvail ? '⏳ Updating...' : agent?.is_available ? '🔴 Go Offline' : '🟢 Go Online'}
+          </button>
+        </div>
+      )}
 
       {/* ── Active Order ── */}
       {activeOrder && (
