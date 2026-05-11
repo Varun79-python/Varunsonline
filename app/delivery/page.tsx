@@ -220,29 +220,37 @@ export default function DeliveryDashboard() {
   if (!agent?.is_approved) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><div style={{ fontSize: '4rem', marginBottom: 16 }}>⏳</div><h2 style={{ marginBottom: 8 }}>Awaiting Approval</h2><p>Your documents are under review. We&apos;ll notify you once approved.</p></div>
 
   return (
-    <div className="fade-in">
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999, background: 'white',
-          border: `1.5px solid ${toast.ok ? '#22c55e' : '#ef4444'}`,
-          borderRadius: 10, padding: '12px 20px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontWeight: 600, fontSize: '0.92rem'
-        }}>
-          {toast.msg}
+    <div className="dl-root">
+      <div className="dl-mobile-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.3rem' }}>🛵</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white', lineHeight: 1.1 }}>Delivery Partner</div>
+            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)' }}>
+              {agent?.is_available ? '🟢 Online' : '🔴 Offline'}
+            </div>
+          </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>₹{agent?.wallet_balance?.toFixed(0) || 0}</span>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="dl-logout-btn">Logout</button>
+        </div>
+      </div>
+      {toast && (
+        <div className={`dl-toast dl-toast-${toast.ok ? 'ok' : 'err'}`}>{toast.msg}</div>
       )}
 
       {/* Stats */}
-      <div className="grid-3" style={{ marginBottom: 28 }}>
+      <div className="dl-stats-row">
         {[
-          { icon: '💰', label: "Today's Earnings", value: `₹${agent?.today_earnings?.toFixed(0) || 0}`, color: '#22c55e' },
-          { icon: '🏦', label: 'Wallet Balance', value: `₹${agent?.wallet_balance?.toFixed(0) || 0}`, color: '#f97316' },
-          { icon: '📦', label: 'Total Deliveries', value: agent?.total_deliveries || 0, color: '#0ea5e9' },
+          { icon: '💰', label: 'Today', value: `₹${agent?.today_earnings?.toFixed(0) || 0}`, color: '#22c55e' },
+          { icon: '🏦', label: 'Wallet', value: `₹${agent?.wallet_balance?.toFixed(0) || 0}`, color: '#f97316' },
+          { icon: '📦', label: 'Deliveries', value: agent?.total_deliveries || 0, color: '#0ea5e9' },
         ].map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-icon" style={{ background: `${s.color}20` }}>{s.icon}</div>
-            <div><div className="stat-value">{s.value}</div><div className="stat-label">{s.label}</div></div>
+          <div key={s.label} className="dl-stat-card">
+            <div className="dl-stat-icon" style={{ background: `${s.color}22`, color: s.color }}>{s.icon}</div>
+            <div className="dl-stat-value">{s.value}</div>
+            <div className="dl-stat-label">{s.label}</div>
           </div>
         ))}
       </div>
@@ -669,37 +677,19 @@ export default function DeliveryDashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {availOrders.map((order: AvailOrder) => (
-                <div key={order.id} className="card" style={{ borderLeft: '4px solid #22c55e' }}>
-                  <div className="flex-between" style={{ marginBottom: 10 }}>
+                <div key={order.id} className="dl-avail-card">
+                  <div className="dl-avail-top">
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>{order.order_number}</div>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        🏪 {order.shops?.name} → 🏠 {order.addresses?.city}
-                      </div>
+                      <div className="dl-avail-num">{order.order_number}</div>
+                      <div className="dl-avail-route">🏪 {order.shops?.name} → 🏠 {order.addresses?.city}</div>
                     </div>
-                    <span style={{ fontWeight: 800, color: '#22c55e', fontSize: '1rem' }}>₹{order.agent_earning}</span>
+                    <div className="dl-avail-earn">₹{order.agent_earning}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      className="btn btn-primary btn-full"
-                      disabled={accepting === order.id || !!rejecting}
-                      onClick={() => acceptOrder(order)}
-                      style={{ background: '#16a34a', border: 'none', flex: 1 }}
-                    >
-                      {accepting === order.id ? '⏳ Accepting...' : '✅ Accept Delivery'}
+                  <div className="dl-avail-actions">
+                    <button className="dl-accept-btn" disabled={accepting === order.id || !!rejecting} onClick={() => acceptOrder(order)}>
+                      {accepting === order.id ? '⏳ Accepting...' : '✅ Accept'}
                     </button>
-                    <button
-                      className="btn"
-                      disabled={rejecting === order.id || !!accepting}
-                      onClick={() => rejectOrder(order)}
-                      style={{
-                        background: '#fee2e2', color: '#dc2626', border: '1.5px solid #fca5a5',
-                        fontWeight: 700, borderRadius: 8, padding: '0 18px', flexShrink: 0,
-                        cursor: 'pointer', fontSize: '0.88rem'
-                      }}
-                    >
-                      {rejecting === order.id ? '...' : '✕ Reject'}
-                    </button>
+                    <button className="dl-reject-btn" disabled={rejecting === order.id || !!accepting} onClick={() => rejectOrder(order)}>✕ Skip</button>
                   </div>
                 </div>
               ))}
@@ -707,6 +697,40 @@ export default function DeliveryDashboard() {
           )}
         </>
       )}
+
+      <style>{`
+        .dl-root { min-height: 100%; }
+        .dl-mobile-header { display: none; }
+        .dl-stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; padding: 16px 16px 0; margin-bottom: 20px; }
+        .dl-stat-card { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+        .dl-stat-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .dl-stat-value { font-size: 1.2rem; font-weight: 800; color: #0f172a; line-height: 1; }
+        .dl-stat-label { font-size: 0.72rem; color: #64748b; font-weight: 600; }
+        .dl-toast { position: fixed; z-index: 9999; top: calc(16px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; border-radius: 10px; padding: 12px 18px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); font-weight: 600; font-size: 0.9rem; text-align: center; animation: fadeIn 0.2s ease; }
+        .dl-toast-ok  { background: #f0fdf4; border: 1.5px solid #22c55e; color: #15803d; }
+        .dl-toast-err { background: #fef2f2; border: 1.5px solid #ef4444; color: #dc2626; }
+        .dl-avail-card { background: white; border: 1.5px solid #e2e8f0; border-left: 4px solid #22c55e; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .dl-avail-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px 10px; gap: 10px; }
+        .dl-avail-num { font-weight: 800; font-size: 0.95rem; color: #0f172a; margin-bottom: 3px; }
+        .dl-avail-route { font-size: 0.78rem; color: #64748b; }
+        .dl-avail-earn { font-weight: 800; color: #16a34a; font-size: 1.1rem; flex-shrink: 0; }
+        .dl-avail-actions { display: flex; border-top: 1px solid #f1f5f9; }
+        .dl-accept-btn { flex: 1; min-height: 52px; background: #16a34a; color: white; border: none; font-weight: 700; font-size: 0.92rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .dl-accept-btn:active { background: #15803d; }
+        .dl-accept-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .dl-reject-btn { width: 80px; min-height: 52px; background: #fef2f2; color: #dc2626; border: none; border-left: 1px solid #fecaca; font-weight: 700; font-size: 0.88rem; cursor: pointer; touch-action: manipulation; flex-shrink: 0; }
+        .dl-reject-btn:active { background: #fee2e2; }
+        .dl-reject-btn:disabled { opacity: 0.5; }
+        @media (max-width: 768px) {
+          .dl-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: #0f172a; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; }
+          .dl-logout-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: white; border-radius: 99px; padding: 6px 14px; font-size: 0.72rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+          .dl-stats-row { padding: 12px 12px 0; gap: 8px; margin-bottom: 12px; }
+          .dl-stat-card { padding: 12px 10px; border-radius: 12px; }
+          .dl-stat-value { font-size: 1.05rem; }
+          .dl-stat-label { font-size: 0.65rem; }
+          .dl-stat-icon  { width: 32px; height: 32px; font-size: 0.95rem; border-radius: 8px; }
+        }
+      `}</style>
     </div>
   )
 }

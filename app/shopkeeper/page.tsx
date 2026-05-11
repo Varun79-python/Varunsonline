@@ -180,20 +180,27 @@ export default function ShopkeeperDashboard() {
   )
 
   return (
-    <div className="fade-in">
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999,
-          background: toast.type === 'error' ? '#fef2f2' : 'white',
-          border: `1.5px solid ${toast.type === 'error' ? '#dc2626' : 'var(--border)'}`,
-          borderRadius: 10, padding: '12px 20px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          fontWeight: 600, fontSize: '0.92rem', maxWidth: 300,
-          animation: 'slideIn 0.25s ease',
-        }}>
-          {toast.msg}
+    <div className="sk-root">
+      {/* Mobile-only sticky header */}
+      <div className="sk-mobile-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: '1.3rem' }}>🏪</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0f172a', lineHeight: 1.1 }}>{shop?.name || 'My Shop'}</div>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: shop?.is_open ? '#16a34a' : '#dc2626' }}>
+              {shop?.is_open ? '🟢 Open' : '🔴 Closed'}
+            </div>
+          </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {pendingOrders.length > 0 && (
+            <span className="sk-badge-alert">{pendingOrders.length} new</span>
+          )}
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="sk-logout-btn">Logout</button>
+        </div>
+      </div>
+      {toast && (
+        <div className={`sk-toast sk-toast-${toast.type}`}>{toast.msg}</div>
       )}
 
       {/* Header */}
@@ -313,16 +320,17 @@ export default function ShopkeeperDashboard() {
       })()}
 
       {/* Stats */}
-      <div className="grid-4" style={{ marginBottom: 28 }}>
+      <div className="sk-stats-grid">
         {[
           { icon: '💰', label: "Today's Earnings", value: `₹${todayEarnings.toFixed(0)}`, color: '#22c55e' },
           { icon: '🏦', label: 'Wallet Balance', value: `₹${(shop?.wallet_balance || 0).toFixed(0)}`, color: '#f97316' },
           { icon: '📦', label: 'Total Orders', value: shop?.total_orders || 0, color: '#0ea5e9' },
           { icon: '💼', label: 'Total Earned', value: `₹${(shop?.total_earnings || 0).toFixed(0)}`, color: '#a855f7' },
         ].map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-icon" style={{ background: `${s.color}20` }}><span>{s.icon}</span></div>
-            <div><div className="stat-value">{s.value}</div><div className="stat-label">{s.label}</div></div>
+          <div key={s.label} className="sk-stat-card">
+            <div className="sk-stat-icon" style={{ background: `${s.color}20`, color: s.color }}>{s.icon}</div>
+            <div className="sk-stat-value">{s.value}</div>
+            <div className="sk-stat-label">{s.label}</div>
           </div>
         ))}
       </div>
@@ -415,52 +423,61 @@ export default function ShopkeeperDashboard() {
                 </div>
 
                 {/* Action buttons */}
-                <div style={{ display: 'flex', borderTop: '1px solid var(--border)' }}>
+                <div className="sk-order-actions">
                   <button
                     onClick={() => doOrderAction(order.id, order.order_number, 'accept')}
                     disabled={isProcessing}
-                    style={{
-                      flex: 1, padding: '14px', border: 'none',
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      background: isProcessing ? '#d1fae5' : '#16a34a',
-                      color: isProcessing ? '#16a34a' : 'white',
-                      fontWeight: 700, fontSize: '0.9rem',
-                      transition: 'all 0.15s',
-                    }}
+                    className="sk-accept-btn"
+                    style={{ background: isProcessing ? '#d1fae5' : '#16a34a', color: isProcessing ? '#16a34a' : 'white' }}
                   >
                     {isProcessing ? '⏳ Processing...' : '✅ Accept Order'}
                   </button>
                   <button
                     onClick={() => doOrderAction(order.id, order.order_number, 'reject')}
                     disabled={isProcessing}
-                    style={{
-                      flex: 1, padding: '14px', border: 'none',
-                      borderLeft: '1px solid rgba(255,255,255,0.3)',
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      background: isProcessing ? '#fee2e2' : '#dc2626',
-                      color: isProcessing ? '#dc2626' : 'white',
-                      fontWeight: 700, fontSize: '0.9rem',
-                    }}
+                    className="sk-reject-btn"
+                    style={{ background: isProcessing ? '#fee2e2' : '#dc2626', color: isProcessing ? '#dc2626' : 'white' }}
                   >
                     ❌ Reject
                   </button>
-                  <a href={`/shopkeeper/orders/${order.id}`}
-                    style={{
-                      padding: '14px 18px', borderLeft: '1px solid var(--border)',
-                      background: 'var(--bg3)', color: 'var(--text)',
-                      fontWeight: 600, fontSize: '0.88rem',
-                      textDecoration: 'none', display: 'flex', alignItems: 'center',
-                      whiteSpace: 'nowrap', flexShrink: 0
-                    }}
-                  >
-                    Details →
-                  </a>
+                  <a href={`/shopkeeper/orders/${order.id}`} className="sk-details-btn">Details ›</a>
                 </div>
               </div>
             )
           })}
         </div>
       )}
+
+      <style>{`
+        .sk-root { min-height: 100%; }
+        .sk-mobile-header { display: none; }
+        .sk-stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; padding: 0 16px; margin-bottom: 24px; }
+        .sk-stat-card { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+        .sk-stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .sk-stat-value { font-size: 1.2rem; font-weight: 800; color: #0f172a; line-height: 1; }
+        .sk-stat-label { font-size: 0.7rem; color: #64748b; font-weight: 600; }
+        .sk-toast { position: fixed; z-index: 9999; top: calc(16px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; border-radius: 10px; padding: 12px 18px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); font-weight: 600; font-size: 0.9rem; text-align: center; animation: fadeIn 0.2s ease; max-width: 400px; margin: 0 auto; }
+        .sk-toast-success { background: white; border: 1.5px solid #22c55e; color: #15803d; }
+        .sk-toast-error   { background: #fef2f2; border: 1.5px solid #dc2626; color: #dc2626; }
+        .sk-order-actions { display: flex; border-top: 1px solid var(--border); }
+        .sk-accept-btn { flex: 1; min-height: 52px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background 0.1s; }
+        .sk-accept-btn:active { filter: brightness(0.9); }
+        .sk-accept-btn:disabled { cursor: not-allowed; }
+        .sk-reject-btn { flex: 1; min-height: 52px; border: none; border-left: 1px solid rgba(255,255,255,0.25); font-weight: 700; font-size: 0.9rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .sk-reject-btn:active { filter: brightness(0.9); }
+        .sk-reject-btn:disabled { cursor: not-allowed; }
+        .sk-details-btn { padding: 0 16px; border-left: 1px solid var(--border); background: var(--bg3); color: var(--text); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0; min-height: 52px; }
+        @media (max-width: 768px) {
+          .sk-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: white; border-bottom: 1.5px solid #f1f5f9; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+          .sk-logout-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 99px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+          .sk-badge-alert { background: #f97316; color: white; font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 99px; }
+          .sk-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; padding: 12px 12px 0; margin-bottom: 16px; }
+          .sk-stat-card { padding: 12px 10px; border-radius: 12px; }
+          .sk-stat-value { font-size: 1.1rem; }
+          .sk-stat-label { font-size: 0.65rem; }
+          .sk-stat-icon  { width: 32px; height: 32px; font-size: 1rem; }
+        }
+      `}</style>
     </div>
   )
 }
