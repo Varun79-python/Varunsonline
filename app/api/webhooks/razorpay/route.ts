@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { pushToUser } from '@/lib/pushHelper'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +90,37 @@ export async function POST(req: NextRequest) {
         }).eq('id', notes.orderId).eq('payment_status', 'pending')
 
         console.log(`✅ Order ${notes.orderId} payment confirmed via webhook`)
+
+        // ── FCM push to shopkeeper ──────────────────────────────────────────
+        try {
+          const { data: order } = await supabase
+            .from('orders')
+            .select('order_number, total_amount, user_id, shops:shop_id(owner_id, name)')
+            .eq('id', notes.orderId)
+            .single()
+
+          if (order?.shops) {
+            const shop = order.shops as { owner_id: string; name: string }
+            let customerName = 'a customer'
+            if (order.user_id) {
+              const { data: prof } = await supabase
+                .from('profiles').select('full_name').eq('id', order.user_id).single()
+              if (prof?.full_name) customerName = prof.full_name
+            }
+            const orderNum = order.order_number || notes.orderId.slice(0, 8).toUpperCase()
+            await pushToUser(
+              supabase,
+              shop.owner_id,
+              '🛒 New Order Received!',
+              `Order ${orderNum} from ${customerName} — ₹${order.total_amount || ''}. Tap to Accept.`,
+              { type: 'new_order', role: 'shopkeeper', orderId: notes.orderId, orderNumber: orderNum },
+              'varunsonline_orders'
+            )
+          }
+        } catch (pushErr) {
+          console.error('[FCM] Shopkeeper push error (non-fatal):', pushErr)
+        }
+        // ──────────────────────────────────────────────────────────────────────────
       }
     }
 

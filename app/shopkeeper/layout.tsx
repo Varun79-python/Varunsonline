@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
+import { usePushNotifications } from '@/lib/usePushNotifications'
 
 const navItems = [
   { href: '/shopkeeper', icon: '📊', label: 'Dashboard' },
@@ -19,6 +20,10 @@ export default function ShopkeeperLayout({ children }: { children: React.ReactNo
   const supabase = createClient()
   const [checking, setChecking] = useState(true)
   const [shopName, setShopName] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // Register FCM token once user is authenticated
+  usePushNotifications(userId)
 
   useEffect(() => {
     async function checkAuth() {
@@ -28,11 +33,13 @@ export default function ShopkeeperLayout({ children }: { children: React.ReactNo
       if (metaRole && metaRole !== 'shopkeeper') { router.replace('/login'); return }
       if (metaRole === 'shopkeeper') {
         setShopName(user.user_metadata?.full_name || 'Shopkeeper')
+        setUserId(user.id)
         setChecking(false); return
       }
       const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
       if (profile && profile.role !== 'shopkeeper') { router.replace('/login'); return }
       setShopName(profile?.full_name || user.user_metadata?.full_name || 'Shopkeeper')
+      setUserId(user.id)
       setChecking(false)
     }
     checkAuth()

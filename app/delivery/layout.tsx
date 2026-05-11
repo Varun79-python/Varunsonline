@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
+import { usePushNotifications } from '@/lib/usePushNotifications'
 
 const navItems = [
   { href: '/delivery', icon: '📊', label: 'Dashboard' },
@@ -17,6 +18,10 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
   const supabase = createClient()
   const [checking, setChecking] = useState(true)
   const [agentName, setAgentName] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // Register FCM token once user is authenticated
+  usePushNotifications(userId)
 
   useEffect(() => {
     async function checkAuth() {
@@ -26,11 +31,13 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
       if (metaRole && metaRole !== 'delivery_agent') { router.replace('/login'); return }
       if (metaRole === 'delivery_agent') {
         setAgentName(user.user_metadata?.full_name || 'Agent')
+        setUserId(user.id)
         setChecking(false); return
       }
       const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
       if (profile && profile.role !== 'delivery_agent') { router.replace('/login'); return }
       setAgentName(profile?.full_name || user.user_metadata?.full_name || 'Agent')
+      setUserId(user.id)
       setChecking(false)
     }
     checkAuth()

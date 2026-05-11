@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { pushToUser } from '@/lib/pushHelper'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,33 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
   }
 }
 
+/**
+ * Send FCM push to the newly assigned delivery agent.
+ * The agent's Supabase user_id IS their delivery_agents.id.
+ */
+async function notifyAgent(
+  supabase: ReturnType<typeof createClient>,
+  agentId: string,
+  orderId: string,
+  orderNumber: string,
+  shopName: string,
+  customerCity: string
+): Promise<void> {
+  await pushToUser(
+    supabase,
+    agentId,
+    '🛵 New Delivery Assigned!',
+    `Order ${orderNumber} — Pick up from ${shopName}, deliver to ${customerCity}. Tap to view.`,
+    {
+      type: 'agent_assigned',
+      role: 'delivery_agent',
+      orderId,
+      orderNumber,
+    },
+    'varunsonline_orders'
+  )
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { orderId, action, reason } = await req.json()
@@ -121,12 +149,28 @@ export async function POST(req: NextRequest) {
     })
 
     // ── Auto-assign delivery agent on accept ───────────────────────────────
-    // Fast-track: mark order_packed immediately so the agent assignment can proceed
     let assignResult: { agentId?: string; agentName?: string; error?: string } = {}
     if (action === 'accept') {
       await supabase.from('orders').update({ status: 'order_packed', packed_at: now }).eq('id', orderId)
       await supabase.from('order_status_history').insert({ order_id: orderId, status: 'order_packed' })
       assignResult = await autoAssignAgent(orderId)
+
+      // ── Send FCM push to assigned agent ──────────────────────────────────
+      if (assignResult.agentId) {
+        // Fetch order details for the notification body
+        const { data: orderDetails } = await supabase
+          .from('orders')
+          .select('order_number, shops:shop_id(name), addresses:address_id(city)')
+          .eq('id', orderId)
+          .single()
+
+        const shopName = (orderDetails?.shops as { name: string } | null)?.name || 'the shop'
+        const city = (orderDetails?.addresses as { city: string } | null)?.city || 'customer'
+        const orderNum = orderDetails?.order_number || orderId.slice(0, 8).toUpperCase()
+
+        // Fire-and-forget — push failure must NOT break the order flow
+        notifyAgent(supabase, assignResult.agentId, orderId, orderNum, shopName, city).catch(() => {})
+      }
     }
 
     return NextResponse.json({
