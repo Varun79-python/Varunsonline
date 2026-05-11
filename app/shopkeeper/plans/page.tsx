@@ -67,29 +67,47 @@ export default function ShopkeeperPlans() {
   const monthlyPlans = allPlans.filter(p => p.plan_type === 'fixed_monthly')
   const filteredPlans = selectedType === 'all' ? allPlans : allPlans.filter(p => p.plan_type === selectedType)
 
+  // Activate without payment (percentage plans OR free monthly plans)
+  async function activateDirectly(plan: Plan) {
+    setPurchasing(plan.id)
+    const now = new Date()
+    const expiresAt = plan.plan_type === 'fixed_monthly' && plan.duration_days > 0
+      ? new Date(now.getTime() + plan.duration_days * 24 * 60 * 60 * 1000).toISOString()
+      : null
+    await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopId!).eq('is_active', true)
+    await supabase.from('shop_subscriptions').insert({
+      shop_id: shopId, plan_id: plan.id, payment_status: 'paid',
+      starts_at: now.toISOString(), expires_at: expiresAt, is_active: true
+    })
+    await supabase.from('shops').update({
+      is_active: true, subscription_plan_id: plan.id,
+      subscription_fee_percent: plan.plan_type === 'percentage' ? plan.fee_percent : 0,
+      subscription_expires_at: expiresAt
+    }).eq('id', shopId)
+    const successMsg = plan.plan_type === 'percentage'
+      ? `✅ Activated! ${plan.fee_percent}% auto-deducted from each order. Shop is now live!`
+      : `✅ Plan activated! Shop is now live${plan.duration_days > 0 ? ` for ${plan.duration_days} days` : ''}.`
+    setMsg({ text: successMsg, ok: true })
+    setPurchasing(null)
+    setTimeout(() => router.push('/shopkeeper'), 2500)
+  }
+
   async function buyPlan(plan: Plan) {
     if (!shopId || purchasing) return
 
+    // Percentage plan — always free, deduction happens per order automatically
     if (plan.plan_type === 'percentage') {
-      // Free to activate — no payment needed
-      setPurchasing(plan.id)
-      const now = new Date()
-      await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopId).eq('is_active', true)
-      await supabase.from('shop_subscriptions').insert({
-        shop_id: shopId, plan_id: plan.id, payment_status: 'paid',
-        starts_at: now.toISOString(), expires_at: null, is_active: true
-      })
-      await supabase.from('shops').update({
-        is_active: true, subscription_plan_id: plan.id,
-        subscription_fee_percent: plan.fee_percent
-      }).eq('id', shopId)
-      setMsg({ text: `✅ Plan activated! ${plan.fee_percent}% will be auto-deducted from each order. Your shop is now live!`, ok: true })
-      setPurchasing(null)
-      setTimeout(() => router.push('/shopkeeper'), 2000)
+      await activateDirectly(plan)
       return
     }
 
-    // Fixed monthly — pay via Razorpay
+    // Fixed monthly with ₹0 — free activation, no Razorpay
+    if (plan.monthly_fee <= 0) {
+      await activateDirectly(plan)
+      return
+    }
+
+    // Fixed monthly with real amount (> ₹0) — open Razorpay
     setPurchasing(plan.id)
     try {
       const res = await fetch('/api/shopkeeper/create-subscription-order', {
@@ -101,7 +119,7 @@ export default function ShopkeeperPlans() {
       if (error) { setMsg({ text: `❌ ${error}`, ok: false }); setPurchasing(null); return }
 
       const rz = new window.Razorpay({
-        key, amount: plan.monthly_fee * 100, currency: 'INR',
+        key, amount: Math.round(plan.monthly_fee * 100), currency: 'INR',
         name: "Varun's Online", description: `${plan.name} — ${plan.duration_days} days`,
         order_id: orderId,
         handler: async (response: Record<string, string>) => {
@@ -117,8 +135,8 @@ export default function ShopkeeperPlans() {
           })
           const vd = await verifyRes.json()
           if (vd.success) {
-            setMsg({ text: `✅ Payment successful! Your shop is now live for ${plan.duration_days} days.`, ok: true })
-            setTimeout(() => router.push('/shopkeeper'), 2000)
+            setMsg({ text: `✅ Payment of ₹${plan.monthly_fee} successful! Shop is now live for ${plan.duration_days} days.`, ok: true })
+            setTimeout(() => router.push('/shopkeeper'), 2500)
           } else {
             setMsg({ text: `❌ Payment verification failed: ${vd.error}`, ok: false })
           }
@@ -251,11 +269,14 @@ export default function ShopkeeperPlans() {
                 {plan.plan_type === 'fixed_monthly' && <>
                   <span>✓ {plan.duration_days} days validity</span>
                   <span>✓ Keep 100% of earnings</span>
-                  <span>✓ Verified via Razorpay</span>
+                  {plan.monthly_fee > 0
+                    ? <span>✓ Verified via Razorpay</span>
+                    : <span>✓ Activate instantly — free</span>
+                  }
                 </>}
                 {plan.plan_type === 'percentage' && <>
                   <span>✓ No upfront payment</span>
-                  <span>✓ Pay only when you earn</span>
+                  <span>✓ Auto-deducted from earnings</span>
                   <span>✓ Activate instantly</span>
                 </>}
               </div>
@@ -266,7 +287,16 @@ export default function ShopkeeperPlans() {
                 disabled={isCurrentPlan || purchasing === plan.id}
                 onClick={() => buyPlan(plan)}
               >
-                {purchasing === plan.id ? '⏳ Processing...' : isCurrentPlan ? '✅ Your Current Plan' : plan.plan_type === 'percentage' ? '🚀 Activate Free Plan' : `💳 Pay ₹${plan.monthly_fee} & Activate`}
+                {purchasing === plan.id
+                  ? '⏳ Processing...'
+                  : isCurrentPlan
+                    ? '✅ Your Current Plan'
+                    : plan.plan_type === 'percentage'
+                      ? '🚀 Activate — No Upfront Payment'
+                      : plan.monthly_fee <= 0
+                        ? '🚀 Activate Free Plan'
+                        : `💳 Pay ₹${plan.monthly_fee} & Activate`
+                }
               </button>
             </div>
           )
