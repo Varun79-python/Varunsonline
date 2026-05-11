@@ -10,6 +10,7 @@ const navItems = [
   { href: '/admin/agents', icon: '🛵', label: 'Agents' },
   { href: '/admin/customers', icon: '👥', label: 'Customers' },
   { href: '/admin/orders', icon: '📦', label: 'Orders' },
+  { href: '/admin/plans', icon: '📋', label: 'Plans' },
   { href: '/admin/withdrawals', icon: '💸', label: 'Withdrawals' },
   { href: '/admin/coupons', icon: '🏷️', label: 'Coupons' },
   { href: '/admin/settings', icon: '⚙️', label: 'Settings' },

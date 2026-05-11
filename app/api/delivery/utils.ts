@@ -47,29 +47,36 @@ export async function processEarnings(supabase: SupabaseClient, orderId: string)
 
     // 3. Process Shopkeeper Earnings
     if (order.shop_id && order.shopkeeper_earning > 0) {
-      // Get current shop
+      // Get current shop (including subscription fee percent)
       const { data: shop } = await supabase
         .from('shops')
-        .select('id, wallet_balance, total_earnings, owner_id, total_orders')
+        .select('id, wallet_balance, total_earnings, owner_id, total_orders, subscription_fee_percent')
         .eq('id', order.shop_id)
         .single()
       
       if (shop) {
+        // Apply subscription fee deduction if shop is on a percentage plan
+        const feePercent = shop.subscription_fee_percent || 0
+        const feeDeducted = feePercent > 0 ? parseFloat(((order.shopkeeper_earning * feePercent) / 100).toFixed(2)) : 0
+        const netEarning = parseFloat((order.shopkeeper_earning - feeDeducted).toFixed(2))
+
         await supabase
           .from('shops')
           .update({
-            wallet_balance: (shop.wallet_balance || 0) + order.shopkeeper_earning,
-            total_earnings: (shop.total_earnings || 0) + order.shopkeeper_earning,
+            wallet_balance: (shop.wallet_balance || 0) + netEarning,
+            total_earnings: (shop.total_earnings || 0) + netEarning,
             total_orders: (shop.total_orders || 0) + 1,
           })
           .eq('id', shop.id)
 
         await supabase.from('wallet_transactions').insert({
-          user_id: shop.owner_id, // shop owner gets the transaction record
+          user_id: shop.owner_id,
           user_type: 'shopkeeper',
           type: 'credit',
-          amount: order.shopkeeper_earning,
-          description: `Earnings for order ${order.order_number}`,
+          amount: netEarning,
+          description: feeDeducted > 0
+            ? `Earnings for order ${order.order_number} (₹${feeDeducted} platform fee deducted)`
+            : `Earnings for order ${order.order_number}`,
           order_id: order.id
         })
       }

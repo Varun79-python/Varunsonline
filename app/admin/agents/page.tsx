@@ -7,6 +7,7 @@ interface Agent {
   full_name: string; phone: string; email: string
   vehicle_type: string; vehicle_number: string; license_number: string
   license_url: string; aadhar_url: string; live_photo_url: string
+  pan_url: string; vehicle_rc_url: string
   is_approved: boolean; is_active: boolean; is_available: boolean
   wallet_balance: number; total_deliveries: number; today_earnings: number
   rejection_reason: string; upi_id: string; created_at: string
@@ -182,26 +183,37 @@ export default function AdminAgents() {
               ))}
             </div>
 
-            {/* Document Links */}
-            {(selected.license_url || selected.aadhar_url || selected.live_photo_url) && (
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-                {selected.aadhar_url && (
-                  <a href={selected.aadhar_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
-                    📄 View Aadhaar
-                  </a>
-                )}
-                {selected.license_url && (
-                  <a href={selected.license_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
-                    📄 View License
-                  </a>
-                )}
-                {selected.live_photo_url && (
-                  <a href={selected.live_photo_url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm" style={{ flex: 1, textAlign: 'center' }}>
-                    🖼 View Selfie
-                  </a>
-                )}
+            {/* Document Viewer — all uploaded docs */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>📄 Uploaded Documents</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[
+                  { label: 'Aadhaar Card', url: selected.aadhar_url, icon: '🪪' },
+                  { label: 'Driving License', url: selected.license_url, icon: '🪪' },
+                  { label: 'Live Selfie', url: selected.live_photo_url, icon: '🤳' },
+                  { label: 'PAN Card', url: selected.pan_url, icon: '📋' },
+                  { label: 'Vehicle RC', url: selected.vehicle_rc_url, icon: '🏍️' },
+                ].map(doc => (
+                  <div key={doc.label} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
+                    {doc.url ? (
+                      <a href={doc.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+                        <img src={doc.url} alt={doc.label} style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }}
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                        <div style={{ padding: '6px 8px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--success)', textAlign: 'center' }}>
+                          {doc.icon} {doc.label} ↗
+                        </div>
+                      </a>
+                    ) : (
+                      <div style={{ height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                        <span style={{ fontSize: '1.5rem', marginBottom: 4 }}>—</span>
+                        {doc.label}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+
 
             {selected.rejection_reason && (
               <div style={{ background: 'var(--danger-light)', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: 'var(--danger)' }}>

@@ -9,6 +9,7 @@ const navItems = [
   { href: '/shopkeeper/orders', icon: '🛒', label: 'Orders' },
   { href: '/shopkeeper/products', icon: '🏷️', label: 'Products' },
   { href: '/shopkeeper/wallet', icon: '💰', label: 'Wallet' },
+  { href: '/shopkeeper/plans', icon: '📋', label: 'My Plan' },
   { href: '/shopkeeper/profile', icon: '🏪', label: 'Shop Profile' },
 ]
 
