@@ -34,6 +34,7 @@ export default function DeliveryDashboard() {
   const [noProfile, setNoProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -124,7 +125,8 @@ export default function DeliveryDashboard() {
       const active = await fetchActive(user.id)
       if (!mounted) return
       setActiveOrder(active)
-      if (!active) await fetchAvailable()
+      // Only fetch available orders if the agent is online
+      if (!active && ag.is_available) await fetchAvailable()
       setLoading(false)
 
       // Auto-get GPS if there's an active order
@@ -135,7 +137,8 @@ export default function DeliveryDashboard() {
         if (!mounted) return
         const act = await fetchActive(user.id)
         setActiveOrder(act)
-        if (!act) { await fetchAvailable(); setDistToCustomer(null) }
+        // Only show new available orders if agent is online
+        if (!act && ag.is_available) { await fetchAvailable(); setDistToCustomer(null) }
         else setAvailOrders([])
       }).subscribe()
     }
@@ -165,6 +168,15 @@ export default function DeliveryDashboard() {
       if (act) refreshGPS(act)
       showToast(`✅ Order ${order.order_number} accepted!`)
     } finally { setAccepting(null) }
+  }
+
+  async function rejectOrder(order: AvailOrder) {
+    if (!agentId || rejecting) return
+    setRejecting(order.id)
+    // Remove from local list immediately for snappy UX
+    setAvailOrders(prev => prev.filter(o => o.id !== order.id))
+    showToast(`🚫 Order ${order.order_number} skipped.`, false)
+    setRejecting(null)
   }
 
   // ──── STATUS UPDATE — via server API (bypasses RLS) ────
@@ -581,7 +593,14 @@ export default function DeliveryDashboard() {
             <h3>📦 Available Orders ({availOrders.length})</h3>
             <button onClick={fetchAvailable} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.82rem' }}>🔄 Refresh</button>
           </div>
-          {availOrders.length === 0 ? (
+          {/* Offline warning — agent must go online to see orders */}
+          {!agent?.is_available ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40, borderTop: '4px solid #f97316' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔴</div>
+              <h4 style={{ marginBottom: 8, color: '#f97316' }}>You are Offline</h4>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Go to <strong>Profile</strong> and toggle your Availability Status to <strong>Online</strong> to start receiving orders.</p>
+            </div>
+          ) : availOrders.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
               <p>No orders available right now. Check back soon!</p>
@@ -599,9 +618,28 @@ export default function DeliveryDashboard() {
                     </div>
                     <span style={{ fontWeight: 800, color: '#22c55e', fontSize: '1rem' }}>₹{order.agent_earning}</span>
                   </div>
-                  <button className="btn btn-primary btn-full" disabled={accepting === order.id} onClick={() => acceptOrder(order)} style={{ background: '#16a34a', border: 'none' }}>
-                    {accepting === order.id ? '⏳ Accepting...' : '✅ Accept Delivery'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-primary btn-full"
+                      disabled={accepting === order.id || !!rejecting}
+                      onClick={() => acceptOrder(order)}
+                      style={{ background: '#16a34a', border: 'none', flex: 1 }}
+                    >
+                      {accepting === order.id ? '⏳ Accepting...' : '✅ Accept Delivery'}
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={rejecting === order.id || !!accepting}
+                      onClick={() => rejectOrder(order)}
+                      style={{
+                        background: '#fee2e2', color: '#dc2626', border: '1.5px solid #fca5a5',
+                        fontWeight: 700, borderRadius: 8, padding: '0 18px', flexShrink: 0,
+                        cursor: 'pointer', fontSize: '0.88rem'
+                      }}
+                    >
+                      {rejecting === order.id ? '...' : '✕ Reject'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

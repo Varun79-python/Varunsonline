@@ -42,7 +42,7 @@ export default function ShopkeeperWallet() {
         <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: 8 }}>Available Balance</div>
         <div style={{ fontSize: '2.8rem', fontWeight: 900, color: 'var(--primary)', marginBottom: 16 }}>₹{balance.toFixed(2)}</div>
         <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginBottom: 16 }}>Earnings credited after admin processes each order.</p>
-        <button className="btn btn-primary" onClick={() => setShowWithdraw(true)} disabled={balance < 100}>Withdraw →</button>
+        <button className="btn btn-primary" onClick={() => setShowWithdraw(true)}>Withdraw →</button>
       </div>
 
       {msg && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: '0.88rem', color: 'var(--success)' }}>{msg}</div>}
