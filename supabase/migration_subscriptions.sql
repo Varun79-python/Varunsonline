@@ -106,8 +106,17 @@ CREATE POLICY "Admin manages subscriptions" ON public.shop_subscriptions
   );
 
 -- ============================================================
--- ADD REALTIME FOR SUBSCRIPTIONS
+-- ADD REALTIME FOR SUBSCRIPTIONS (safe — skips if already added)
 -- ============================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.shop_subscriptions;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND tablename = 'shop_subscriptions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.shop_subscriptions;
+  END IF;
+END $$;
 
 -- Done! Go to Admin Panel -> Plans to create your subscription plans.
