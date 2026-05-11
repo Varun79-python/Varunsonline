@@ -31,19 +31,21 @@ export default function AdminAgents() {
 
   async function load() {
     setLoading(true)
-    let q = supabase.from('delivery_agents').select('*, profiles:id(full_name, email, phone)').order('created_at', { ascending: false })
-    if (tab === 'pending') q = (q as ReturnType<typeof q.eq>).eq('is_approved', false).is('rejection_reason', null) as typeof q
-    else if (tab === 'active') q = q.eq('is_approved', true)
-    else if (tab === 'rejected') q = (q as ReturnType<typeof q.eq>).eq('is_approved', false).not('rejection_reason', 'is', null) as typeof q
-    const { data } = await q
-    // Merge profile data into agent
-    const merged = (data || []).map((a: Agent & { profiles?: { full_name: string; email: string; phone: string } | null }) => ({
-      ...a,
-      full_name: a.full_name || a.profiles?.full_name || '',
-      email: a.email || a.profiles?.email || '',
-      phone: a.phone || a.profiles?.phone || '',
-    }))
-    setAgents(merged)
+    // Fetch all agents at once and filter client-side to avoid TS type depth errors
+    const { data } = await supabase
+      .from('delivery_agents')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    const all = (data || []) as Agent[]
+
+    let filtered: Agent[]
+    if (tab === 'pending') filtered = all.filter(a => !a.is_approved && !a.rejection_reason)
+    else if (tab === 'active') filtered = all.filter(a => a.is_approved)
+    else if (tab === 'rejected') filtered = all.filter(a => !a.is_approved && !!a.rejection_reason)
+    else filtered = all
+
+    setAgents(filtered)
     setLoading(false)
   }
 
