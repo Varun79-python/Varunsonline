@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
 interface Address { house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }
@@ -38,6 +39,11 @@ export default function DeliveryDashboard() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const { start: startAlert, stop: stopAlert } = useOrderAlert()
+  // Track excluded agent IDs for rejection-based reassignment chain
+  const excludedAgentsRef = useRef<string[]>([])
+  // Track the currently alerted order to avoid duplicate sounds
+  const alertedOrderIdRef = useRef<string | null>(null)
 
   // Geolocation state for proximity lock
   const [agentLat, setAgentLat] = useState<number | null>(null)
@@ -134,10 +140,24 @@ export default function DeliveryDashboard() {
       if (active) refreshGPS(active)
 
       channel = supabase.channel(`delivery-live-${user.id}`)
-      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async () => {
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload) => {
         if (!mounted) return
         const act = await fetchActive(user.id)
         setActiveOrder(act)
+
+        // Play alert when THIS agent is newly assigned to an order
+        if (
+          act &&
+          payload.new?.agent_id === user.id &&
+          payload.old?.agent_id !== user.id &&
+          alertedOrderIdRef.current !== act.id
+        ) {
+          alertedOrderIdRef.current = act.id
+          excludedAgentsRef.current = []   // reset rejection chain for new order
+          startAlert()
+          showToast('🔔 New delivery assigned to you!')
+        }
+
         // Only show new available orders if agent is online
         if (!act && ag.is_available) { await fetchAvailable(); setDistToCustomer(null) }
         else setAvailOrders([])
@@ -151,6 +171,8 @@ export default function DeliveryDashboard() {
   async function acceptOrder(order: AvailOrder) {
     if (!agentId || accepting) return
     setAccepting(order.id)
+    stopAlert()   // stop any assignment alert
+    alertedOrderIdRef.current = null
     try {
       const res = await fetch('/api/delivery/orders', {
         method: 'POST',
@@ -174,9 +196,24 @@ export default function DeliveryDashboard() {
   async function rejectOrder(order: AvailOrder) {
     if (!agentId || rejecting) return
     setRejecting(order.id)
+    stopAlert()   // stop sound on reject
+    alertedOrderIdRef.current = null
     // Remove from local list immediately for snappy UX
     setAvailOrders(prev => prev.filter(o => o.id !== order.id))
     showToast(`🚫 Order ${order.order_number} skipped.`, false)
+    // Trigger reassignment — pass accumulated exclusion list to avoid re-assigning same agents
+    try {
+      excludedAgentsRef.current = [...excludedAgentsRef.current, agentId]
+      await fetch('/api/delivery/reject-reassign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          agentId,
+          excludeAgentIds: excludedAgentsRef.current
+        })
+      })
+    } catch { /* non-critical — order will remain in order_packed state */ }
     setRejecting(null)
   }
 
@@ -320,8 +357,13 @@ export default function DeliveryDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
 
           {/* Header */}
-          <div className="card" style={{ borderLeft: '4px solid var(--primary)', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className={`card${alertedOrderIdRef.current === activeOrder.id ? ' dl-avail-new' : ''}`} style={{ borderLeft: '4px solid var(--primary)', padding: 0, overflow: 'hidden' }}>
+            {alertedOrderIdRef.current === activeOrder.id && (
+              <div style={{ background: 'linear-gradient(90deg,#22c55e,#16a34a)', color: 'white', fontSize: '0.72rem', fontWeight: 800, padding: '5px 14px', letterSpacing: '0.3px' }}>
+                🔔 New Assignment — Accept or Reject below
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px' }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>🔥 {activeOrder.order_number}</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>Active Delivery</div>
@@ -710,6 +752,12 @@ export default function DeliveryDashboard() {
         .dl-toast-ok  { background: #f0fdf4; border: 1.5px solid #22c55e; color: #15803d; }
         .dl-toast-err { background: #fef2f2; border: 1.5px solid #ef4444; color: #dc2626; }
         .dl-avail-card { background: white; border: 1.5px solid #e2e8f0; border-left: 4px solid #22c55e; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        /* New assignment pulse */
+        @keyframes dl-pulse-glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+          50%       { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+        }
+        .dl-avail-new { animation: dl-pulse-glow 1.2s ease infinite; }
         .dl-avail-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px 10px; gap: 10px; }
         .dl-avail-num { font-weight: 800; font-size: 0.95rem; color: #0f172a; margin-bottom: 3px; }
         .dl-avail-route { font-size: 0.78rem; color: #64748b; }

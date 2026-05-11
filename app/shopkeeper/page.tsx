@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
@@ -18,6 +19,9 @@ export default function ShopkeeperDashboard() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [togglingOpen, setTogglingOpen] = useState(false)
   const shopIdRef = useRef<string | null>(null)
+  // Track which order IDs are currently alerting (to stop when handled)
+  const alertingOrdersRef = useRef<Set<string>>(new Set())
+  const { start: startAlert, stop: stopAlert } = useOrderAlert()
 
   const [nowTime, setNowTime] = useState<number>(0)
   useEffect(() => { setNowTime(Date.now()) }, [])
@@ -27,15 +31,12 @@ export default function ShopkeeperDashboard() {
     setTimeout(() => setToast(null), 3500)
   }
 
-  function playAlert() {
-    try {
-      const ctx = new AudioContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain); gain.connect(ctx.destination)
-      osc.frequency.value = 880; gain.gain.value = 0.3
-      osc.start(); osc.stop(ctx.currentTime + 0.4)
-    } catch {}
+  // Stop alert sound when all pending orders are handled
+  function maybeStopAlert(remainingOrders: Order[]) {
+    if (remainingOrders.length === 0) {
+      stopAlert()
+      alertingOrdersRef.current.clear()
+    }
   }
 
   // Fetch pending orders + items via server API (bypasses RLS)
@@ -98,10 +99,15 @@ export default function ShopkeeperDashboard() {
       channel.on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'orders',
         filter: `shop_id=eq.${shopData.id}`
-      }, async () => {
+      }, async (payload) => {
         if (!mounted || !shopIdRef.current) return
         await fetchPending(shopIdRef.current)
-        playAlert()
+        // Start looping alert — track by order id to prevent duplicate sounds
+        const newOrderId = payload.new?.id as string | undefined
+        if (newOrderId && !alertingOrdersRef.current.has(newOrderId)) {
+          alertingOrdersRef.current.add(newOrderId)
+          startAlert()
+        }
         showToast('🔔 New Order Received!')
       }).subscribe()
     }
@@ -138,8 +144,24 @@ export default function ShopkeeperDashboard() {
       }
 
       // Success — remove immediately from local state
-      setPendingOrders(prev => prev.filter(o => o.id !== orderId))
-      showToast(action === 'accept' ? `✅ Order ${orderNumber} Accepted!` : `🚫 Order ${orderNumber} Rejected`)
+      setPendingOrders(prev => {
+        const next = prev.filter(o => o.id !== orderId)
+        maybeStopAlert(next)
+        return next
+      })
+      // Stop alert for this specific order
+      alertingOrdersRef.current.delete(orderId)
+
+      // Show agent assignment feedback on accept
+      if (action === 'accept') {
+        if (data.agentAssigned) {
+          showToast(`✅ Order ${orderNumber} Accepted! Agent ${data.agentName} assigned.`)
+        } else {
+          showToast(`✅ Order ${orderNumber} Accepted! (No agents available right now)`, 'error')
+        }
+      } else {
+        showToast(`🚫 Order ${orderNumber} Rejected`)
+      }
 
       // Re-verify from DB after 2s to catch any sync issues
       setTimeout(() => {
@@ -356,14 +378,20 @@ export default function ShopkeeperDashboard() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {pendingOrders.map(order => {
+          {pendingOrders.map((order, idx) => {
             const isExpanded = expanded.has(order.id)
             const itemCount = order.items?.length || 0
             const isProcessing = actionLoading === order.id
+            // Cards added while alert is active get the pulse treatment
+            const isNew = alertingOrdersRef.current.has(order.id) || idx === 0 && alertingOrdersRef.current.size > 0
 
             return (
-              <div key={order.id} className="card" style={{ padding: 0, overflow: 'hidden', border: '1.5px solid var(--border)', borderLeft: '4px solid #f59e0b' }}>
-                
+              <div key={order.id} className={`card sk-order-card${isNew ? ' sk-order-new' : ''}`} style={{ padding: 0, overflow: 'hidden', borderLeft: '4px solid #f59e0b' }}>
+
+                {isNew && (
+                  <div className="sk-new-badge">🔔 New Order</div>
+                )}
+
                 {/* Order header */}
                 <div style={{ padding: '16px 16px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -467,6 +495,19 @@ export default function ShopkeeperDashboard() {
         .sk-reject-btn:active { filter: brightness(0.9); }
         .sk-reject-btn:disabled { cursor: not-allowed; }
         .sk-details-btn { padding: 0 16px; border-left: 1px solid var(--border); background: var(--bg3); color: var(--text); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0; min-height: 52px; }
+        /* ── New order pulse effect ── */
+        @keyframes sk-pulse-glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); border-color: #f59e0b; }
+          50%       { box-shadow: 0 0 0 8px rgba(245,158,11,0); border-color: #f97316; }
+        }
+        .sk-order-card { border: 1.5px solid var(--border); }
+        .sk-order-new  { animation: sk-pulse-glow 1.4s ease infinite; border-color: #f59e0b !important; }
+        .sk-new-badge  {
+          background: linear-gradient(90deg, #f59e0b, #f97316);
+          color: white; font-size: 0.72rem; font-weight: 800;
+          padding: 5px 14px; letter-spacing: 0.3px;
+          display: flex; align-items: center; gap: 5px;
+        }
         @media (max-width: 768px) {
           .sk-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: white; border-bottom: 1.5px solid #f1f5f9; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
           .sk-logout-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 99px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
