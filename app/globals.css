@@ -49,17 +49,33 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Prevent rubber-band scroll chaining between panels */
+  overscroll-behavior: none;
+  /* Room for bottom nav + safe area on notched phones */
+  scroll-padding-bottom: 80px;
+}
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  min-height: -webkit-fill-available; /* iOS Safari full-height fix */
   height: auto;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
+  /* Remove grey flash on tap (Android WebView) */
+  -webkit-tap-highlight-color: transparent;
+  /* Padding for notched/punch-hole phones */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Remove 300ms tap delay on all interactive elements */
+a, button, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
 }
 
 /* ---- Scrollbar ---- */
@@ -79,44 +95,55 @@ a { color: var(--primary); text-decoration: none; }
 /* ---- Buttons ---- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 11px 22px; border-radius: var(--radius-sm); font-weight: 600;
+  /* min 48px height = Android touch target spec */
+  padding: 13px 22px; min-height: 48px;
+  border-radius: var(--radius-sm); font-weight: 600;
   font-size: 0.93rem; border: none; cursor: pointer;
-  transition: all 0.18s ease; font-family: inherit; letter-spacing: 0.01em;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit; letter-spacing: 0.01em;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .btn-primary {
   background: var(--primary);
   color: white;
   box-shadow: var(--shadow-orange);
 }
-.btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 6px 24px rgba(249,115,22,0.35); }
+.btn-primary:active { background: var(--primary-dark); transform: scale(0.97); }
 .btn-secondary {
   background: var(--bg3); color: var(--text); border: 1.5px solid var(--border);
 }
-.btn-secondary:hover { background: var(--bg4); border-color: var(--text-dim); }
+.btn-secondary:active { background: var(--bg4); }
 .btn-outline {
   background: white; color: var(--primary);
   border: 1.5px solid var(--primary);
 }
-.btn-outline:hover { background: var(--primary-light); }
+.btn-outline:active { background: var(--primary-light); }
 .btn-danger { background: var(--danger); color: white; }
-.btn-danger:hover { background: #b91c1c; }
+.btn-danger:active { background: #b91c1c; }
 .btn-success { background: var(--success); color: white; }
-.btn-sm { padding: 7px 14px; font-size: 0.82rem; }
-.btn-lg { padding: 14px 28px; font-size: 1rem; border-radius: var(--radius); }
+/* btn-sm still meets 44px minimum with min-height */
+.btn-sm { padding: 8px 14px; font-size: 0.82rem; min-height: 44px; }
+.btn-lg { padding: 16px 28px; font-size: 1rem; border-radius: var(--radius); min-height: 52px; }
 .btn-full { width: 100%; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
 
 /* ---- Inputs ---- */
-.input-group { display: flex; flex-direction: column; gap: 5px; }
-.input-label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); }
+.input-group { display: flex; flex-direction: column; gap: 6px; }
+.input-label { font-size: 0.84rem; font-weight: 600; color: var(--text-muted); }
 .input {
   background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-  padding: 11px 14px; color: var(--text); font-family: inherit; font-size: 0.93rem;
-  transition: all 0.18s; width: 100%;
+  /* 48px min-height = comfortable mobile touch target */
+  padding: 13px 14px; min-height: 48px;
+  color: var(--text); font-family: inherit;
+  /* 16px prevents iOS Safari auto-zoom on focus */
+  font-size: 16px;
+  transition: border-color 0.18s, box-shadow 0.18s; width: 100%;
+  -webkit-appearance: none; appearance: none;
 }
 .input:focus { outline: none; border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
 .input::placeholder { color: var(--text-dim); }
-select.input { cursor: pointer; }
+select.input { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
 .input-icon { position: relative; }
 .input-icon .input { padding-left: 42px; }
 .input-icon .icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
@@ -338,8 +365,15 @@ select.input { cursor: pointer; }
   margin: auto; max-height: none;
 }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.modal-close { background: var(--bg3); border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer; border-radius: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
-.modal-close:hover { background: var(--bg4); color: var(--text); }
+/* Bigger close button — 44px touch target */
+.modal-close {
+  background: var(--bg3); border: none; color: var(--text-muted);
+  font-size: 1.1rem; cursor: pointer; border-radius: 8px;
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.modal-close:active { background: var(--bg4); color: var(--text); }
 
 /* ---- Cart float — DESKTOP only, layout handles mobile ---- */
 .cart-float {
@@ -382,55 +416,105 @@ select.input { cursor: pointer; }
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
 
 /* ============================================================
-   MOBILE RESPONSIVE — 390px / 768px screens
+   MOBILE RESPONSIVE — 768px and below
    ============================================================ */
 @media only screen and (max-width: 768px) {
-  /* Layout */
+  /* ---- Layout ---- */
   .sidebar { display: none !important; }
   .main-content { margin-left: 0 !important; width: 100% !important; }
-  .topbar { display: none !important; }
-
-  /* Hide desktop cart float — layout.tsx mobile bars handle this */
+  .topbar { display: none !important; height: 0 !important; overflow: hidden !important; }
   .cart-float { display: none !important; }
 
-  /* Page content padding — 130px when cart bar + nav bar visible */
+  /* Page content: 16px side padding + bottom room for nav + cart bar */
   .page-content {
-    padding: 0 !important;
-    padding-bottom: 130px !important;
+    padding: 0 16px !important;
+    padding-bottom: calc(130px + env(safe-area-inset-bottom)) !important;
     height: auto !important;
     min-height: auto !important;
   }
 
-  /* Bottom nav — shown on mobile */
+  /* ---- Bottom nav ---- */
   .bottom-nav { display: flex !important; }
 
-  /* Grids collapse to 1 col */
+  /* ---- Grids ---- */
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
 
-  /* Modal fills screen */
-  .modal { padding: 18px; margin: 8px; }
-  .modal-overlay { padding: 8px; align-items: flex-end; }
+  /* ---- Modal → bottom sheet on mobile ---- */
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    /* Prevent page scroll while modal is open */
+    overflow: hidden !important;
+  }
+  .modal {
+    padding: 20px 16px !important;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100% !important;
+    /* Drag handle visual cue */
+    padding-top: 28px !important;
+    background-image: linear-gradient(to right, #cbd5e1 0%, #cbd5e1 100%);
+    background-size: 40px 4px;
+    background-repeat: no-repeat;
+    background-position: top 10px center;
+    /* Safe area for home-bar phones */
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
 
-  /* Tables scroll horizontally */
+  /* ---- Tables ---- */
   .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { min-width: 500px; }
 
-  /* Cards full width */
-  .card { border-radius: 12px; padding: 16px; }
+  /* ---- Cards ---- */
+  .card { border-radius: 14px; padding: 16px; }
+  .card-flat { border-radius: 12px; padding: 14px; }
 
-  /* Topbar hidden — mobile uses bottom nav */
-  .topbar { height: 0; overflow: hidden; }
-
-  /* Buttons full width where needed */
-  .btn-full { width: 100%; }
-
-  h2 { font-size: 1.25rem; }
+  /* ---- Typography ---- */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.2rem; }
   h3 { font-size: 1rem; }
+
+  /* ---- Stat cards ---- */
+  .stat-card { padding: 14px 16px; gap: 12px; }
+  .stat-icon { width: 42px; height: 42px; }
+  .stat-value { font-size: 1.3rem; }
+
+  /* ---- Search bar ---- */
+  .search-bar input { font-size: 16px; padding: 13px 18px 13px 44px; }
+
+  /* ---- Tabs ---- */
+  .tab { min-height: 44px; font-size: 0.88rem; }
+
+  /* ---- Toast: top-center on mobile (avoids notch) ---- */
+  .toast {
+    top: calc(12px + env(safe-area-inset-top));
+    right: 12px;
+    left: 12px;
+    min-width: unset;
+    width: auto;
+  }
+
+  /* ---- Bottom nav safe area ---- */
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
-/* iPhone 14 Pro / 390px specific */
-@media only screen and (max-width: 430px) {
-  .modal { padding: 16px; }
-  .card { padding: 14px; }
-  h2 { font-size: 1.15rem; }
+/* ---- Slide-up animation for bottom sheet ---- */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ---- Small phone (iPhone SE / 375px) ---- */
+@media only screen and (max-width: 390px) {
+  .modal { padding: 18px 14px !important; }
+  .card { padding: 14px 12px; }
+  h2 { font-size: 1.1rem; }
+  .btn { font-size: 0.88rem; }
+  .input { font-size: 16px; } /* always 16px to prevent iOS zoom */
 }
