@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "779559191200",
+    "project_id": "varunsonline-3e6dd",
+    "storage_bucket": "varunsonline-3e6dd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:779559191200:android:a3b6d310ba1c73a403bfc5",
+        "android_client_info": {
+          "package_name": "com.varunsonline.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABJT746jKuY7M65KjsAG7qoj5V_cQ7G5w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
