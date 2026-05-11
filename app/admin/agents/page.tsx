@@ -10,77 +10,104 @@ interface Agent {
   pan_url: string; vehicle_rc_url: string
   is_approved: boolean; is_active: boolean; is_available: boolean
   wallet_balance: number; total_deliveries: number; today_earnings: number
-  rejection_reason: string; upi_id: string; created_at: string
+  rejection_reason: string | null; upi_id: string; created_at: string
 }
 
 export default function AdminAgents() {
   const supabase = createClient()
   const [agents, setAgents] = useState<Agent[]>([])
-  const [tab, setTab] = useState<'pending' | 'active' | 'all'>('pending')
+  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Agent | null>(null)
+  const [processing, setProcessing] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 3500)
+  }
 
   useEffect(() => { load() }, [tab])
 
   async function load() {
     setLoading(true)
-    let q = supabase.from('delivery_agents')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (tab === 'pending') q = q.eq('is_approved', false)
+    let q = supabase.from('delivery_agents').select('*, profiles:id(full_name, email, phone)').order('created_at', { ascending: false })
+    if (tab === 'pending') q = (q as ReturnType<typeof q.eq>).eq('is_approved', false).is('rejection_reason', null) as typeof q
     else if (tab === 'active') q = q.eq('is_approved', true)
-    const { data, error } = await q
-    if (error) console.error('Agents load error:', error)
-    setAgents(data || [])
+    else if (tab === 'rejected') q = (q as ReturnType<typeof q.eq>).eq('is_approved', false).not('rejection_reason', 'is', null) as typeof q
+    const { data } = await q
+    // Merge profile data into agent
+    const merged = (data || []).map((a: Agent & { profiles?: { full_name: string; email: string; phone: string } | null }) => ({
+      ...a,
+      full_name: a.full_name || a.profiles?.full_name || '',
+      email: a.email || a.profiles?.email || '',
+      phone: a.phone || a.profiles?.phone || '',
+    }))
+    setAgents(merged)
     setLoading(false)
   }
 
-  async function approve(agent: Agent) {
-    await supabase.from('delivery_agents')
-      .update({ is_approved: true, is_active: true })
-      .eq('id', agent.id)
+  async function doAction(agentId: string, action: 'approve' | 'reject' | 'deactivate', reason?: string) {
+    setProcessing(true)
     try {
-      await supabase.from('notifications').insert({
-        user_id: agent.id,
-        title: '🎉 Application Approved!',
-        body: 'You can now start accepting deliveries on Varun\'s Online!',
-        type: 'agent_approved'
+      const res = await fetch('/api/admin/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId, action, reason })
       })
-    } catch { /* notifications optional */ }
-    load()
-    setSelected(null)
+      const data = await res.json()
+      if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`, false); return }
+      showToast(
+        action === 'approve' ? '✅ Agent approved!' :
+        action === 'reject' ? '🚫 Agent rejected.' : '🚫 Agent deactivated.'
+      )
+      setSelected(null)
+      load()
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function approve(agent: Agent) {
+    if (!confirm(`Approve ${agent.full_name || 'this agent'}? They will be able to start accepting deliveries.`)) return
+    doAction(agent.id, 'approve')
   }
 
   async function reject(agent: Agent) {
-    const reason = prompt('Enter rejection reason (shown to agent):')
-    if (!reason) return
-    await supabase.from('delivery_agents')
-      .update({ is_approved: false, rejection_reason: reason })
-      .eq('id', agent.id)
-    load()
-    setSelected(null)
+    const reason = prompt('Enter rejection reason (will be shown to the agent):')
+    if (!reason?.trim()) { showToast('Rejection reason is required.', false); return }
+    doAction(agent.id, 'reject', reason.trim())
   }
 
   async function deactivate(agent: Agent) {
-    if (!confirm(`Deactivate ${agent.full_name || 'this agent'}?`)) return
-    await supabase.from('delivery_agents')
-      .update({ is_approved: false, is_active: false })
-      .eq('id', agent.id)
-    load()
-    setSelected(null)
+    const reason = prompt(`Reason for deactivating ${agent.full_name || 'this agent'}:`)
+    if (!reason?.trim()) return
+    doAction(agent.id, 'deactivate', reason.trim())
   }
+
+  const tabCounts = { pending: 0, active: 0, rejected: 0, all: agents.length }
 
   return (
     <div className="fade-in">
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999, background: 'white',
+          border: `1.5px solid ${toast.ok ? '#22c55e' : '#ef4444'}`,
+          borderRadius: 10, padding: '12px 20px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontWeight: 600, fontSize: '0.92rem'
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div className="flex-between" style={{ marginBottom: 20 }}>
         <h2>🛵 Delivery Agents</h2>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          {agents.length} agent{agents.length !== 1 ? 's' : ''}
-        </span>
+        <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>🔄 Refresh</button>
       </div>
 
-      <div className="tabs" style={{ marginBottom: 20, maxWidth: 380 }}>
-        {(['pending', 'active', 'all'] as const).map(t => (
+      <div className="tabs" style={{ marginBottom: 20, maxWidth: 460 }}>
+        {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -102,14 +129,10 @@ export default function AdminAgents() {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                Loading agents...
-              </td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading agents...</td></tr>
             )}
             {!loading && agents.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                No {tab === 'all' ? '' : tab} agents found
-              </td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No {tab === 'all' ? '' : tab} agents found</td></tr>
             )}
             {agents.map(agent => (
               <tr key={agent.id}>
@@ -122,25 +145,27 @@ export default function AdminAgents() {
                   <div style={{ fontWeight: 500 }}>{agent.vehicle_type || '—'}</div>
                   {agent.vehicle_number && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.vehicle_number}</div>}
                 </td>
-                <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>
-                  {agent.license_number || '—'}
-                </td>
+                <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>{agent.license_number || '—'}</td>
                 <td>{agent.total_deliveries || 0}</td>
                 <td>₹{(agent.wallet_balance || 0).toFixed(0)}</td>
                 <td>
-                  <span className={`badge ${agent.is_approved ? 'badge-green' : 'badge-yellow'}`}>
-                    {agent.is_approved ? '✓ Active' : '⏳ Pending'}
-                  </span>
+                  {agent.is_approved
+                    ? <span className="badge badge-green">✓ Active</span>
+                    : agent.rejection_reason
+                      ? <span className="badge badge-red">✕ Rejected</span>
+                      : <span className="badge badge-yellow">⏳ Pending</span>
+                  }
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="btn btn-outline btn-sm" onClick={() => setSelected(agent)}>
-                      👁 View
-                    </button>
-                    {!agent.is_approved && <>
+                    <button className="btn btn-outline btn-sm" onClick={() => setSelected(agent)}>👁 View</button>
+                    {!agent.is_approved && !agent.rejection_reason && <>
                       <button className="btn btn-success btn-sm" onClick={() => approve(agent)}>✅ Approve</button>
                       <button className="btn btn-danger btn-sm" onClick={() => reject(agent)}>❌ Reject</button>
                     </>}
+                    {agent.rejection_reason && !agent.is_approved && (
+                      <button className="btn btn-success btn-sm" onClick={() => approve(agent)}>✅ Re-Approve</button>
+                    )}
                     {agent.is_approved && (
                       <button className="btn btn-danger btn-sm" onClick={() => deactivate(agent)}>🚫 Deactivate</button>
                     )}
@@ -183,18 +208,18 @@ export default function AdminAgents() {
               ))}
             </div>
 
-            {/* Document Viewer — all uploaded docs */}
+            {/* Document Viewer */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>📄 Uploaded Documents</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
-                  { label: 'Aadhaar Card', url: selected.aadhar_url, icon: '🪪' },
-                  { label: 'Driving License', url: selected.license_url, icon: '🪪' },
-                  { label: 'Live Selfie', url: selected.live_photo_url, icon: '🤳' },
-                  { label: 'PAN Card', url: selected.pan_url, icon: '📋' },
-                  { label: 'Vehicle RC', url: selected.vehicle_rc_url, icon: '🏍️' },
+                  { label: 'Aadhaar Card', url: selected.aadhar_url, icon: '🪪', required: true },
+                  { label: 'Driving License', url: selected.license_url, icon: '🪪', required: true },
+                  { label: 'Live Selfie', url: selected.live_photo_url, icon: '🤳', required: true },
+                  { label: 'PAN Card', url: selected.pan_url, icon: '📋', required: false },
+                  { label: 'Vehicle RC', url: selected.vehicle_rc_url, icon: '🏍️', required: false },
                 ].map(doc => (
-                  <div key={doc.label} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
+                  <div key={doc.label} style={{ border: `1.5px solid ${doc.required && !doc.url ? '#fca5a5' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
                     {doc.url ? (
                       <a href={doc.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
                         <img src={doc.url} alt={doc.label} style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }}
@@ -204,9 +229,9 @@ export default function AdminAgents() {
                         </div>
                       </a>
                     ) : (
-                      <div style={{ height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-                        <span style={{ fontSize: '1.5rem', marginBottom: 4 }}>—</span>
-                        {doc.label}
+                      <div style={{ height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: doc.required ? '#dc2626' : 'var(--text-muted)', fontSize: '0.72rem' }}>
+                        <span style={{ fontSize: '1.5rem', marginBottom: 4 }}>{doc.required ? '⚠️' : '—'}</span>
+                        {doc.label}{doc.required ? ' (Missing!)' : ''}
                       </div>
                     )}
                   </div>
@@ -214,20 +239,30 @@ export default function AdminAgents() {
               </div>
             </div>
 
-
             {selected.rejection_reason && (
-              <div style={{ background: 'var(--danger-light)', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: 'var(--danger)' }}>
-                ❌ Rejection Reason: {selected.rejection_reason}
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: '#dc2626' }}>
+                ❌ Rejection Reason: <strong>{selected.rejection_reason}</strong>
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              {!selected.is_approved && <>
-                <button className="btn btn-success" onClick={() => approve(selected)}>✅ Approve Agent</button>
-                <button className="btn btn-danger" onClick={() => reject(selected)}>❌ Reject</button>
+              {!selected.is_approved && !selected.rejection_reason && <>
+                <button className="btn btn-success" disabled={processing} onClick={() => approve(selected)}>
+                  {processing ? '⏳...' : '✅ Approve Agent'}
+                </button>
+                <button className="btn btn-danger" disabled={processing} onClick={() => reject(selected)}>
+                  {processing ? '⏳...' : '❌ Reject'}
+                </button>
               </>}
+              {selected.rejection_reason && !selected.is_approved && (
+                <button className="btn btn-success" disabled={processing} onClick={() => approve(selected)}>
+                  {processing ? '⏳...' : '✅ Re-Approve'}
+                </button>
+              )}
               {selected.is_approved && (
-                <button className="btn btn-danger" onClick={() => deactivate(selected)}>🚫 Deactivate</button>
+                <button className="btn btn-danger" disabled={processing} onClick={() => deactivate(selected)}>
+                  {processing ? '⏳...' : '🚫 Deactivate'}
+                </button>
               )}
               <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
             </div>

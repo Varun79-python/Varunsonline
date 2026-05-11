@@ -19,6 +19,7 @@ export default function DeliveryRegisterPage() {
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     async function prefill() {
@@ -63,6 +64,25 @@ export default function DeliveryRegisterPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setFormError('')
+
+    // Validate required document uploads
+    if (!form.aadhar_url) {
+      setFormError('⚠️ Aadhaar Card photo is required. Please upload it before submitting.')
+      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+    if (!form.license_url) {
+      setFormError('⚠️ Driving License photo is required. Please upload it before submitting.')
+      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+    if (!form.live_photo_url) {
+      setFormError('⚠️ Live Selfie is required. Please upload it before submitting.')
+      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -183,9 +203,10 @@ export default function DeliveryRegisterPage() {
         </div>
 
         {/* DOCUMENTS */}
-        <div className="card">
+        <div className="card" id="doc-section">
           <h4 style={{ color: 'var(--primary)', marginBottom: 6 }}>📄 Documents</h4>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>Upload clear photos. Admin will verify before approval.</p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 4 }}>Upload clear photos. Admin will verify before approval.</p>
+          <p style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600, marginBottom: 16 }}>* Aadhaar, Driving License and Live Selfie are required.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <DocUpload label="Aadhaar Card" field="aadhar_url" required />
             <DocUpload label="Driving License" field="license_url" required />
@@ -224,6 +245,13 @@ export default function DeliveryRegisterPage() {
             </div>
           )}
         </div>
+
+        {/* Validation error */}
+        {formError && (
+          <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '12px 16px', fontSize: '0.88rem', color: '#dc2626', fontWeight: 600 }}>
+            {formError}
+          </div>
+        )}
 
         <button className="btn btn-primary btn-full" type="submit" disabled={saving || !!uploading}>
           {uploading ? '⏳ Uploading document...' : saving ? 'Saving...' : alreadyRegistered ? '💾 Update Details' : '🚀 Submit Application'}
