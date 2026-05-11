@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number }
+interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order { id: string; order_number: string; status: string; total_amount: number; created_at: string; items: OrderItem[] }
 
@@ -62,6 +62,22 @@ export default function ShopkeeperDashboard() {
       if (!shopData) { setNoShop(true); setLoading(false); return }
       setShop(shopData)
       shopIdRef.current = shopData.id
+
+      // ── Subscription Expiry Check ──────────────────────────────
+      // Check if fixed_monthly plan has expired; if so, deactivate shop instantly
+      if (shopData.subscription_expires_at) {
+        const expiry = new Date(shopData.subscription_expires_at)
+        if (expiry < new Date() && shopData.is_active) {
+          // Deactivate the shop
+          await supabase.from('shops').update({ is_active: false, subscription_plan_id: null, subscription_fee_percent: 0 }).eq('id', shopData.id)
+          // Mark the subscription as inactive
+          await supabase.from('shop_subscriptions').update({ is_active: false })
+            .eq('shop_id', shopData.id).eq('is_active', true)
+          setShop(s => s ? { ...s, is_active: false } : s)
+          showToast('⚠️ Your subscription has expired. Please renew to accept orders.', 'error')
+        }
+      }
+      // ────────────────────────────────────────────────────────────
 
       const today = new Date().toISOString().split('T')[0]
       const { data: todayOrders } = await supabase
@@ -177,7 +193,7 @@ export default function ShopkeeperDashboard() {
       )}
 
       {/* Header */}
-      <div className="flex-between" style={{ marginBottom: 24 }}>
+      <div className="flex-between" style={{ marginBottom: 16 }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>{shop?.name}</h2>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -191,6 +207,56 @@ export default function ShopkeeperDashboard() {
           setShop(s => s ? { ...s, is_active: !s.is_active } : s)
         }}>🔄 Toggle Open/Close</button>
       </div>
+
+      {/* Subscription Status Banner */}
+      {(() => {
+        const expiresAt = shop?.subscription_expires_at
+        if (!expiresAt) {
+          // No plan or percentage plan — show warning if not active
+          if (!shop?.is_active) {
+            return (
+              <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 2 }}>🔴 Shop Inactive — No Active Plan</div>
+                  <div style={{ fontSize: '0.82rem', color: '#64748b' }}>Purchase a subscription plan to make your shop visible to customers.</div>
+                </div>
+                <a href="/shopkeeper/plans" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>View Plans →</a>
+              </div>
+            )
+          }
+          return null
+        }
+        const expiry = new Date(expiresAt)
+        const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / 86400000)
+        if (daysLeft <= 0) {
+          return (
+            <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 2 }}>⚠️ Subscription Expired</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>Your shop is now hidden from customers. Renew to reactivate.</div>
+              </div>
+              <a href="/shopkeeper/plans" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>🔄 Renew Plan →</a>
+            </div>
+          )
+        }
+        if (daysLeft <= 5) {
+          return (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#d97706', marginBottom: 2 }}>⏰ Plan Expiring Soon — {daysLeft} day{daysLeft !== 1 ? 's' : ''} left</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>Expires on {expiry.toLocaleDateString('en-IN')}. Renew now to avoid interruption.</div>
+              </div>
+              <a href="/shopkeeper/plans" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>Renew Now →</a>
+            </div>
+          )
+        }
+        return (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85rem' }}>✅ Plan active — {daysLeft} days remaining (expires {expiry.toLocaleDateString('en-IN')})</span>
+            <a href="/shopkeeper/plans" style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#16a34a', fontWeight: 700 }}>Manage →</a>
+          </div>
+        )
+      })()}
 
       {/* Stats */}
       <div className="grid-4" style={{ marginBottom: 28 }}>
