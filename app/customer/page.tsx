@@ -70,7 +70,7 @@ export default function CustomerHome() {
 
   async function loadShops(lat: number | null, lon: number | null) {
     setLoading(true)
-    const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true)
+    const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
     if (data) {
       const withDist = data.map((s: Shop) => ({
         ...s,

@@ -47,6 +47,7 @@ export default function ShopPage() {
 
   function updateCart(product: Product, delta: number) {
     if (!shop) return
+    if (!shop.is_open) { alert('This shop is currently closed. Please check back later.'); return }
     setCart(prev => {
       let updated = [...prev]
       // Block mixing shops
@@ -94,6 +95,23 @@ export default function ShopPage() {
         </div>
       </div>
 
+      {/* Closed banner — shown when shop is closed but URL accessed directly */}
+      {!shop.is_open && (
+        <div style={{
+          background: '#fef2f2', border: '1.5px solid #fca5a5',
+          borderRadius: 10, padding: '14px 18px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          <span style={{ fontSize: '1.6rem' }}>🔴</span>
+          <div>
+            <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '0.98rem' }}>Shop is Currently Closed</div>
+            <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: 2 }}>
+              You can browse products but cannot place an order right now.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="search-bar" style={{ marginBottom: 20 }}>
         <span className="search-icon">🔍</span>
@@ -132,6 +150,8 @@ export default function ShopPage() {
                           </div>
                           {p.stock_quantity === 0 ? (
                             <span className="badge badge-red">Out of stock</span>
+                          ) : !shop.is_open ? (
+                            <span className="badge badge-red">Closed</span>
                           ) : qty === 0 ? (
                             <button className="btn btn-primary btn-sm" onClick={() => updateCart(p, 1)}>Add</button>
                           ) : (
