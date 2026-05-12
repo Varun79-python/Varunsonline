@@ -4,11 +4,32 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
 
+const HomeIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+  </svg>
+)
+const OrdersIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+  </svg>
+)
+const CartIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
+)
+const ProfileIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
 const navItems = [
-  { href: '/customer', icon: '🏠', label: 'Home' },
-  { href: '/customer/orders', icon: '📦', label: 'Orders' },
-  { href: '/customer/cart', icon: '🛒', label: 'Cart' },
-  { href: '/customer/profile', icon: '👤', label: 'Profile' },
+  { href: '/customer', icon: HomeIcon, label: 'Home' },
+  { href: '/customer/orders', icon: OrdersIcon, label: 'Orders' },
+  { href: '/customer/cart', icon: CartIcon, label: 'Cart' },
+  { href: '/customer/profile', icon: ProfileIcon, label: 'Profile' },
 ]
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
@@ -55,19 +76,22 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       </div>
     )
   }
 
   return (
     <div className="app-layout">
-      {/* Desktop sidebar */}
-      <Sidebar navItems={navItems} brandIcon="🛒" brand="Varun's Online" />
+      <Sidebar navItems={[
+        { href: '/customer', icon: '🏠', label: 'Home' },
+        { href: '/customer/orders', icon: '📦', label: 'My Orders' },
+        { href: '/customer/cart', icon: '🛒', label: 'Cart' },
+        { href: '/customer/profile', icon: '👤', label: 'Profile' },
+      ]} brandIcon="🛒" brand="Varun's Online" />
 
       <div className="main-content">
-        {/* Desktop topbar */}
         <div className="topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: '1.4rem' }}>🛒</span>
@@ -78,164 +102,151 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </button>
         </div>
 
-        {/* Page content */}
-        <div className="cust-page-wrap">
+        <div style={{ paddingBottom: cartCount > 0 ? 130 : 74 }}>
           {children}
         </div>
       </div>
 
-      {/* ===== MOBILE BOTTOM BARS ===== */}
-
-      {/* Cart summary bar — sits above bottom nav */}
       {cartCount > 0 && (
         <div
           onClick={() => router.push('/customer/cart')}
+          style={{
+            position: 'fixed',
+            bottom: 68,
+            left: 4,
+            right: 4,
+            height: 52,
+            background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            zIndex: 49,
+            cursor: 'pointer',
+            borderRadius: '14px',
+            boxShadow: '0 -4px 20px rgba(249,115,22,0.35)',
+            marginBottom: 'env(safe-area-inset-bottom)',
+          }}
           className="mobile-cart-bar"
         >
-          <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-            🛒 {cartCount} item{cartCount !== 1 ? 's' : ''} · ₹{cartTotal.toFixed(0)}
-          </span>
-          <span style={{ fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 4 }}>
-            View Cart →
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 8, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+            </div>
+            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+              {cartCount} item{cartCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 800, fontSize: '1rem' }}>₹{cartTotal.toFixed(0)}</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
         </div>
       )}
 
-      {/* Bottom navigation bar */}
-      <nav className="mobile-bottom-nav">
-        {navItems.map(item => {
+      <nav
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 68,
+          background: 'white',
+          borderTop: '1px solid #f1f5f9',
+          display: 'flex',
+          zIndex: 50,
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.04)',
+        }}
+        className="mobile-bottom-nav"
+      >
+        {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/customer' && pathname.startsWith(item.href))
+          const IconComponent = item.icon
           return (
             <a
               key={item.href}
               href={item.href}
-              className={`mob-nav-item${isActive ? ' mob-nav-active' : ''}`}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                textDecoration: 'none',
+                color: isActive ? '#f97316' : '#94a3b8',
+                fontSize: '0.65rem',
+                fontWeight: isActive ? 600 : 500,
+                position: 'relative',
+                transition: 'all 0.2s ease',
+                background: isActive ? 'rgba(249,115,22,0.06)' : 'transparent',
+              }}
             >
-              <span className="mob-nav-icon">{item.icon}</span>
-              <span className="mob-nav-label">{item.label}</span>
-              {/* Cart badge */}
+              <div style={{
+                position: 'absolute',
+                top: 8,
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: isActive ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : 'transparent',
+                color: isActive ? 'white' : 'inherit',
+                transition: 'all 0.2s ease',
+                transform: isActive ? 'scale(1)' : 'scale(0.9)',
+                boxShadow: isActive ? '0 4px 12px rgba(249,115,22,0.35)' : 'none',
+              }}>
+                <IconComponent />
+              </div>
+              <span style={{ marginTop: 36, color: isActive ? '#f97316' : '#94a3b8', fontWeight: isActive ? 600 : 500 }}>
+                {item.label}
+              </span>
               {item.label === 'Cart' && cartCount > 0 && (
-                <span className="mob-nav-badge">
+                <span style={{
+                  position: 'absolute',
+                  top: 6,
+                  right: '50%',
+                  transform: 'translateX(70%)',
+                  background: '#f97316',
+                  color: 'white',
+                  fontSize: '0.6rem',
+                  fontWeight: 800,
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '2px solid white',
+                  boxShadow: '0 2px 8px rgba(249,115,22,0.4)',
+                }}>
                   {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}
-              {/* Active indicator pill */}
-              {isActive && <span className="mob-nav-pip" />}
             </a>
           )
         })}
       </nav>
 
       <style>{`
-        /* ── Mobile-only components hidden on desktop ── */
         .mobile-cart-bar { display: none; }
         .mobile-bottom-nav { display: none; }
-
-        /* ── Desktop: page wrap with standard padding ── */
-        .cust-page-wrap { padding-bottom: 24px; }
-
-        /* ══════════════════════════════════════════════
-           MOBILE  ≤ 768px
-        ══════════════════════════════════════════════ */
         @media (max-width: 768px) {
+          .mobile-cart-bar { display: flex !important; }
+          .mobile-bottom-nav { display: flex !important; }
           .main-content { margin-left: 0 !important; }
           .sidebar { display: none; }
           .topbar { display: none; }
           .page-content { padding: 0 !important; }
-
-          /* Page content: no side padding (pages manage their own),
-             bottom padding = nav (60px) + cart bar (52px) + safe-area */
-          .cust-page-wrap {
-            padding-bottom: calc(${cartCount > 0 ? '112px' : '60px'} + env(safe-area-inset-bottom, 0px));
-          }
-
-          /* ── Cart bar ── */
-          .mobile-cart-bar {
-            display: flex !important;
-            position: fixed;
-            bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-            left: 0; right: 0;
-            height: 52px;
-            background: #f97316;
-            color: white;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 20px;
-            z-index: 49;
-            cursor: pointer;
-            box-shadow: 0 -2px 12px rgba(249,115,22,0.3);
-            touch-action: manipulation;
-          }
-
-          /* ── Bottom nav ── */
-          .mobile-bottom-nav {
-            display: flex !important;
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            height: calc(60px + env(safe-area-inset-bottom, 0px));
-            background: white;
-            border-top: 1px solid #f1f5f9;
-            z-index: 50;
-            box-shadow: 0 -1px 0 #e2e8f0, 0 -4px 16px rgba(0,0,0,0.06);
-            padding-bottom: env(safe-area-inset-bottom, 0px);
-          }
-
-          /* ── Nav items ── */
-          .mob-nav-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 3px;
-            text-decoration: none;
-            color: #94a3b8;
-            position: relative;
-            min-height: 60px;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-            transition: color 0.12s;
-          }
-          .mob-nav-item.mob-nav-active { color: #f97316; }
-
-          .mob-nav-icon { font-size: 1.4rem; line-height: 1; }
-          .mob-nav-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.2px; }
-          .mob-nav-active .mob-nav-label { font-weight: 700; }
-
-          /* Active indicator — pill at top of item */
-          .mob-nav-pip {
-            position: absolute;
-            top: 0;
-            width: 24px; height: 3px;
-            background: #f97316;
-            border-radius: 0 0 4px 4px;
-          }
-
-          /* Cart badge */
-          .mob-nav-badge {
-            position: absolute;
-            top: 7px;
-            right: calc(50% - 16px);
-            background: #f97316;
-            color: white;
-            font-size: 0.55rem;
-            font-weight: 800;
-            min-width: 16px;
-            height: 16px;
-            border-radius: 99px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid white;
-            padding: 0 2px;
-          }
         }
-
-        /* ── Very small phones (≤360px width) ── */
-        @media (max-width: 360px) {
-          .mob-nav-icon { font-size: 1.2rem; }
-          .mob-nav-label { font-size: 0.58rem; }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   )
