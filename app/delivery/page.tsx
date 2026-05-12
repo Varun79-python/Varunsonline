@@ -714,7 +714,7 @@ export default function DeliveryDashboard() {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ fontSize: '1.1rem' }}>📦 Available Orders ({availOrders.length})</h3>
-            <button onClick={fetchAvailable} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem', padding: '6px 12px', borderRadius: 8, background: 'rgba(249,115,22,0.1)' }}>🔄 Refresh</button>
+            <button onClick={fetchAvailable} style={{ border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem', padding: '6px 12px', borderRadius: 8, background: 'rgba(249,115,22,0.1)' }}>🔄 Refresh</button>
           </div>
           {/* Offline warning */}
           {!agent?.is_available ? (
