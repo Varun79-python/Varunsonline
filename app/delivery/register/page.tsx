@@ -22,6 +22,38 @@ export default function DeliveryRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [formError, setFormError] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+
+  const TERMS = `DELIVERY AGENT TERMS & CONDITIONS
+
+1. The delivery agent must provide genuine and accurate information during registration.
+
+2. Uploading fake Aadhaar details, fake vehicle details, or false identity information may lead to permanent account suspension.
+
+3. The delivery agent is fully responsible for the safety and timely delivery of customer orders.
+
+4. Any theft, fraud, intentional order cancellation, fake delivery completion, or misuse of platform funds may result in permanent banning and legal action.
+
+5. Delivery agents must behave professionally with customers, shopkeepers, and platform staff.
+
+6. Misconduct, abusive behavior, threats, harassment, intoxicated driving, or unsafe behavior may result in immediate account suspension.
+
+7. Cash collected from Cash on Delivery (COD) orders must be settled correctly to the platform without delay.
+
+8. Repeated late deliveries, fake location activity, or intentional order delays may reduce delivery priority or lead to suspension.
+
+9. The platform has the right to approve, reject, suspend, or terminate a delivery agent account at any time if suspicious activity is detected.
+
+10. Vehicle documents, Aadhaar information, and identity details must belong to the registered delivery agent.
+
+11. The delivery agent is responsible for obeying traffic rules, local laws, and maintaining valid vehicle documents.
+
+12. The platform is not responsible for accidents, penalties, traffic violations, or personal losses during delivery.
+
+13. The delivery agent agrees that violating platform policies may result in account blocking, payment hold, or permanent removal.
+
+14. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval.`
 
   useEffect(() => {
     async function prefill() {
@@ -75,6 +107,7 @@ export default function DeliveryRegisterPage() {
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
     if (!form.aadhar_url) { setFormError('Aadhaar Card photo is required'); return }
+    if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -90,6 +123,7 @@ export default function DeliveryRegisterPage() {
       aadhar_url: form.aadhar_url,
       is_approved: false,
       rejection_reason: null,
+      terms_agreed: true,
       created_at: new Date().toISOString(),
     }, { onConflict: 'id' })
 
@@ -201,6 +235,21 @@ export default function DeliveryRegisterPage() {
           )}
         </div>
 
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions *</h3>
+          
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', marginBottom: 12 }}>
+            <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, accentColor: '#22c55e' }} />
+            <span style={{ fontSize: '0.85rem', color: '#374151', lineHeight: 1.5 }}>
+              I have read and agree to the <button type="button" onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Terms & Conditions</button>
+            </span>
+          </label>
+
+          <button type="button" onClick={() => setShowTerms(true)} style={{ width: '100%', padding: '12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, color: '#475569', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            📄 View Terms & Conditions
+          </button>
+        </div>
+
         {formError && (
           <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, color: '#dc2626', fontSize: '0.9rem', fontWeight: 600, marginBottom: 16 }}>
             {formError}
@@ -211,6 +260,28 @@ export default function DeliveryRegisterPage() {
           {saving ? 'Submitting...' : 'Submit Registration'}
         </button>
       </form>
+
+      {showTerms && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowTerms(false)}>
+          <div style={{ background: 'white', width: '100%', maxWidth: 500, margin: '0 auto', borderRadius: '20px 20px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>📋 Terms & Conditions</h3>
+              <button onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: 20, whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+              {TERMS}
+            </div>
+            <div style={{ padding: 16, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowTerms(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: 12, color: '#475569', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={() => { setAgreedToTerms(true); setShowTerms(false) }} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer' }}>
+                ✅ I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

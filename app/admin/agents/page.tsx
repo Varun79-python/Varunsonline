@@ -11,6 +11,7 @@ interface Agent {
   is_approved: boolean; is_active: boolean; is_available: boolean
   wallet_balance: number; total_deliveries: number; today_earnings: number
   rejection_reason: string | null; upi_id: string; created_at: string
+  terms_agreed: boolean
 }
 
 export default function AdminAgents() {
@@ -201,6 +202,7 @@ export default function AdminAgents() {
                 { label: 'Total Deliveries', value: String(selected.total_deliveries || 0) },
                 { label: 'Availability', value: selected.is_available ? '🟢 Online' : '🔴 Offline' },
                 { label: 'Registration Date', value: new Date(selected.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+                { label: 'Terms Accepted', value: selected.terms_agreed ? '✅ Yes' : '❌ No' },
                 { label: 'Status', value: selected.is_approved ? '✅ Approved' : selected.rejection_reason ? '❌ Rejected' : '⏳ Pending' },
               ].map(f => (
                 <div key={f.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
