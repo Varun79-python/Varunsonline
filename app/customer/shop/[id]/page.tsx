@@ -11,6 +11,8 @@ interface Shop {
   id: string; name: string; category: string; shop_image_url: string
   description: string; rating: number; address_line1: string; city: string; is_open: boolean
   distance?: number | null
+  latitude?: number | null
+  longitude?: number | null
 }
 interface CartItem { product_id: string; name: string; price: number; quantity: number; shop_id: string; shop_name: string; image_url: string }
 
