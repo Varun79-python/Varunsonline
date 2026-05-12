@@ -585,51 +585,6 @@ export default function ShopPage() {
           })}
         </div>
       )}
-
-      {/* Sticky Cart Button */}
-      {cartCount > 0 && (
-        <div
-          onClick={() => router.push('/customer/cart')}
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            left: 16,
-            right: 16,
-            height: 58,
-            background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-            borderRadius: 16,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            cursor: 'pointer',
-            boxShadow: '0 8px 32px rgba(249,115,22,0.4)',
-            zIndex: 100,
-            animation: 'fadeInUp 0.3s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 10,
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-            }}>
-              <CartIcon />
-            </div>
-            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'white' }}>
-              {cartCount} item{cartCount !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'white' }}>
-            ₹{cartTotal.toFixed(0)} →
-          </span>
-        </div>
-      )}
     </div>
   )
 }
