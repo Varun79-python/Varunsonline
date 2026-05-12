@@ -68,17 +68,24 @@ export default function DeliveryDashboard() {
     setTimeout(() => setToast(null), 4000)
   }
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   const fetchAvailable = useCallback(async () => {
-    const res = await fetch('/api/delivery/orders')
+    const authHeader = await getAuthHeader()
+    const res = await fetch('/api/delivery/orders', { headers: { ...authHeader } })
     const data = await res.json()
     setAvailOrders(data.orders || [])
-  }, [])
+  }, [supabase])
 
   const fetchActive = useCallback(async (uid: string) => {
-    const res = await fetch(`/api/delivery/active-order?agentId=${uid}`)
+    const authHeader = await getAuthHeader()
+    const res = await fetch(`/api/delivery/active-order?agentId=${uid}`, { headers: { ...authHeader } })
     const data = await res.json()
     return data.order as Order | null
-  }, [])
+  }, [supabase])
 
   // Get agent's live GPS location
   function refreshGPS(order: Order) {
@@ -197,10 +204,11 @@ export default function DeliveryDashboard() {
     stopAlert()   // stop any assignment alert
     alertedOrderIdRef.current = order.id // Prevent sound from playing when accepted manually
     try {
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/delivery/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id, agentId })
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ orderId: order.id })
       })
       const data = await res.json()
       if (res.status === 409 || data.alreadyClaimed) {
@@ -227,12 +235,12 @@ export default function DeliveryDashboard() {
     // Trigger reassignment — pass accumulated exclusion list to avoid re-assigning same agents
     try {
       excludedAgentsRef.current = [...excludedAgentsRef.current, agentId]
+      const authHeader = await getAuthHeader()
       await fetch('/api/delivery/reject-reassign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           orderId: order.id,
-          agentId,
           excludeAgentIds: excludedAgentsRef.current
         })
       })
@@ -245,10 +253,11 @@ export default function DeliveryDashboard() {
     if (!agentId || updatingStatus) return
     setUpdatingStatus(true)
     try {
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/delivery/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, agentId, status })
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ orderId, status })
       })
       const data = await res.json()
 
@@ -582,10 +591,11 @@ export default function DeliveryDashboard() {
                           if (!agentId || otpInput.length !== 4) return
                           setOtpVerifying(true)
                           try {
+                            const authHeader = await getAuthHeader()
                             const res = await fetch('/api/delivery/verify-otp', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ orderId: activeOrder.id, agentId, enteredOtp: otpInput })
+                              headers: { 'Content-Type': 'application/json', ...authHeader },
+                              body: JSON.stringify({ orderId: activeOrder.id, enteredOtp: otpInput })
                             })
                             const data = await res.json()
                             if (data.success) {
@@ -649,9 +659,10 @@ export default function DeliveryDashboard() {
                               if (!agentId) return
                               setCodCollecting(true)
                               try {
+                                const authHeader = await getAuthHeader()
                                 const res = await fetch('/api/delivery/collect-cash', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ orderId: activeOrder.id, agentId, paymentMethod: 'qr' })
+                                  method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
+                                  body: JSON.stringify({ orderId: activeOrder.id, paymentMethod: 'qr' })
                                 })
                                 const data = await res.json()
                                 if (data.success) {
@@ -679,9 +690,10 @@ export default function DeliveryDashboard() {
                             if (!agentId) return
                             setCodCollecting(true)
                             try {
+                              const authHeader = await getAuthHeader()
                               const res = await fetch('/api/delivery/collect-cash', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ orderId: activeOrder.id, agentId, paymentMethod: 'cash' })
+                                method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
+                                body: JSON.stringify({ orderId: activeOrder.id, paymentMethod: 'cash' })
                               })
                               const data = await res.json()
                               if (data.success) {

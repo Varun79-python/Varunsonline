@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Plan {
   id: string; name: string; description: string
@@ -15,6 +16,7 @@ const emptyPlan: {
 } = { name: '', description: '', plan_type: 'fixed_monthly', fee_percent: 0, monthly_fee: 299, duration_days: 30, is_active: true }
 
 export default function AdminPlans() {
+  const supabase = createClient()
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -23,10 +25,16 @@ export default function AdminPlans() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   async function load() {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/plans')
+      const authHeader = await getAuthHeader()
+      const res = await fetch('/api/admin/plans', { headers: { ...authHeader } })
       const data = await res.json()
       setPlans(data.plans || [])
     } catch {
@@ -58,9 +66,10 @@ export default function AdminPlans() {
     if (!form.name) return
     setSaving(true)
     try {
+      const authHeader = await getAuthHeader()
       const method = editPlan ? 'PATCH' : 'POST'
       const body = editPlan ? { id: editPlan.id, ...form } : form
-      const res = await fetch('/api/admin/plans', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = await fetch('/api/admin/plans', { method, headers: { 'Content-Type': 'application/json', ...authHeader }, body: JSON.stringify(body) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       flash(editPlan ? '✅ Plan updated!' : '✅ Plan created!')
@@ -74,7 +83,8 @@ export default function AdminPlans() {
 
   async function toggleActive(p: Plan) {
     try {
-      await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, is_active: !p.is_active }) })
+      const authHeader = await getAuthHeader()
+      await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeader }, body: JSON.stringify({ id: p.id, is_active: !p.is_active }) })
       load()
     } catch { flash('❌ Update failed', false) }
   }
@@ -82,7 +92,8 @@ export default function AdminPlans() {
   async function deletePlan(p: Plan) {
     if (!confirm(`Delete plan "${p.name}"? This cannot be undone.`)) return
     try {
-      const res = await fetch(`/api/admin/plans?id=${p.id}`, { method: 'DELETE' })
+      const authHeader = await getAuthHeader()
+      const res = await fetch(`/api/admin/plans?id=${p.id}`, { method: 'DELETE', headers: { ...authHeader } })
       if (!res.ok) throw new Error()
       flash('🗑 Plan deleted')
       load()

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 const STATUS_STEPS = [
   { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '💳' },
@@ -38,17 +39,23 @@ function Card({ title, icon, children }: { title: string; icon: string; children
 export default function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const supabase = createClient()
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch(`/api/admin/order-detail/${id}`)
-      .then(r => r.json())
-      .then(d => { if (d.error) setError(d.error); else setData(d) })
-      .catch(() => setError('Failed to load'))
-      .finally(() => setLoading(false))
-  }, [id])
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      fetch(`/api/admin/order-detail/${id}`, { headers: { ...authHeader } })
+        .then(r => r.json())
+        .then(d => { if (d.error) setError(d.error); else setData(d) })
+        .catch(() => setError('Failed to load'))
+        .finally(() => setLoading(false))
+    }
+    load()
+  }, [id, supabase])
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto', animation: 'spin 0.8s linear infinite' }} /></div>
   if (error || !data) return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>❌ {error || 'Order not found'}</div>

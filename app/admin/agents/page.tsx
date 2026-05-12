@@ -28,10 +28,16 @@ export default function AdminAgents() {
     setTimeout(() => setToast(null), 3500)
   }
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   useEffect(() => { load() }, [tab])
 
   async function load() {
     setLoading(true)
+    const authHeader = await getAuthHeader()
     // Fetch all agents at once and filter client-side to avoid TS type depth errors
     const { data } = await supabase
       .from('delivery_agents')
@@ -53,9 +59,10 @@ export default function AdminAgents() {
   async function doAction(agentId: string, action: 'approve' | 'reject' | 'deactivate', reason?: string) {
     setProcessing(true)
     try {
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/admin/agents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ agentId, action, reason })
       })
       const data = await res.json()

@@ -31,6 +31,11 @@ export default function ShopkeeperDashboard() {
     setTimeout(() => setToast(null), 3500)
   }
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   // Stop alert sound when all pending orders are handled
   function maybeStopAlert(remainingOrders: Order[]) {
     if (remainingOrders.length === 0) {
@@ -42,7 +47,8 @@ export default function ShopkeeperDashboard() {
   // Fetch pending orders + items via server API (bypasses RLS)
   const fetchPending = useCallback(async (shopId: string) => {
     try {
-      const res = await fetch(`/api/shopkeeper/pending-orders?shopId=${shopId}`)
+      const authHeader = await getAuthHeader()
+      const res = await fetch(`/api/shopkeeper/pending-orders?shopId=${shopId}`, { headers: { ...authHeader } })
       const data = await res.json()
       if (res.ok && data.orders) {
         setPendingOrders(data.orders)
@@ -52,7 +58,7 @@ export default function ShopkeeperDashboard() {
     } catch {
       setPendingOrders([])
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     let mounted = true
@@ -125,9 +131,10 @@ export default function ShopkeeperDashboard() {
 
     setActionLoading(orderId)
     try {
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/shopkeeper/order-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ orderId, action, reason })
       })
       const data = await res.json()

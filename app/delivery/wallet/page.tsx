@@ -34,6 +34,11 @@ export default function DeliveryWallet() {
   const pendingBalance = balance < 0 ? Math.abs(balance) : 0
   const availableBalance = balance > 0 ? balance : 0
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -75,11 +80,12 @@ export default function DeliveryWallet() {
       const loaded = await loadRazorpayScript()
       if (!loaded) { setSettleError('Failed to load payment gateway. Check your internet connection.'); return }
 
+      const authHeader = await getAuthHeader()
       // Create Razorpay order via server
       const res = await fetch('/api/delivery/settlement/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: userId, amount: pendingBalance })
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ amount: pendingBalance })
       })
       const orderData = await res.json()
       if (!res.ok) { setSettleError(orderData.error || 'Failed to initiate payment'); return }
@@ -100,11 +106,11 @@ export default function DeliveryWallet() {
         theme: { color: '#f97316' },
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           // Verify payment server-side
+          const authHeader = await getAuthHeader()
           const verifyRes = await fetch('/api/delivery/settlement/verify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({
-              agentId: userId,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
@@ -153,9 +159,10 @@ export default function DeliveryWallet() {
     try {
       if (!userId) { setFormError('Session expired. Please refresh.'); return }
 
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/withdraw/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           user_id: userId,
           user_type: 'delivery_agent',

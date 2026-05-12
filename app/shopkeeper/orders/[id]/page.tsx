@@ -32,10 +32,16 @@ export default function OrderDetailPage() {
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   useEffect(() => {
     async function load() {
       // Fetch via server API — bypasses RLS so items are visible
-      const res = await fetch(`/api/shopkeeper/order-detail?orderId=${id}`)
+      const authHeader = await getAuthHeader()
+      const res = await fetch(`/api/shopkeeper/order-detail?orderId=${id}`, { headers: { ...authHeader } })
       if (!res.ok) { setLoading(false); return }
       const data = await res.json()
       setOrder(data.order)
@@ -43,7 +49,7 @@ export default function OrderDetailPage() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, supabase])
 
   async function doAction(action: 'accept' | 'reject' | 'pack') {
     if (!order || actionLoading) return
@@ -53,11 +59,12 @@ export default function OrderDetailPage() {
     }
     setActionLoading(true)
     try {
+      const authHeader = await getAuthHeader()
       if (action === 'pack') {
         // Mark packed via service role API
         const res = await fetch('/api/shopkeeper/order-action', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify({ orderId: id, action: 'pack' })
         })
         if (res.ok) {
@@ -65,9 +72,10 @@ export default function OrderDetailPage() {
           showToast('📦 Order marked as Packed!')
         }
       } else {
+        const authHeader = await getAuthHeader()
         const res = await fetch('/api/shopkeeper/order-action', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify({ orderId: id, action, reason })
         })
         const data = await res.json()

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Transaction {
   id: string
@@ -32,6 +33,7 @@ interface PendingAgent {
 }
 
 export default function AdminAgentSettlements() {
+  const supabase = createClient()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [agentStats, setAgentStats] = useState<AgentStat[]>([])
   const [pendingAgents, setPendingAgents] = useState<PendingAgent[]>([])
@@ -41,10 +43,16 @@ export default function AdminAgentSettlements() {
   const [totalSettled, setTotalSettled] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/agent-settlements')
+      const authHeader = await getAuthHeader()
+      const res = await fetch('/api/admin/agent-settlements', { headers: { ...authHeader } })
       const data = await res.json()
       if (!res.ok) { setLoading(false); return }
 

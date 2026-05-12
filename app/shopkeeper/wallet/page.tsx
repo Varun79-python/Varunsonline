@@ -14,6 +14,11 @@ export default function ShopkeeperWallet() {
   const [successMsg, setSuccessMsg] = useState('')
   const [hasPending, setHasPending] = useState(false)
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -61,9 +66,10 @@ export default function ShopkeeperWallet() {
     try {
       if (!userId) { setFormError('Session expired. Please refresh.'); return }
 
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/withdraw/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           user_id: userId,
           user_type: 'shopkeeper',

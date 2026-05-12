@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Withdrawal {
   id: string
@@ -18,6 +19,7 @@ interface Withdrawal {
 }
 
 export default function AdminWithdrawals() {
+  const supabase = createClient()
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState<string | null>(null)
@@ -28,9 +30,15 @@ export default function AdminWithdrawals() {
     setTimeout(() => setToast(null), 4000)
   }
 
+  async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/admin/withdrawals')
+    const authHeader = await getAuthHeader()
+    const res = await fetch('/api/admin/withdrawals', { headers: { ...authHeader } })
     const data = await res.json()
     setWithdrawals(data.withdrawals || [])
     setLoading(false)
@@ -49,9 +57,10 @@ export default function AdminWithdrawals() {
 
     setProcessing(id)
     try {
+      const authHeader = await getAuthHeader()
       const res = await fetch('/api/admin/withdrawals', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ id, action, admin_note })
       })
       const data = await res.json()
