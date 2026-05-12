@@ -304,9 +304,9 @@ export default function CustomerCarePage() {
       <div style={{ marginTop: 24, padding: 16, background: 'white', borderRadius: 14, textAlign: 'center' }}>
         <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 12 }}>Need immediate help?</p>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <a href="tel:+919381274077" style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <PhoneIcon /> Call Us
-          </button>
+          </a>
           <button onClick={startChat} style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <MessageIcon /> AI Chat
           </button>
