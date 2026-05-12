@@ -244,7 +244,6 @@ export default function OrderDetailPage() {
           ) : null}
         </div>
       )}
-    </div>
 
     {/* Product Rating Modal */}
     {ratingModal && (
@@ -299,5 +298,6 @@ export default function OrderDetailPage() {
         </div>
       </div>
     )}
+    </div>
   )
 }
