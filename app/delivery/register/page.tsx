@@ -3,258 +3,212 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
+
 export default function DeliveryRegisterPage() {
   const supabase = createClient()
   const router = useRouter()
   const [form, setForm] = useState({
-    full_name: '', phone: '', email: '', gender: '',
-    license_number: '', pan_number: '',
-    aadhar_url: '', license_url: '', live_photo_url: '', pan_url: '', vehicle_rc_url: '',
-    vehicle_type: 'Bike', vehicle_number: '',
-    upi_id: '', bank_account_number: '', bank_ifsc: '', bank_account_name: ''
+    full_name: '',
+    email: '',
+    phone: '',
+    vehicle_type: 'Bike',
+    vehicle_number: '',
+    aadhar_url: '',
   })
-  const [payMethod, setPayMethod] = useState<'upi' | 'bank'>('upi')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [formError, setFormError] = useState('')
 
   useEffect(() => {
     async function prefill() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/login'); return }
-      setForm(f => ({ ...f, email: user.email || '', full_name: user.user_metadata?.full_name || '' }))
+      if (!user) { router.replace('/login/delivery'); return }
+      setForm(f => ({ ...f, email: user.email || '' }))
       const { data: agent } = await supabase.from('delivery_agents').select('*').eq('id', user.id).single()
       if (agent) {
         setAlreadyRegistered(true)
         setForm({
-          full_name: agent.full_name || user.user_metadata?.full_name || '',
-          phone: agent.phone || '', email: agent.email || user.email || '',
-          gender: agent.gender || '', license_number: agent.license_number || '',
-          pan_number: agent.pan_number || '',
-          aadhar_url: agent.aadhar_url || '', license_url: agent.license_url || '',
-          live_photo_url: agent.live_photo_url || '', pan_url: agent.pan_url || '',
-          vehicle_rc_url: agent.vehicle_rc_url || '',
-          vehicle_type: agent.vehicle_type || 'Bike', vehicle_number: agent.vehicle_number || '',
-          upi_id: agent.upi_id || '', bank_account_number: agent.bank_account_number || '',
-          bank_ifsc: agent.bank_ifsc || '', bank_account_name: agent.bank_account_name || ''
+          full_name: agent.full_name || '',
+          email: agent.email || user.email || '',
+          phone: agent.phone || '',
+          vehicle_type: agent.vehicle_type || 'Bike',
+          vehicle_number: agent.vehicle_number || '',
+          aadhar_url: agent.aadhar_url || '',
         })
-        if (agent.bank_account_number) setPayMethod('bank')
+        if (agent.is_approved) {
+          router.replace('/delivery')
+        }
+        if (!agent.is_approved && agent.rejection_reason) {
+          setDone(true)
+        }
       }
       setLoading(false)
     }
     prefill()
   }, [])
 
-  async function uploadFile(e: React.ChangeEvent<HTMLInputElement>, field: string) {
+  async function handleAadhaarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(field)
+    setUploading(true)
     const { data: { user } } = await supabase.auth.getUser()
     const ext = file.name.split('.').pop()
-    const path = `${user?.id}/${field}-${Date.now()}.${ext}`
+    const path = `aadhar/${user?.id}/aadhar-${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('agent-documents').upload(path, file, { upsert: true })
-    if (error) { alert('Upload failed: ' + error.message); setUploading(null); return }
+    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
-    setForm(f => ({ ...f, [field]: publicUrl }))
-    setUploading(null)
+    setForm(f => ({ ...f, aadhar_url: publicUrl }))
+    setUploading(false)
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
 
-    // Validate required document uploads
-    if (!form.aadhar_url) {
-      setFormError('⚠️ Aadhaar Card photo is required. Please upload it before submitting.')
-      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
-      return
-    }
-    if (!form.license_url) {
-      setFormError('⚠️ Driving License photo is required. Please upload it before submitting.')
-      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
-      return
-    }
-    if (!form.live_photo_url) {
-      setFormError('⚠️ Live Selfie is required. Please upload it before submitting.')
-      document.getElementById('doc-section')?.scrollIntoView({ behavior: 'smooth' })
-      return
-    }
+    if (!form.full_name.trim()) { setFormError('Full Name is required'); return }
+    if (!form.email.trim()) { setFormError('Email is required'); return }
+    if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
+    if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
+    if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
+    if (!form.aadhar_url) { setFormError('Aadhaar Card photo is required'); return }
 
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('delivery_agents').upsert({ id: user.id, ...form })
-    await supabase.from('profiles').update({ full_name: form.full_name, phone: form.phone }).eq('id', user.id)
-    setSaving(false)
+    if (!user) { setSaving(false); return }
+
+    const { error } = await supabase.from('delivery_agents').upsert({
+      id: user.id,
+      full_name: form.full_name.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      vehicle_type: form.vehicle_type,
+      vehicle_number: form.vehicle_number.trim().toUpperCase(),
+      aadhar_url: form.aadhar_url,
+      is_approved: false,
+      rejection_reason: null,
+      created_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+
+    if (error) { setFormError('Failed to submit: ' + error.message); setSaving(false); return }
     setDone(true)
+    setSaving(false)
   }
 
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-      <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 
-  if (done) return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
-      <h2 style={{ marginBottom: 8 }}>{alreadyRegistered ? 'Details Updated!' : 'Application Submitted!'}</h2>
-      <p style={{ marginBottom: 24, color: 'var(--text-muted)' }}>
-        {alreadyRegistered ? 'Your profile has been updated successfully.' : 'Admin will verify your documents and approve your account soon. You will be notified.'}
-      </p>
-      <a href="/delivery" className="btn btn-primary">Go to Dashboard →</a>
-    </div>
-  )
-
-  const DocUpload = ({ label, field, required = false }: { label: string; field: string; required?: boolean }) => {
-    const url = form[field as keyof typeof form] as string
-    return (
-      <div className="input-group">
-        <label className="input-label">{label} {required && <span style={{ color: '#ef4444' }}>*</span>}</label>
-        {url ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.85rem' }}>✅ Uploaded — View</a>
-            <label style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600 }}>
-              🔄 Re-upload
-              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => uploadFile(e, field)} />
-            </label>
-          </div>
-        ) : (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', border: '2px dashed var(--border)', borderRadius: 8, padding: '12px 16px', background: 'var(--bg)' }}>
-            <span style={{ fontSize: '1.4rem' }}>📎</span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {uploading === field ? '⏳ Uploading...' : 'Tap to upload (JPG, PNG, PDF)'}
-            </span>
-            <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => uploadFile(e, field)} disabled={uploading === field} />
-          </label>
-        )}
+  if (alreadyRegistered && done) return (
+    <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Submitted</h2>
+        <p style={{ color: '#64748b', marginBottom: 16 }}>Your registration is pending approval. We'll notify you once reviewed.</p>
+        <button onClick={() => router.push('/login/delivery')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Back to Login</button>
       </div>
-    )
-  }
+    </div>
+  )
+
+  if (alreadyRegistered && !done) return (
+    <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>⏳</div>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Under Review</h2>
+        <p style={{ color: '#64748b', marginBottom: 16 }}>Your application is being reviewed. You'll be notified once approved.</p>
+        <button onClick={() => supabase.auth.signOut().then(() => router.push('/login/delivery'))} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+      </div>
+    </div>
+  )
 
   return (
-    <div style={{ maxWidth: 580, margin: '0 auto' }} className="fade-in">
-      <h2 style={{ marginBottom: 4 }}>🛵 {alreadyRegistered ? 'Update Your Profile' : 'Become a Delivery Partner'}</h2>
-      <p style={{ marginBottom: 28, color: 'var(--text-muted)' }}>
-        {alreadyRegistered ? 'Update your details below.' : 'Fill in all details & upload required documents. Admin will approve within 24 hours.'}
-      </p>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '0 16px 40px' }}>
+      <div style={{ padding: '20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Delivery Partner Registration</h2>
+      </div>
 
-      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <form onSubmit={submit} style={{ maxWidth: 500, margin: '0 auto' }}>
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Personal Details</h3>
+          
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name (as per Aadhaar) *</label>
+            <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Enter your full name" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+          </div>
 
-        {/* PERSONAL INFO */}
-        <div className="card">
-          <h4 style={{ color: 'var(--primary)', marginBottom: 16 }}>👤 Personal Information</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="input-group">
-                <label className="input-label">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-                <input className="input" required value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="As on Aadhaar" />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Phone <span style={{ color: '#ef4444' }}>*</span></label>
-                <input className="input" required type="tel" maxLength={10} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit" />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Gender <span style={{ color: '#ef4444' }}>*</span></label>
-              <select className="input" required value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
-                <option value="" disabled>Select Gender</option>
-                <option value="male">👨 Male</option>
-                <option value="female">👩 Female</option>
-                <option value="other">🌈 Other</option>
-                <option value="prefer_not_to_say">🤐 Prefer not to say</option>
-              </select>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Email</label>
-              <input className="input" value={form.email} disabled style={{ opacity: 0.6 }} />
-            </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Phone Number *</label>
+            <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit phone number" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
           </div>
         </div>
 
-        {/* VEHICLE */}
-        <div className="card">
-          <h4 style={{ color: 'var(--primary)', marginBottom: 16 }}>🏍️ Vehicle Details</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="input-group">
-                <label className="input-label">Vehicle Type <span style={{ color: '#ef4444' }}>*</span></label>
-                <select className="input" required value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}>
-                  {['Bike', 'Scooter', 'Bicycle', 'Auto', 'Car'].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </div>
-              <div className="input-group">
-                <label className="input-label">Vehicle Number <span style={{ color: '#ef4444' }}>*</span></label>
-                <input className="input" required value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value.toUpperCase() }))} placeholder="TS09AB1234" />
-              </div>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Driving License Number <span style={{ color: '#ef4444' }}>*</span></label>
-              <input className="input" required value={form.license_number} onChange={e => setForm(f => ({ ...f, license_number: e.target.value }))} placeholder="e.g. TS0120230001234" />
-            </div>
-            <div className="input-group">
-              <label className="input-label">PAN Number</label>
-              <input className="input" value={form.pan_number} onChange={e => setForm(f => ({ ...f, pan_number: e.target.value.toUpperCase() }))} placeholder="e.g. ABCDE1234F" maxLength={10} />
-            </div>
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Vehicle Details</h3>
+          
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vehicle Type *</label>
+            <select value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', appearance: 'none', background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center, white` }}>
+              {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vehicle Number *</label>
+            <input value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="e.g. TS 01 AB 1234" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', textTransform: 'uppercase' }} />
           </div>
         </div>
 
-        {/* DOCUMENTS */}
-        <div className="card" id="doc-section">
-          <h4 style={{ color: 'var(--primary)', marginBottom: 6 }}>📄 Documents</h4>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 4 }}>Upload clear photos. Admin will verify before approval.</p>
-          <p style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600, marginBottom: 16 }}>* Aadhaar, Driving License and Live Selfie are required.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <DocUpload label="Aadhaar Card" field="aadhar_url" required />
-            <DocUpload label="Driving License" field="license_url" required />
-            <DocUpload label="Live Selfie / Profile Photo" field="live_photo_url" required />
-            <DocUpload label="PAN Card" field="pan_url" />
-            <DocUpload label="Vehicle RC (Registration Certificate)" field="vehicle_rc_url" />
-          </div>
-        </div>
-
-        {/* PAYMENT */}
-        <div className="card">
-          <h4 style={{ color: 'var(--primary)', marginBottom: 16 }}>💳 Payout Details</h4>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <button type="button" className={`btn ${payMethod === 'upi' ? 'btn-primary' : ''}`} style={{ flex: 1, background: payMethod === 'upi' ? 'var(--primary)' : 'var(--bg-2)', color: payMethod === 'upi' ? 'white' : 'inherit' }} onClick={() => setPayMethod('upi')}>UPI</button>
-            <button type="button" className={`btn ${payMethod === 'bank' ? 'btn-primary' : ''}`} style={{ flex: 1, background: payMethod === 'bank' ? 'var(--primary)' : 'var(--bg-2)', color: payMethod === 'bank' ? 'white' : 'inherit' }} onClick={() => setPayMethod('bank')}>Bank Account</button>
-          </div>
-          {payMethod === 'upi' ? (
-            <div className="input-group">
-              <label className="input-label">UPI ID</label>
-              <input className="input" value={form.upi_id} onChange={e => setForm(f => ({ ...f, upi_id: e.target.value }))} placeholder="yourname@upi" />
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card *</h3>
+          
+          <label style={{ display: 'block', cursor: 'pointer' }}>
+            <input type="file" accept="image/*" capture="environment" onChange={handleAadhaarUpload} style={{ display: 'none' }} />
+            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: form.aadhar_url ? '#f0fdf4' : '#f8fafc' }}>
+              {uploading ? (
+                <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
+              ) : form.aadhar_url ? (
+                <div>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
+                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Aadhaar Uploaded</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
+                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Aadhaar Photo</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="input-group">
-                <label className="input-label">Account Holder Name</label>
-                <input className="input" value={form.bank_account_name} onChange={e => setForm(f => ({ ...f, bank_account_name: e.target.value }))} placeholder="As per bank records" />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Account Number</label>
-                <input className="input" value={form.bank_account_number} onChange={e => setForm(f => ({ ...f, bank_account_number: e.target.value }))} placeholder="Bank account number" />
-              </div>
-              <div className="input-group">
-                <label className="input-label">IFSC Code</label>
-                <input className="input" value={form.bank_ifsc} onChange={e => setForm(f => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))} placeholder="e.g. SBIN0001234" />
-              </div>
+          </label>
+
+          {form.aadhar_url && (
+            <div style={{ marginTop: 12 }}>
+              <img src={form.aadhar_url} alt="Aadhaar" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
             </div>
           )}
         </div>
 
-        {/* Validation error */}
         {formError && (
-          <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '12px 16px', fontSize: '0.88rem', color: '#dc2626', fontWeight: 600 }}>
+          <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, color: '#dc2626', fontSize: '0.9rem', fontWeight: 600, marginBottom: 16 }}>
             {formError}
           </div>
         )}
 
-        <button className="btn btn-primary btn-full" type="submit" disabled={saving || !!uploading}>
-          {uploading ? '⏳ Uploading document...' : saving ? 'Saving...' : alreadyRegistered ? '💾 Update Details' : '🚀 Submit Application'}
+        <button type="submit" disabled={saving} style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(34,197,94,0.3)' }}>
+          {saving ? 'Submitting...' : 'Submit Registration'}
         </button>
       </form>
     </div>

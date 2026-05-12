@@ -195,13 +195,13 @@ export default function AdminAgents() {
                 { label: 'Email', value: selected.email },
                 { label: 'Vehicle Type', value: selected.vehicle_type },
                 { label: 'Vehicle Number', value: selected.vehicle_number },
-                { label: 'License Number', value: selected.license_number },
-                { label: 'UPI ID', value: selected.upi_id },
+                { label: 'UPI ID', value: selected.upi_id || '—' },
                 { label: 'Wallet Balance', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
                 { label: "Today's Earnings", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
                 { label: 'Total Deliveries', value: String(selected.total_deliveries || 0) },
                 { label: 'Availability', value: selected.is_available ? '🟢 Online' : '🔴 Offline' },
-                { label: 'Registered On', value: new Date(selected.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+                { label: 'Registration Date', value: new Date(selected.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+                { label: 'Status', value: selected.is_approved ? '✅ Approved' : selected.rejection_reason ? '❌ Rejected' : '⏳ Pending' },
               ].map(f => (
                 <div key={f.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{f.label}</div>
@@ -212,33 +212,22 @@ export default function AdminAgents() {
 
             {/* Document Viewer */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>📄 Uploaded Documents</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {[
-                  { label: 'Aadhaar Card', url: selected.aadhar_url, icon: '🪪', required: true },
-                  { label: 'Driving License', url: selected.license_url, icon: '🪪', required: true },
-                  { label: 'Live Selfie', url: selected.live_photo_url, icon: '🤳', required: true },
-                  { label: 'PAN Card', url: selected.pan_url, icon: '📋', required: false },
-                  { label: 'Vehicle RC', url: selected.vehicle_rc_url, icon: '🏍️', required: false },
-                ].map(doc => (
-                  <div key={doc.label} style={{ border: `1.5px solid ${doc.required && !doc.url ? '#fca5a5' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
-                    {doc.url ? (
-                      <a href={doc.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
-                        <img src={doc.url} alt={doc.label} style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }}
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                        <div style={{ padding: '6px 8px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--success)', textAlign: 'center' }}>
-                          {doc.icon} {doc.label} ↗
-                        </div>
-                      </a>
-                    ) : (
-                      <div style={{ height: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: doc.required ? '#dc2626' : 'var(--text-muted)', fontSize: '0.72rem' }}>
-                        <span style={{ fontSize: '1.5rem', marginBottom: 4 }}>{doc.required ? '⚠️' : '—'}</span>
-                        {doc.label}{doc.required ? ' (Missing!)' : ''}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>📄 Aadhaar Card</div>
+              {selected.aadhar_url ? (
+                <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
+                  <a href={selected.aadhar_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+                    <img src={selected.aadhar_url} alt="Aadhaar Card" style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)', textAlign: 'center', background: '#f0fdf4' }}>
+                      🪪 View Full Image ↗
+                    </div>
+                  </a>
+                </div>
+              ) : (
+                <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 20, textAlign: 'center', color: '#dc2626', fontSize: '0.85rem' }}>
+                  ⚠️ Aadhaar Card Not Uploaded
+                </div>
+              )}
             </div>
 
             {selected.rejection_reason && (
