@@ -21,6 +21,7 @@ const MailIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="non
 const GenderIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
 const LocationIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
 const LogoutIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+const ChevronIcon = ({ open }: { open: boolean }) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease' }}><path d="M6 9l6 6 6-6"/></svg>
 const SaveIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
 const EditIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
 const TrashIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -40,6 +41,7 @@ export default function CustomerProfile() {
   const [editSaving, setEditSaving] = useState(false)
   const [editGPS, setEditGPS] = useState(false)
   const [editGpsAccuracy, setEditGpsAccuracy] = useState<number | null>(null)
+  const [personalInfoOpen, setPersonalInfoOpen] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -125,14 +127,20 @@ export default function CustomerProfile() {
 
       {saved && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14, marginBottom: 16, color: '#16a34a', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>✅ Profile saved successfully!</div>}
 
-      <div style={{ background: 'white', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', padding: 16, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}><span style={{ fontSize: '1.1rem' }}>👤</span><span style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>Personal Info</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: 'white', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', padding: 16, marginBottom: 16, overflow: 'hidden' }}>
+        <div onClick={() => setPersonalInfoOpen(!personalInfoOpen)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+          <span style={{ fontSize: '1.1rem' }}>👤</span>
+          <span style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a', flex: 1 }}>Personal Info</span>
+          <ChevronIcon open={personalInfoOpen} />
+        </div>
+        <div style={{ maxHeight: personalInfoOpen ? '500px' : '0', opacity: personalInfoOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease' }}>
+          <div style={{ paddingTop: personalInfoOpen ? 16 : 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 6 }}>Full Name</label><div style={{ position: 'relative' }}><span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}><UserIcon /></span><input value={profile.full_name} onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))} style={{ ...inputStyle, paddingLeft: 40 }} /></div></div>
           <div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 6 }}>Phone Number</label><div style={{ position: 'relative' }}><span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}><PhoneIcon /></span><input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} style={{ ...inputStyle, paddingLeft: 40 }} /></div></div>
           <div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 6 }}>Email</label><div style={{ position: 'relative' }}><span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}><MailIcon /></span><input value={profile.email} disabled style={{ ...inputStyle, paddingLeft: 40, opacity: 0.6 }} /></div></div>
           <div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 6 }}>Gender</label><div style={{ position: 'relative' }}><span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }}><GenderIcon /></span><select value={profile.gender} onChange={e => setProfile(p => ({ ...p, gender: e.target.value }))} style={{ ...inputStyle, paddingLeft: 40, cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>{GENDER_OPTIONS.map(o => <option key={o.value} value={o.value} disabled={o.value === '' && profile.gender !== ''}>{o.label}</option>)}</select></div>{profile.gender && <div style={{ marginTop: 6, fontSize: '0.78rem', color: '#16a34a', fontWeight: 500 }}>✓ Current: {genderLabel}</div>}</div>
           <button onClick={saveProfile} disabled={saving} style={{ background: saving ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 12, padding: '14px 20px', fontWeight: 700, fontSize: '0.95rem', cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(249,115,22,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><SaveIcon />{saving ? 'Saving...' : 'Save Profile'}</button>
+          </div>
         </div>
       </div>
 
