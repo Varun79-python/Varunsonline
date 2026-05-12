@@ -25,6 +25,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     async function checkAuth() {
+      if (pathname === '/delivery/register') { setChecking(false); return }
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
       const metaRole = user.user_metadata?.role
@@ -41,7 +42,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
       setChecking(false)
     }
     checkAuth()
-  }, [])
+  }, [pathname])
 
   async function handleLogout() {
     await supabase.auth.signOut()
