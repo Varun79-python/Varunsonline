@@ -44,6 +44,7 @@ export default function ShopRegisterPage() {
     full_name: '',
     phone_number: '',
     email: '',
+    password: '',
     shop_name: '',
     shop_photo_url: '',
     terms_accepted: false,
@@ -80,13 +81,26 @@ export default function ShopRegisterPage() {
     if (!form.full_name.trim()) { alert('Please enter Full Name'); return }
     if (!form.phone_number.trim()) { alert('Please enter Phone Number'); return }
     if (!form.email.trim()) { alert('Please enter Email'); return }
+    if (!form.password.trim()) { alert('Please enter Password'); return }
+    if (form.password.length < 6) { alert('Password must be at least 6 characters'); return }
     if (!form.shop_name.trim()) { alert('Please enter Shop Name'); return }
     if (!form.shop_photo_url) { alert('Please upload Shop Photo'); return }
     if (!form.terms_accepted) { alert('Please accept Terms & Conditions'); return }
 
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { alert('Please login first'); setSaving(false); return }
+    let { data: { user } } = await supabase.auth.getUser()
+
+    // If not logged in, create an account first
+    if (!user) {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+      })
+      if (signUpError) { alert('Registration failed: ' + signUpError.message); setSaving(false); return }
+      if (!signUpData.user) { alert('Failed to create account'); setSaving(false); return }
+      user = signUpData.user
+    }
 
     const { error } = await supabase.from('shops').insert({
       owner_id: user.id,
@@ -155,6 +169,11 @@ export default function ShopRegisterPage() {
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
               <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" type="email" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
 
             <div>
