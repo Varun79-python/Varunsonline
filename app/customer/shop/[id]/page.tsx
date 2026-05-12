@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Product {
   id: string; name: string; description: string; price: number; mrp: number
   discount_percent: number; image_url: string; unit: string; stock_quantity: number; category: string
+  rating?: number
 }
 interface Shop {
   id: string; name: string; category: string; shop_image_url: string
