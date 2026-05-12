@@ -87,98 +87,83 @@ export default function ShopkeeperWallet() {
   }
 
   return (
-    <div className="fade-in" style={{ maxWidth: 560, margin: '0 auto' }}>
+    <div style={{ padding: '0 12px', maxWidth: 560, margin: '0 auto' }}>
       {/* Balance Card */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(14,165,233,0.1))',
-        border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-        padding: 28, textAlign: 'center', marginBottom: 24
+        background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+        borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 20
       }}>
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: 8 }}>Available Balance</div>
-        <div style={{ fontSize: '2.8rem', fontWeight: 900, color: 'var(--primary)', marginBottom: 16 }}>
+        <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>Available Balance</div>
+        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', marginBottom: 16 }}>
           ₹{balance.toFixed(2)}
         </div>
-        <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginBottom: 16 }}>
+        <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginBottom: 16 }}>
           Earnings credited after admin processes each order.
         </p>
         {hasPending ? (
-          <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 16px', fontSize: '0.83rem', color: '#92400e', fontWeight: 600 }}>
-            ⏳ Withdrawal request pending — admin will process shortly
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '10px 16px', fontSize: '0.8rem', color: 'white', fontWeight: 600 }}>
+            ⏳ Withdrawal pending
           </div>
         ) : (
-          <button className="btn btn-primary" onClick={() => { setFormError(''); setShowWithdraw(true) }}>
+          <button onClick={() => { setFormError(''); setShowWithdraw(true) }} style={{ background: 'white', color: '#f97316', border: 'none', borderRadius: 10, padding: '12px 28px', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}>
             Withdraw →
           </button>
         )}
       </div>
 
       {successMsg && (
-        <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: '0.88rem', color: 'var(--success)', fontWeight: 600 }}>
+        <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: '0.85rem', color: '#16a34a', fontWeight: 600 }}>
           {successMsg}
         </div>
       )}
 
       {/* Withdraw Modal */}
       {showWithdraw && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>💸 Request Withdrawal</h3>
-              <button className="modal-close" onClick={() => { setShowWithdraw(false); setFormError('') }}>✕</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && setShowWithdraw(false)}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 380 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 12px', borderBottom: '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>💸 Withdraw</h3>
+              <button onClick={() => { setShowWithdraw(false); setFormError('') }} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}>✕</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {/* Inline error */}
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {formError && (
-                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>
+                <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', color: '#dc2626', fontWeight: 600 }}>
                   ⚠️ {formError}
                 </div>
               )}
-
-              <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 14px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                Wallet Balance: <strong style={{ color: 'var(--primary)' }}>₹{balance.toFixed(2)}</strong>
+              <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', color: '#64748b' }}>
+                Balance: <strong style={{ color: '#f97316' }}>₹{balance.toFixed(2)}</strong>
               </div>
-
-              <div className="input-group">
-                <label className="input-label">Amount (₹)</label>
-                <input className="input" type="number" min={1} max={balance} value={form.amount}
-                  onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setFormError('') }}
-                  placeholder={`Enter amount (max ₹${balance.toFixed(0)})`} />
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Amount (₹)</label>
+                <input type="number" min={1} max={balance} value={form.amount} onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setFormError('') }} placeholder={`Max ₹${balance.toFixed(0)}`} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
               </div>
-
-              <div className="input-group">
-                <label className="input-label">Payment Method</label>
-                <select className="input" value={form.payment_method}
-                  onChange={e => { setForm(f => ({ ...f, payment_method: e.target.value })); setFormError('') }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Method</label>
+                <select value={form.payment_method} onChange={e => { setForm(f => ({ ...f, payment_method: e.target.value })); setFormError('') }} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }}>
                   <option value="upi">UPI</option>
                   <option value="bank_transfer">Bank Transfer</option>
                 </select>
               </div>
-
               {form.payment_method === 'upi' ? (
-                <div className="input-group">
-                  <label className="input-label">UPI ID</label>
-                  <input className="input" value={form.upi_id}
-                    onChange={e => { setForm(f => ({ ...f, upi_id: e.target.value })); setFormError('') }}
-                    placeholder="yourname@upi" />
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>UPI ID</label>
+                  <input value={form.upi_id} onChange={e => { setForm(f => ({ ...f, upi_id: e.target.value })); setFormError('') }} placeholder="yourname@upi" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
               ) : (
                 <>
-                  <div className="input-group">
-                    <label className="input-label">Account Number</label>
-                    <input className="input" value={form.bank_account_number}
-                      onChange={e => { setForm(f => ({ ...f, bank_account_number: e.target.value })); setFormError('') }} />
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Account Number</label>
+                    <input value={form.bank_account_number} onChange={e => { setForm(f => ({ ...f, bank_account_number: e.target.value })); setFormError('') }} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                   </div>
-                  <div className="input-group">
-                    <label className="input-label">IFSC Code</label>
-                    <input className="input" value={form.bank_ifsc}
-                      onChange={e => { setForm(f => ({ ...f, bank_ifsc: e.target.value })); setFormError('') }} />
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>IFSC Code</label>
+                    <input value={form.bank_ifsc} onChange={e => { setForm(f => ({ ...f, bank_ifsc: e.target.value })); setFormError('') }} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                   </div>
                 </>
               )}
-
-              <button className="btn btn-primary" onClick={requestWithdraw} disabled={submitting} style={{ marginTop: 4 }}>
-                {submitting ? '⏳ Submitting...' : '✅ Request Withdrawal'}
+              <button onClick={requestWithdraw} disabled={submitting} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '14px', fontWeight: 700, fontSize: '0.95rem', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}>
+                {submitting ? '⏳ Submitting...' : '✓ Request Withdrawal'}
               </button>
             </div>
           </div>
@@ -186,18 +171,18 @@ export default function ShopkeeperWallet() {
       )}
 
       {/* Transaction History */}
-      <h3 style={{ marginBottom: 14 }}>Transaction History</h3>
+      <h3 style={{ marginBottom: 14, fontSize: '1rem' }}>📜 Transactions</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {txns.length === 0 && (
-          <div className="card" style={{ textAlign: 'center', padding: 30 }}>No transactions yet. Earnings appear after order completion.</div>
+          <div style={{ textAlign: 'center', padding: 30, background: '#f8fafc', borderRadius: 12 }}>No transactions yet</div>
         )}
         {txns.map(t => (
-          <div key={t.id as string} className="card-flat flex-between">
+          <div key={t.id as string} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0' }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{t.description as string}</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>{new Date(t.created_at as string).toLocaleDateString('en-IN')}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.description as string}</div>
+              <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{new Date(t.created_at as string).toLocaleDateString('en-IN')}</div>
             </div>
-            <span style={{ fontWeight: 800, color: (t.type as string) === 'credit' ? 'var(--success)' : 'var(--danger)' }}>
+            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: (t.type as string) === 'credit' ? '#16a34a' : '#dc2626' }}>
               {(t.type as string) === 'credit' ? '+' : '−'}₹{t.amount as number}
             </span>
           </div>

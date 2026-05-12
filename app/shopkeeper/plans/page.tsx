@@ -165,39 +165,39 @@ export default function ShopkeeperPlans() {
   const isPercentagePlan = activeSub?.subscription_plans?.plan_type === 'percentage'
 
   return (
-    <div className="fade-in" style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div style={{ padding: '0 12px', maxWidth: 640, margin: '0 auto' }}>
       <script src="https://checkout.razorpay.com/v1/checkout.js" async />
 
-      <h2 style={{ marginBottom: 6 }}>🏪 My Subscription Plan</h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: 24, fontSize: '0.88rem' }}>
-        Your shop is visible to customers only when a plan is active. Choose the payment model that works best for you.
+      <h2 style={{ marginBottom: 6, fontSize: '1.2rem' }}>📋 Subscription Plan</h2>
+      <p style={{ color: '#64748b', marginBottom: 20, fontSize: '0.85rem' }}>
+        Your shop needs an active plan to be visible to customers.
       </p>
 
       {msg && (
-        <div style={{ background: msg.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${msg.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: 10, padding: '14px 16px', marginBottom: 20, color: msg.ok ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+        <div style={{ background: msg.ok ? '#dcfce7' : '#fee2e2', border: `1px solid ${msg.ok ? '#86efac' : '#fca5a5'}`, borderRadius: 10, padding: '14px 16px', marginBottom: 20, color: msg.ok ? '#16a34a' : '#dc2626', fontWeight: 600, fontSize: '0.85rem' }}>
           {msg.text}
         </div>
       )}
 
       {/* Active Subscription Banner */}
       {activeSub && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(16,185,129,0.1))', border: '1.5px solid rgba(34,197,94,0.4)', borderRadius: 14, padding: '18px 20px', marginBottom: 28 }}>
+        <div style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', borderRadius: 14, padding: '18px 20px', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: '1.4rem' }}>✅</span>
-            <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--success)' }}>
+            <span style={{ fontSize: '1.2rem' }}>✓</span>
+            <span style={{ fontWeight: 800, fontSize: '1rem', color: 'white' }}>
               Active: {activeSub.subscription_plans?.name}
             </span>
           </div>
           {isPercentagePlan ? (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-              {activeSub.subscription_plans.fee_percent}% commission deducted automatically per order. No upfront payment.
+            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', margin: 0 }}>
+              {activeSub.subscription_plans.fee_percent}% commission per order
             </p>
           ) : (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', margin: 0 }}>
               {expiresAt ? `Valid until: ${expiresAt.toLocaleDateString('en-IN')}` : ''}
               {daysLeft !== null && (
-                <strong style={{ color: daysLeft <= 5 ? 'var(--danger)' : daysLeft <= 10 ? '#d97706' : 'var(--success)', marginLeft: 8 }}>
-                  ({daysLeft > 0 ? `${daysLeft} days left` : '⚠️ Expired — renew now!'})
+                <strong style={{ color: '#fff', marginLeft: 8 }}>
+                  ({daysLeft > 0 ? `${daysLeft} days left` : '⚠️ Expired!'})
                 </strong>
               )}
             </p>
@@ -205,38 +205,30 @@ export default function ShopkeeperPlans() {
         </div>
       )}
 
-      {/* Plan Type Filter — shopkeeper picks their preferred model */}
+      {/* Plan Type Filter */}
       {allPlans.length > 0 && (percentagePlans.length > 0 && monthlyPlans.length > 0) && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.9rem' }}>Choose Your Preferred Payment Model:</div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.85rem', color: '#374151' }}>Choose payment model:</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => setSelectedType('percentage')}
-              style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${selectedType === 'percentage' ? 'var(--primary)' : 'var(--border)'}`, background: selectedType === 'percentage' ? 'rgba(249,115,22,0.1)' : 'var(--bg)', cursor: 'pointer', textAlign: 'center' }}
-            >
-              <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📊</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Pay Per Order</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>% commission on each sale</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 2 }}>No upfront cost</div>
+            <button onClick={() => setSelectedType('percentage')} style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${selectedType === 'percentage' ? '#f97316' : '#e2e8f0'}`, background: selectedType === 'percentage' ? '#fff7ed' : 'white', cursor: 'pointer', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>📊</div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Pay Per Order</div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 2 }}>% commission</div>
             </button>
-            <button
-              onClick={() => setSelectedType('fixed_monthly')}
-              style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${selectedType === 'fixed_monthly' ? '#8b5cf6' : 'var(--border)'}`, background: selectedType === 'fixed_monthly' ? 'rgba(139,92,246,0.1)' : 'var(--bg)', cursor: 'pointer', textAlign: 'center' }}
-            >
-              <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📅</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Fixed Monthly</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>Flat fee per month</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 2 }}>Keep all earnings</div>
+            <button onClick={() => setSelectedType('fixed_monthly')} style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${selectedType === 'fixed_monthly' ? '#8b5cf6' : '#e2e8f0'}`, background: selectedType === 'fixed_monthly' ? '#f5f3ff' : 'white', cursor: 'pointer', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>📅</div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Monthly</div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 2 }}>Flat fee</div>
             </button>
           </div>
         </div>
       )}
 
       {/* Plans List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allPlans.length === 0 && (
-          <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-            No plans available yet. Contact admin.
+          <div style={{ textAlign: 'center', padding: 40, color: '#64748b', background: '#f8fafc', borderRadius: 12 }}>
+            No plans available
           </div>
         )}
         {filteredPlans.map(plan => {

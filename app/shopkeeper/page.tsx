@@ -216,22 +216,24 @@ export default function ShopkeeperDashboard() {
 
   return (
     <div className="sk-root">
-      {/* Mobile-only sticky header */}
+      {/* Mobile Header */}
       <div className="sk-mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '1.3rem' }}>🏪</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(249,115,22,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '1.3rem' }}>🏪</span>
+          </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0f172a', lineHeight: 1.1 }}>{shop?.name || 'My Shop'}</div>
-            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: shop?.is_open ? '#16a34a' : '#dc2626' }}>
-              {shop?.is_open ? '🟢 Open' : '🔴 Closed'}
+            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white', lineHeight: 1.1 }}>{shop?.name || 'My Shop'}</div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: shop?.is_open ? '#4ade80' : '#f87171' }}>
+              {shop?.is_open ? '● Open' : '○ Closed'}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {pendingOrders.length > 0 && (
-            <span className="sk-badge-alert">{pendingOrders.length} new</span>
+            <span style={{ background: '#dc2626', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '3px 8px', borderRadius: 10 }}>{pendingOrders.length}</span>
           )}
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="sk-logout-btn">Logout</button>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: 8, padding: '6px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>Logout</button>
         </div>
       </div>
       {toast && (
@@ -354,134 +356,115 @@ export default function ShopkeeperDashboard() {
         )
       })()}
 
-      {/* Stats */}
-      <div className="sk-stats-grid">
+      {/* Stats Row */}
+      <div className="sk-stats-row">
         {[
-          { icon: '💰', label: "Today's Earnings", value: `₹${todayEarnings.toFixed(0)}`, color: '#22c55e' },
-          { icon: '🏦', label: 'Wallet Balance', value: `₹${(shop?.wallet_balance || 0).toFixed(0)}`, color: '#f97316' },
-          { icon: '📦', label: 'Total Orders', value: shop?.total_orders || 0, color: '#0ea5e9' },
-          { icon: '💼', label: 'Total Earned', value: `₹${(shop?.total_earnings || 0).toFixed(0)}`, color: '#a855f7' },
+          { icon: '💰', label: 'Today Earnings', value: `₹${todayEarnings.toFixed(0)}`, color: '#22c55e', bg: '#f0fdf4' },
+          { icon: '🏦', label: 'Wallet', value: `₹${(shop?.wallet_balance || 0).toFixed(0)}`, color: '#f97316', bg: '#fff7ed' },
+          { icon: '📦', label: 'Total Orders', value: shop?.total_orders || 0, color: '#0ea5e9', bg: '#f0f9ff' },
+          { icon: '💼', label: 'Total Earned', value: `₹${(shop?.total_earnings || 0).toFixed(0)}`, color: '#a855f7', bg: '#faf5ff' },
         ].map(s => (
-          <div key={s.label} className="sk-stat-card">
-            <div className="sk-stat-icon" style={{ background: `${s.color}20`, color: s.color }}>{s.icon}</div>
-            <div className="sk-stat-value">{s.value}</div>
-            <div className="sk-stat-label">{s.label}</div>
+          <div key={s.label} className="sk-stat-card" style={{ background: s.bg }}>
+            <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>{s.icon}</div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Pending Orders */}
-      <div className="flex-between" style={{ marginBottom: 16 }}>
-        <h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <h3 style={{ fontSize: '1.1rem' }}>
           🔔 Incoming Orders{' '}
           {pendingOrders.length > 0 && (
-            <span className="badge badge-orange" style={{ marginLeft: 8 }}>{pendingOrders.length}</span>
+            <span style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, marginLeft: 6 }}>{pendingOrders.length}</span>
           )}
         </h3>
         <button onClick={() => shopIdRef.current && fetchPending(shopIdRef.current)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 600 }}>
+          style={{ border: 'none', cursor: 'pointer', color: '#f97316', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(249,115,22,0.1)', padding: '6px 12px', borderRadius: 8 }}>
           🔄 Refresh
         </button>
       </div>
 
-      {pendingOrders.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>✅</div>
-          <p>No pending orders. All caught up!</p>
+{pendingOrders.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 16 }}>
+          <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
+          <p style={{ color: '#64748b', fontWeight: 600 }}>No pending orders</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {pendingOrders.map((order, idx) => {
             const isExpanded = expanded.has(order.id)
             const itemCount = order.items?.length || 0
             const isProcessing = actionLoading === order.id
-            // Cards added while alert is active get the pulse treatment
             const isNew = alertingOrdersRef.current.has(order.id) || idx === 0 && alertingOrdersRef.current.size > 0
 
             return (
-              <div key={order.id} className={`card sk-order-card${isNew ? ' sk-order-new' : ''}`} style={{ padding: 0, overflow: 'hidden', borderLeft: '4px solid #f59e0b' }}>
-
+              <div key={order.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', overflow: 'hidden' }}>
                 {isNew && (
-                  <div className="sk-new-badge">🔔 New Order</div>
+                  <div style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '6px 12px' }}>🔔 NEW ORDER</div>
                 )}
 
-                {/* Order header */}
-                <div style={{ padding: '16px 16px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ padding: '14px 14px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>{order.order_number}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{order.order_number}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>
                         {new Date(order.created_at).toLocaleTimeString('en-IN')}
                       </div>
                     </div>
-                  <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{itemCount} item{itemCount !== 1 ? 's' : ''} · Your Earning</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, color: '#f97316', fontSize: '1.1rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Product list — always visible */}
-                <div style={{ padding: '0 16px 14px' }}>
+                {/* Product list */}
+                <div style={{ padding: '0 14px 12px' }}>
                   {itemCount === 0 ? (
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontStyle: 'italic', padding: '8px 0' }}>
-                      Loading items...
-                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', padding: '8px 0' }}>Loading items...</div>
                   ) : (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
                       {order.items.map((item, idx) => (
-                        <div key={item.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                          background: idx % 2 === 0 ? 'var(--bg)' : 'white',
-                          borderTop: idx > 0 ? '1px solid var(--border)' : 'none'
-                        }}>
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: idx % 2 === 0 ? '#f8fafc' : 'white', borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none' }}>
                           {item.product_image_url ? (
-                            <img src={item.product_image_url} alt={item.product_name}
-                              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                            <img src={item.product_image_url} alt={item.product_name} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
                           ) : (
-                            <div style={{ width: 40, height: 40, background: 'var(--bg3)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>🛍️</div>
+                            <div style={{ width: 36, height: 36, background: '#e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🛍️</div>
                           )}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.product_name}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              ₹{item.unit_price} × {item.quantity}
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.product_name}</div>
+                            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>₹{item.unit_price} × {item.quantity}</div>
                           </div>
-                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary)', flexShrink: 0 }}>
-                            ₹{item.total_price}
-                          </div>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#f97316' }}>₹{item.total_price}</div>
                         </div>
                       ))}
-                      {/* Total row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#fff7ed', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text)' }}>Your Earnings</span>
-                        <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#fff7ed', borderTop: '1px solid #e2e8f0' }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>Your Earnings</span>
+                        <span style={{ fontWeight: 800, color: '#f97316' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Action buttons */}
-                <div className="sk-order-actions">
+                <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
                   <button
                     onClick={() => doOrderAction(order.id, order.order_number, 'accept')}
                     disabled={isProcessing}
-                    className="sk-accept-btn"
-                    style={{ background: isProcessing ? '#d1fae5' : '#16a34a', color: isProcessing ? '#16a34a' : 'white' }}
+                    style={{ flex: 1, background: isProcessing ? '#dcfce7' : '#16a34a', color: isProcessing ? '#16a34a' : 'white', border: 'none', borderRadius: 10, padding: '12px 16px', fontWeight: 800, fontSize: '0.85rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
                   >
-                    {isProcessing ? '⏳ Processing...' : '✅ Accept Order'}
+                    {isProcessing ? '⏳...' : '✓ Accept'}
                   </button>
                   <button
                     onClick={() => doOrderAction(order.id, order.order_number, 'reject')}
                     disabled={isProcessing}
-                    className="sk-reject-btn"
-                    style={{ background: isProcessing ? '#fee2e2' : '#dc2626', color: isProcessing ? '#dc2626' : 'white' }}
+                    style={{ background: isProcessing ? '#fee2e2' : '#dc2626', color: isProcessing ? '#dc2626' : 'white', border: 'none', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.85rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
                   >
-                    ❌ Reject
+                    ✕ Reject
                   </button>
-                  <a href={`/shopkeeper/orders/${order.id}`} className="sk-details-btn">Details ›</a>
+                  <a href={`/shopkeeper/orders/${order.id}`} style={{ background: '#f1f5f9', color: '#475569', borderRadius: 10, padding: '12px 14px', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none' }}>Details</a>
                 </div>
               </div>
             )
@@ -499,37 +482,17 @@ export default function ShopkeeperDashboard() {
         .sk-stat-label { font-size: 0.7rem; color: #64748b; font-weight: 600; }
         .sk-toast { position: fixed; z-index: 9999; top: calc(16px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; border-radius: 10px; padding: 12px 18px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); font-weight: 600; font-size: 0.9rem; text-align: center; animation: fadeIn 0.2s ease; max-width: 400px; margin: 0 auto; }
         .sk-toast-success { background: white; border: 1.5px solid #22c55e; color: #15803d; }
-        .sk-toast-error   { background: #fef2f2; border: 1.5px solid #dc2626; color: #dc2626; }
-        .sk-order-actions { display: flex; border-top: 1px solid var(--border); }
-        .sk-accept-btn { flex: 1; min-height: 52px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background 0.1s; }
-        .sk-accept-btn:active { filter: brightness(0.9); }
-        .sk-accept-btn:disabled { cursor: not-allowed; }
-        .sk-reject-btn { flex: 1; min-height: 52px; border: none; border-left: 1px solid rgba(255,255,255,0.25); font-weight: 700; font-size: 0.9rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        .sk-reject-btn:active { filter: brightness(0.9); }
-        .sk-reject-btn:disabled { cursor: not-allowed; }
-        .sk-details-btn { padding: 0 16px; border-left: 1px solid var(--border); background: var(--bg3); color: var(--text); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0; min-height: 52px; }
-        /* ── New order pulse effect ── */
-        @keyframes sk-pulse-glow {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); border-color: #f59e0b; }
-          50%       { box-shadow: 0 0 0 8px rgba(245,158,11,0); border-color: #f97316; }
-        }
-        .sk-order-card { border: 1.5px solid var(--border); }
-        .sk-order-new  { animation: sk-pulse-glow 1.4s ease infinite; border-color: #f59e0b !important; }
-        .sk-new-badge  {
-          background: linear-gradient(90deg, #f59e0b, #f97316);
-          color: white; font-size: 0.72rem; font-weight: 800;
-          padding: 5px 14px; letter-spacing: 0.3px;
-          display: flex; align-items: center; gap: 5px;
-        }
+        .sk-stats-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 16px; }
+        .sk-stats-row::-webkit-scrollbar { display: none; }
+        .sk-stat-card { min-width: 80px; flex: 1; border-radius: 12px; padding: 12px 10px; text-align: center; border: 1px solid; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .sk-toast { position: fixed; z-index: 9999; top: calc(16px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; border-radius: 10px; padding: 12px 18px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); font-weight: 600; font-size: 0.9rem; text-align: center; animation: fadeIn 0.2s ease; max-width: 400px; margin: 0 auto; }
+        .sk-toast-success { background: #f0fdf4; border: 1.5px solid #86efac; color: #16a34a; }
+        .sk-toast-error { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; }
         @media (max-width: 768px) {
-          .sk-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: white; border-bottom: 1.5px solid #f1f5f9; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
-          .sk-logout-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 99px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
-          .sk-badge-alert { background: #f97316; color: white; font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 99px; }
-          .sk-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; padding: 12px 12px 0; margin-bottom: 16px; }
-          .sk-stat-card { padding: 12px 10px; border-radius: 12px; }
-          .sk-stat-value { font-size: 1.1rem; }
-          .sk-stat-label { font-size: 0.65rem; }
-          .sk-stat-icon  { width: 32px; height: 32px; font-size: 1rem; }
+          .sk-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; }
+          .sk-stats-row { padding: 0 12px; }
+          .sk-stat-card { min-width: 70px; }
         }
       `}</style>
     </div>

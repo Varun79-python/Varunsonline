@@ -77,78 +77,74 @@ export default function ProductsPage() {
   const filtered = search ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())) : products
 
   return (
-    <div className="fade-in">
-      <div className="flex-between" style={{ marginBottom: 24 }}>
+    <div style={{ padding: '0 12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <h2>🏷️ Products ({products.length})</h2>
-          {shop?.category && (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Shop Category: <strong style={{ color: 'var(--primary)' }}>{shop.category}</strong>
-            </div>
-          )}
+          <h2 style={{ fontSize: '1.2rem', marginBottom: 2 }}>🏷️ Products</h2>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{products.length} items</div>
         </div>
-        <button className="btn btn-primary" onClick={openNew}>+ Add Product</button>
+        <button onClick={openNew} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>+ Add</button>
       </div>
 
-      <div className="search-bar" style={{ marginBottom: 20 }}>
-        <span className="search-icon">🔍</span>
-        <input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '1rem' }}>🔍</span>
+        <input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
       </div>
 
       {/* Product Form Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowForm(false)}>
-          <div className="modal" style={{ maxWidth: 540 }}>
-            <div className="modal-header">
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && setShowForm(false)}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 12px', borderBottom: '1px solid #e2e8f0' }}>
               <div>
-                <h3>{editing ? 'Edit Product' : 'Add New Product'}</h3>
-                {shop?.category && (
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                    Will be listed under: <strong>{shop.category}</strong>
-                  </div>
-                )}
+                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{editing ? 'Edit Product' : 'Add Product'}</h3>
+                {shop?.category && <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 2 }}>Category: {shop.category}</div>}
               </div>
-              <button className="modal-close" onClick={() => setShowForm(false)}>✕</button>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}>✕</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="input-group" style={{ gridColumn: '1/-1' }}>
-                <label className="input-label">Product Name *</label>
-                <input className="input" placeholder="e.g. Fresh Bread, Amul Butter..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Product Name *</label>
+                <input placeholder="e.g. Fresh Bread" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
               </div>
-              <div className="input-group">
-                <label className="input-label">Selling Price (₹) *</label>
-                <input className="input" type="number" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Price (₹) *</label>
+                  <input type="number" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>MRP (₹)</label>
+                  <input type="number" placeholder="Optional" value={form.mrp} onChange={e => setForm(f => ({ ...f, mrp: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">MRP (₹) <span style={{ fontWeight: 400, color: 'var(--text-dim)' }}>optional</span></label>
-                <input className="input" type="number" placeholder="Leave blank if same" value={form.mrp} onChange={e => setForm(f => ({ ...f, mrp: e.target.value }))} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Stock</label>
+                  <input type="number" placeholder="0" value={form.stock_quantity} onChange={e => setForm(f => ({ ...f, stock_quantity: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Unit</label>
+                  <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }}>
+                    {['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'box', 'dozen'].map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">Stock Quantity</label>
-                <input className="input" type="number" placeholder="0 = unlimited" value={form.stock_quantity} onChange={e => setForm(f => ({ ...f, stock_quantity: e.target.value }))} />
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Image URL</label>
+                <input placeholder="https://..." value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
               </div>
-              <div className="input-group">
-                <label className="input-label">Unit</label>
-                <select className="input" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
-                  {['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'box', 'dozen'].map(u => <option key={u}>{u}</option>)}
-                </select>
-              </div>
-              <div className="input-group" style={{ gridColumn: '1/-1' }}>
-                <label className="input-label">Image URL <span style={{ fontWeight: 400, color: 'var(--text-dim)' }}>optional</span></label>
-                <input className="input" value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://..." />
-              </div>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', gridColumn: '1/-1' }}>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
                 <input type="checkbox" checked={form.is_available} onChange={e => setForm(f => ({ ...f, is_available: e.target.checked }))} />
-                <span>Available for sale</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Available for sale</span>
               </label>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveProduct} disabled={saving || !form.name || !form.price}>
-                {saving ? 'Saving...' : editing ? 'Update Product' : 'Add Product'}
+            <div style={{ display: 'flex', gap: 10, padding: 16, borderTop: '1px solid #e2e8f0' }}>
+              <button onClick={saveProduct} disabled={saving || !form.name || !form.price} style={{ flex: 1, background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, fontSize: '0.9rem', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+                {saving ? 'Saving...' : editing ? 'Update' : 'Add Product'}
               </button>
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+              <button onClick={() => setShowForm(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '12px 20px', fontWeight: 600, fontSize: '0.9rem', color: '#475569', cursor: 'pointer' }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -156,31 +152,32 @@ export default function ProductsPage() {
 
       {/* Products Grid */}
       {filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: '#f8fafc', borderRadius: 16 }}>
           <div style={{ fontSize: '3rem', marginBottom: 12 }}>🛍️</div>
-          <h3 style={{ marginBottom: 8 }}>{search ? 'No products match your search' : 'No Products Yet'}</h3>
-          <p style={{ marginBottom: 20 }}>{search ? 'Try a different search term' : 'Add your first product to start selling!'}</p>
-          {!search && <button className="btn btn-primary" onClick={openNew}>+ Add First Product</button>}
+          <h3 style={{ marginBottom: 8, color: '#0f172a' }}>{search ? 'No products found' : 'No Products Yet'}</h3>
+          <p style={{ marginBottom: 20, color: '#64748b' }}>{search ? 'Try a different search' : 'Add your first product!'}</p>
+          {!search && <button onClick={openNew} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, cursor: 'pointer' }}>+ Add Product</button>}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           {filtered.map(p => (
-            <div key={p.id} className="card" style={{ opacity: p.is_available ? 1 : 0.6 }}>
+            <div key={p.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', overflow: 'hidden', opacity: p.is_available ? 1 : 0.6 }}>
               {p.image_url
-                ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} />
-                : <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', marginBottom: 12 }}>🛍️</div>
+                ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 100, objectFit: 'cover' }} />
+                : <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', background: '#f8fafc' }}>🛍️</div>
               }
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8 }}>Stock: {p.stock_quantity}</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{p.price}</span>
-                {p.mrp > p.price && <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textDecoration: 'line-through' }}>₹{p.mrp}</span>}
-                <span className={`badge ${p.is_available ? 'badge-green' : 'badge-gray'}`} style={{ marginLeft: 'auto' }}>{p.is_available ? 'Active' : 'Hidden'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => openEdit(p)}>✏️ Edit</button>
-                <button className="btn btn-outline btn-sm" onClick={() => toggleAvail(p)}>{p.is_available ? 'Hide' : 'Show'}</button>
-                <button className="btn btn-danger btn-sm" onClick={() => deleteProduct(p.id)}>🗑️</button>
+              <div style={{ padding: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Stock: {p.stock_quantity}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 800, color: '#f97316', fontSize: '1rem' }}>₹{p.price}</span>
+                  {p.mrp > p.price && <span style={{ fontSize: '0.75rem', color: '#94a3b8', textDecoration: 'line-through' }}>₹{p.mrp}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => openEdit(p)} style={{ flex: 1, background: '#f1f5f9', border: 'none', borderRadius: 6, padding: '8px', fontSize: '0.7rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Edit</button>
+                  <button onClick={() => toggleAvail(p)} style={{ background: p.is_available ? '#fef3c7' : '#dcfce7', border: 'none', borderRadius: 6, padding: '8px', fontSize: '0.7rem', fontWeight: 600, color: p.is_available ? '#d97706' : '#16a34a', cursor: 'pointer' }}>{p.is_available ? 'Hide' : 'Show'}</button>
+                  <button onClick={() => deleteProduct(p.id)} style={{ background: '#fee2e2', border: 'none', borderRadius: 6, padding: '8px', fontSize: '0.7rem', fontWeight: 600, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+                </div>
               </div>
             </div>
           ))}
