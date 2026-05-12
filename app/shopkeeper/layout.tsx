@@ -32,7 +32,7 @@ export default function ShopkeeperLayout({ children }: { children: React.ReactNo
         if (user) { router.replace('/shopkeeper'); return }
         setChecking(false); return
       }
-      if (!user) { router.replace('/login'); return }
+      if (!user) { setChecking(false); return }
       const metaRole = user.user_metadata?.role
       if (metaRole && metaRole !== 'shopkeeper') { router.replace('/login'); return }
       if (metaRole === 'shopkeeper') {

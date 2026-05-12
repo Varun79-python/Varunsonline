@@ -30,7 +30,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
         if (user) { router.replace('/delivery'); return }
         setChecking(false); return
       }
-      if (!user) { router.replace('/login'); return }
+      if (!user) { setChecking(false); return }
       const metaRole = user.user_metadata?.role
       if (metaRole && metaRole !== 'delivery_agent') { router.replace('/login'); return }
       if (metaRole === 'delivery_agent') {
