@@ -32,10 +32,7 @@ export default function AdminShops() {
 
   async function load() {
     setLoading(true)
-    const [shopsCount, pendingShops] = await Promise.all([
-      supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
-      Promise.resolve(shops)
-    ])
+    const shopsCount = await supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false)
     let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
     if (tab === 'pending') q = q.eq('is_approved', false)
     else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
