@@ -70,6 +70,8 @@ export default function CustomerHome() {
     } else loadShops(null, null)
   }
 
+  const MAX_RADIUS_KM = 10
+
   async function loadShops(lat: number | null, lon: number | null) {
     setLoading(true)
     const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
@@ -78,9 +80,16 @@ export default function CustomerHome() {
         ...s,
         distance: lat && lon && s.latitude && s.longitude
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
-      })).sort((a: Shop, b: Shop) => ((a.distance ?? 99) - (b.distance ?? 99)))
-      setShops(withDist)
-      setFiltered(withDist)
+      })).filter((s: Shop) => s.distance === null || (s.distance !== undefined && s.distance <= MAX_RADIUS_KM))
+      if (withDist.length === 0) {
+        setShops([])
+        setFiltered([])
+        setLoading(false)
+        return
+      }
+      const sorted = withDist.sort((a: Shop, b: Shop) => ((a.distance ?? 99) - (b.distance ?? 99)))
+      setShops(sorted)
+      setFiltered(sorted)
     }
     setLoading(false)
   }
