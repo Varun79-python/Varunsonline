@@ -58,22 +58,22 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div className="dashboard-container">
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ marginBottom: 4, fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>📊 Command Center</h2>
-        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <div className="dashboard-header">
+        <h2 style={{ marginBottom: 4, fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>📊 Command Center</h2>
+        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="admin-stats-grid">
+      <div className="stats-grid">
         {statCards.map(s => (
           <a key={s.label} href={s.href} style={{ textDecoration: 'none' }}>
-            <div className="admin-stat-card" style={{ background: s.bg }}>
-              <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>{s.icon}</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
-              <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: 2 }}>{s.sub}</div>
+            <div className="stat-card" style={{ background: s.bg }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>{s.icon}</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 4 }}>{s.sub}</div>
             </div>
           </a>
         ))}
@@ -125,11 +125,19 @@ export default function AdminDashboard() {
       </div>
 
       <style>{`
-        .admin-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-        .admin-stat-card { border-radius: 12px; padding: 14px 10px; text-align: center; border: 1px solid; }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; }
+        .dashboard-header { margin-bottom: 24px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+        .stat-card { border-radius: 16px; padding: 20px; text-align: center; border: 1px solid; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        
+        @media (max-width: 1200px) {
+          .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
         @media (max-width: 768px) {
-          .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .admin-stat-card { padding: 12px 8px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .stat-card { padding: 14px 10px; }
+          .dashboard-container { padding: 0; }
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>

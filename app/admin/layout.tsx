@@ -65,8 +65,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  return (
+return (
     <div className="admin-layout">
+      {/* Desktop Sidebar */}
+      <aside className="admin-sidebar">
+        <div className="sidebar-brand">
+          <span style={{ fontSize: '1.5rem' }}>👑</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Varun's Online</div>
+            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Admin Panel</div>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {navItems.map(item => {
+            const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+            return (
+              <a key={item.href} href={item.href} className={`sidebar-link${isActive ? ' sidebar-active' : ''}`}>
+                <span className="sidebar-icon">{item.icon}</span>
+                <span className="sidebar-label">{item.label}</span>
+              </a>
+            )
+          })}
+        </nav>
+        <div className="sidebar-footer">
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #334155' }}>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 8 }}>Logged in as Admin</div>
+            <button onClick={handleLogout} style={{ width: '100%', padding: '10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+          </div>
+        </div>
+      </aside>
+
       {/* Mobile Header */}
       <header className="admin-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -83,7 +111,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <main className="admin-main">{children}</main>
 
-      {/* Bottom Navigation */}
+      {/* Mobile Bottom Navigation */}
       <nav className="admin-bottom-nav">
         {navItems.map(item => {
           const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
@@ -97,10 +125,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       <style>{`
-        .admin-layout { min-height: 100vh; background: #f8fafc; }
+        .admin-layout { min-height: 100vh; display: flex; background: #f8fafc; }
+        .admin-sidebar { display: flex; flex-direction: column; width: 260px; background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; }
+        .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px 16px; border-bottom: 1px solid #334155; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+        .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.15s ease; }
+        .sidebar-link:hover { background: rgba(255,255,255,0.05); color: white; }
+        .sidebar-active { background: #f97316; color: white; font-weight: 700; }
+        .sidebar-icon { font-size: 1.2rem; }
+        .sidebar-footer { border-top: 1px solid #334155; }
+
         .admin-header { display: none; }
-        .admin-main { padding-bottom: 80px; }
+        .admin-main { flex: 1; margin-left: 260px; padding: 24px; min-height: 100vh; }
         .admin-bottom-nav { display: none; }
+
+        /* Mobile Styles */
+        @media (max-width: 1024px) {
+          .admin-sidebar { display: none; }
+          .admin-main { margin-left: 0; padding: 0; }
+        }
 
         @media (max-width: 768px) {
           .admin-header { 
@@ -112,6 +155,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             padding-top: calc(12px + env(safe-area-inset-top,0px)); 
             position: sticky; top: 0; z-index: 50; 
           }
+          .admin-main { padding: 12px; padding-bottom: 80px; }
+          
+          .admin-bottom-nav {
+            display: flex !important;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 70px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            z-index: 50;
+            padding-bottom: env(safe-area-inset-bottom, 8px);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+            justify-content: space-around;
+            align-items: center;
+            overflow-x: auto;
+          }
+          .admin-nav-item {
+            flex: 1;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 2px; text-decoration: none;
+            color: #94a3b8; position: relative;
+            padding: 8px 4px;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.15s ease;
+            min-width: 50px;
+          }
+          .admin-nav-active { color: #f97316; }
+          .admin-nav-icon { font-size: 1.2rem; line-height: 1; }
+          .admin-nav-label { font-size: 0.55rem; font-weight: 600; white-space: nowrap; }
+          .admin-nav-active .admin-nav-label { font-weight: 700; }
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  )
+}
           .admin-main { padding: 12px; }
           
           .admin-bottom-nav {
