@@ -1,7 +1,13 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+
+interface ChatMessage {
+  id: number
+  role: 'user' | 'ai'
+  text: string
+}
 
 interface Complaint {
   id: string
@@ -41,6 +47,80 @@ export default function CustomerCarePage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ complaint_type: 'order', subject: '', description: '', order_id: '' })
   const [orders, setOrders] = useState<{ id: string; order_number: string }[]>([])
+  const [showChat, setShowChat] = useState(false)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatStep, setChatStep] = useState(0)
+  const [userIssue, setUserIssue] = useState<{ type: string; description: string }>({ type: '', description: '' })
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const AI_RESPONSES: Record<number, { text: string; options?: string[] }> = {
+    0: { text: "👋 Hello! I'm your AI Support Assistant. I'm here to help you resolve any issues quickly.\n\nWhat would you like help with today?", options: ['Order Issue', 'Delivery Issue', 'Product Issue', 'Payment Issue', 'Other'] },
+    1: { text: "I understand you're experiencing an issue. Could you please describe what's happening in a few words?", options: ['Late delivery', 'Wrong item received', 'Quality issue', 'Payment failed', 'Other'] },
+    2: { text: "Thank you for explaining. To help you better, could you provide more details about the issue?", options: ['This happened recently', 'It happened before', 'Need urgent help', 'Just want to inquire'] },
+    3: { text: "I've captured your concern. Would you like me to help you file a formal complaint so our team can resolve this?", options: ['Yes, file a complaint', 'No, just needed help', 'Need more information'] },
+  }
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
+
+  function handleChatOption(option: string) {
+    const newMessages: ChatMessage[] = [...chatMessages, { id: Date.now(), role: 'user', text: option }]
+    setChatMessages(newMessages)
+
+    if (chatStep === 0) {
+      const typeMap: Record<string, string> = { 'Order Issue': 'order', 'Delivery Issue': 'delivery', 'Product Issue': 'product', 'Payment Issue': 'payment', 'Other': 'other' }
+      setUserIssue(i => ({ ...i, type: typeMap[option] || 'other' }))
+      setTimeout(() => {
+        setChatMessages(msgs => [...msgs, { id: Date.now() + 1, role: 'ai', text: AI_RESPONSES[1].text, options: AI_RESPONSES[1].options }])
+        setChatStep(1)
+      }, 600)
+    } else if (chatStep === 1) {
+      setUserIssue(i => ({ ...i, description: option }))
+      setTimeout(() => {
+        setChatMessages(msgs => [...msgs, { id: Date.now() + 1, role: 'ai', text: AI_RESPONSES[2].text, options: AI_RESPONSES[2].options }])
+        setChatStep(2)
+      }, 600)
+    } else if (chatStep === 2) {
+      setTimeout(() => {
+        setChatMessages(msgs => [...msgs, { id: Date.now() + 1, role: 'ai', text: AI_RESPONSES[3].text, options: AI_RESPONSES[3].options }])
+        setChatStep(3)
+      }, 600)
+    } else if (chatStep === 3) {
+      if (option === 'Yes, file a complaint') {
+        setShowChat(false)
+        setShowForm(true)
+        setForm(f => ({ ...f, complaint_type: userIssue.type, subject: userIssue.description, description: `Chat Issue: ${userIssue.description}. Additional context: ${userIssue.description}` }))
+      } else if (option === 'No, just needed help') {
+        setChatMessages(msgs => [...msgs, { id: Date.now() + 1, role: 'ai', text: "😊 Glad I could help! If you have any more questions, feel free to ask. Have a great day!" }])
+        setChatStep(4)
+      } else {
+        setChatMessages(msgs => [...msgs, { id: Date.now() + 1, role: 'ai', text: "For more information, you can call our support team at +91 98765 43210 or email us at support@varunsonline.com. We're happy to help!" }])
+        setChatStep(4)
+      }
+    }
+  }
+
+  async function handleChatSubmit() {
+    if (!chatInput.trim()) return
+    const userMsg: ChatMessage = { id: Date.now(), role: 'user', text: chatInput }
+    setChatMessages(prev => [...prev, userMsg])
+    setChatInput('')
+    setChatLoading(true)
+
+    setTimeout(() => {
+      const response = "I see you're reaching out. For the best help, please select one of the options below so I can assist you better."
+      setChatMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text: response }])
+      setChatLoading(false)
+    }, 800)
+  }
+
+  function startChat() {
+    setShowChat(true)
+    setChatMessages([{ id: 1, role: 'ai', text: AI_RESPONSES[0].text }])
+    setChatStep(0)
+    setUserIssue({ type: '', description: '' })
+  }
 
   useEffect(() => {
     loadData()
@@ -227,11 +307,69 @@ export default function CustomerCarePage() {
           <button style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <PhoneIcon /> Call Us
           </button>
-          <button style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <MessageIcon /> Chat
+          <button onClick={startChat} style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '12px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <MessageIcon /> AI Chat
           </button>
         </div>
       </div>
+
+      {showChat && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowChat(false)}>
+          <div style={{ background: 'white', width: '100%', maxWidth: 500, margin: '0 auto', borderRadius: '20px 20px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>🤖</div>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>AI Support Assistant</div>
+                  <div style={{ fontSize: '0.7rem', color: '#16a34a' }}>● Online</div>
+                </div>
+              </div>
+              <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {chatMessages.map(msg => (
+                <div key={msg.id} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '80%', padding: '12px 16px', borderRadius: 16, background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : '#f1f5f9', color: msg.role === 'user' ? 'white' : '#0f172a', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <div style={{ padding: '12px 16px', borderRadius: 16, background: '#f1f5f9', color: '#64748b', fontSize: '0.85rem' }}>Typing...</div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {chatStep < 4 && chatMessages.length > 0 && (
+              <div style={{ padding: 12, borderTop: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {AI_RESPONSES[Math.min(chatStep, 3)]?.options?.map(opt => (
+                  <button key={opt} onClick={() => handleChatOption(opt)} style={{ padding: '8px 14px', borderRadius: 20, border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {chatStep >= 4 && (
+              <div style={{ padding: 12, borderTop: '1px solid #e2e8f0' }}>
+                <button onClick={() => setShowChat(false)} style={{ width: '100%', padding: '12px', background: '#f1f5f9', border: 'none', borderRadius: 10, color: '#475569', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+                  Close Chat
+                </button>
+              </div>
+            )}
+
+            {chatStep < 4 && (
+              <div style={{ padding: 12, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8 }}>
+                <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChatSubmit()} placeholder="Type a message..." style={{ flex: 1, padding: '12px 16px', borderRadius: 24, border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }} />
+                <button onClick={handleChatSubmit} disabled={!chatInput.trim()} style={{ width: 44, height: 44, borderRadius: '50%', background: chatInput.trim() ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : '#94a3b8', border: 'none', color: 'white', cursor: chatInput.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>➤</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
