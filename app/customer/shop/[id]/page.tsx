@@ -7,6 +7,7 @@ interface Product {
   id: string; name: string; description: string; price: number; mrp: number
   discount_percent: number; image_url: string; unit: string; stock_quantity: number; category: string
   rating?: number
+  total_ratings?: number
 }
 interface Shop {
   id: string; name: string; category: string; shop_image_url: string
@@ -475,8 +476,19 @@ export default function ShopPage() {
 
                   {/* Weight/Unit */}
                   {p.unit && (
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8 }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 4 }}>
                       {p.unit}
+                    </div>
+                  )}
+
+                  {/* Rating */}
+                  {(p.rating || 0) > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                      <span style={{ color: '#f59e0b', fontSize: '0.9rem' }}>★</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{p.rating}</span>
+                      {p.total_ratings && p.total_ratings > 0 && (
+                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({p.total_ratings})</span>
+                      )}
                     </div>
                   )}
 
