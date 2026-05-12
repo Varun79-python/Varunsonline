@@ -13,8 +13,11 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true); setError('')
+    const redirectUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://www.varunsonline.com/reset-password'
+      : `${window.location.origin}/reset-password`
     const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: redirectUrl
     })
     setLoading(false)
     if (err) { setError(err.message); return }

@@ -19,7 +19,8 @@ export default function DeliveryLoginPage() {
     if (!resetEmail.trim()) { setResetMessage('Please enter your email'); return }
     setResetLoading(true)
     setResetMessage('')
-    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: `${window.location.origin}/reset-password` })
+    const redirectUrl = process.env.NODE_ENV === 'production' ? 'https://www.varunsonline.com/reset-password' : `${window.location.origin}/reset-password`
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: redirectUrl })
     if (error) { setResetMessage(error.message); setResetLoading(false); return }
     setResetMessage('Password reset link sent to your email!')
     setResetLoading(false)
