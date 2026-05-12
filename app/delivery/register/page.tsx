@@ -61,25 +61,6 @@ export default function DeliveryRegisterPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setForm(f => ({ ...f, email: user.email || '' }))
-        const { data: agent } = await supabase.from('delivery_agents').select('*').eq('id', user.id).single()
-        if (agent) {
-          setAlreadyRegistered(true)
-          setForm({
-            full_name: agent.full_name || '',
-            email: agent.email || user.email || '',
-            phone: agent.phone || '',
-            password: '',
-            vehicle_type: agent.vehicle_type || 'Bike',
-            vehicle_number: agent.vehicle_number || '',
-            aadhar_url: agent.aadhar_url || '',
-          })
-          if (agent.is_approved) {
-            router.replace('/delivery')
-          }
-          if (!agent.is_approved && agent.rejection_reason) {
-            setDone(true)
-          }
-        }
       }
       setLoading(false)
     }
@@ -172,6 +153,7 @@ export default function DeliveryRegisterPage() {
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>⏳</div>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Under Review</h2>
         <p style={{ color: '#64748b', marginBottom: 16 }}>Your application is being reviewed. You'll be notified once approved.</p>
+        <button onClick={() => { setAlreadyRegistered(false); setDone(false); setForm(f => ({...f, password: ''})) }} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 600, cursor: 'pointer', marginRight: 10 }}>Register New Account</button>
         <button onClick={() => supabase.auth.signOut().then(() => router.push('/login/delivery'))} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
       </div>
     </div>
