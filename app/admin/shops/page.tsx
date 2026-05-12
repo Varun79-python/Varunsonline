@@ -87,18 +87,16 @@ export default function AdminShops() {
   }
 
   return (
-    <div className="fade-in">
+    <div style={{ padding: '0 4px' }}>
       {selectedShop && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
           <div style={{ background: 'white', borderRadius: 16, padding: 24, maxWidth: 500, width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
             <h3 style={{ marginBottom: 16, fontSize: '1.25rem', fontWeight: 700 }}>📋 Shop Registration Details</h3>
-            
             {selectedShop.shop_image_url && (
               <div style={{ marginBottom: 16 }}>
                 <img src={selectedShop.shop_image_url} alt="Shop" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 12 }} />
               </div>
             )}
-            
             <div style={{ display: 'grid', gap: 12 }}>
               <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Full Name</div>
@@ -122,27 +120,17 @@ export default function AdminShops() {
               </div>
               <div style={{ background: selectedShop.terms_accepted ? '#f0fdf4' : '#fef2f2', padding: 12, borderRadius: 8, border: `1px solid ${selectedShop.terms_accepted ? '#bbf7d0' : '#fecaca'}` }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Terms Accepted</div>
-                <div style={{ fontWeight: 600, color: selectedShop.terms_accepted ? '#16a34a' : '#dc2626' }}>{selectedShop.terms_accepted ? '✅ Yes' : '❌ No'}</div>
-              </div>
-              <div style={{ background: '#fefce8', padding: 12, borderRadius: 8, border: '1px solid #fef08a' }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Approval Status</div>
-                <div style={{ fontWeight: 600, color: '#ca8a04' }}>⏳ Pending Review</div>
+                <div style={{ fontWeight: 600, color: selectedShop.terms_accepted ? '#16a34a' : '#dc2626' }}>{selectedShop.terms_accepted ? 'Yes' : 'No'}</div>
               </div>
             </div>
-
             <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <button onClick={() => approve(selectedShop.id)} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                ✅ Approve Shop
+                Approve Shop
               </button>
               <div>
-                <textarea 
-                  placeholder="Rejection reason (optional)" 
-                  value={rejectReason}
-                  onChange={e => setRejectReason(e.target.value)}
-                  style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }}
-                />
-                <button onClick={rejectShop} disabled={!rejectReason && !confirm('Are you sure you want to reject this shop without a reason?')} style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                  ❌ Reject Shop
+                <textarea placeholder="Rejection reason (optional)" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} />
+                <button onClick={rejectShop} disabled={!rejectReason && !confirm('Are you sure?')} style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                  Reject Shop
                 </button>
               </div>
               <button onClick={() => { setSelectedShop(null); setRejectReason('') }} style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
@@ -153,7 +141,6 @@ export default function AdminShops() {
         </div>
       )}
 
-      <div style={{ padding: '0 4px' }}>
       <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops</h2>
       
       {/* Tabs */}
