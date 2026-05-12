@@ -55,8 +55,28 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // ✅ Correct OTP — mark as delivered
+    const isCod = order.payment_method === 'cod'
     const now = new Date().toISOString()
+
+    if (isCod) {
+      // ✅ COD: OTP verified but DO NOT mark delivered yet.
+      // Keep status = out_for_delivery. Cash must be collected first.
+      await supabase.from('orders').update({
+        otp_verified: true,
+        otp_attempts: attempts + 1,
+      }).eq('id', orderId)
+
+      // Return amount agent must collect from customer
+      const collectAmount = Math.max(0, order.total_amount)
+      return NextResponse.json({
+        success: true,
+        isCod: true,
+        amount: collectAmount,
+        message: `✅ OTP verified! Collect ₹${collectAmount} cash from customer.`
+      })
+    }
+
+    // ✅ Online payment — mark as delivered immediately
     const { error: updateErr } = await supabase.from('orders').update({
       status: 'delivered',
       otp_verified: true,
@@ -66,25 +86,20 @@ export async function POST(req: NextRequest) {
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-    // Log status history
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status: 'delivered',
       changed_by: agentId
     })
 
-    // Credit agent and shopkeeper wallets
+    // Credit agent and shopkeeper wallets (online payment — instant)
     await processEarnings(supabase, orderId)
-
-    const isCod = order.payment_method === 'cod'
 
     return NextResponse.json({
       success: true,
-      isCod,
-      amount: order.total_amount,
-      message: isCod
-        ? `✅ OTP verified! Collect ₹${order.total_amount} cash from customer.`
-        : `✅ Delivery confirmed for ${order.order_number}!`
+      isCod: false,
+      amount: 0,
+      message: `✅ Delivery confirmed for ${order.order_number}!`
     })
 
   } catch (err) {

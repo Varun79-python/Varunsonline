@@ -111,8 +111,8 @@ export default function CartPage() {
           </div>
         ))}
         <div className="flex-between" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
-          <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Total</span>
-          <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--primary)' }}>₹{total.toFixed(0)}</span>
+          <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Final Payable</span>
+          <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--primary)' }}>₹{Math.max(0, total).toFixed(0)}</span>
         </div>
       </div>
 

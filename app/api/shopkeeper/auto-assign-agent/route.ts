@@ -83,17 +83,21 @@ export async function POST(req: Request) {
     const shopLat = (order.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
     const shopLon = (order.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
+    const NEARBY_RADIUS_KM = 5
+
     const scored = (agents as Agent[]).map(a => {
       let distScore = 9999
       if (shopLat && shopLon && a.last_lat && a.last_lon) {
         distScore = haversineKm(a.last_lat, a.last_lon, shopLat, shopLon)
       }
-      // Combined score: distance dominates, tie-break by least deliveries
       const score = distScore * 1000 + (a.total_deliveries || 0)
-      return { ...a, score }
+      return { ...a, distScore, score }
     }).sort((a, b) => a.score - b.score)
 
-    const best = scored[0]
+    // Prefer agents within 5km; fall back to all if none nearby
+    const nearbyAgents = scored.filter(a => a.distScore <= NEARBY_RADIUS_KM)
+    const pool = nearbyAgents.length > 0 ? nearbyAgents : scored
+    const best = pool[0]
 
     // ── 5. Final race-condition guard: re-verify agent is still idle ─────────
     const { data: agentActiveCheck } = await supabase

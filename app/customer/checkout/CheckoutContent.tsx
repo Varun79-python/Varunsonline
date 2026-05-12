@@ -123,15 +123,18 @@ export default function CheckoutContent() {
   }
 
   async function placeFreeOrder(userId: string) {
+    // Free order = full coupon cover. Shop STILL gets full item amount;
+    // admin absorbs coupon cost + platform fee.
     const agentEarning = Math.round(deliveryCharge * 0.8)
-    const shopEarning = subtotal - pfee
+    const shopEarning = subtotal                         // shop always gets item total
+    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount // admin absorbs coupon
     const { data: order } = await supabase.from('orders').insert({
       customer_id: userId, shop_id: cart[0].shop_id, address_id: selectedAddr,
       status: 'payment_confirmed', payment_method: 'free', payment_status: 'paid',
       subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
       discount_amount: couponDiscount, total_amount: 0,
       shopkeeper_earning: shopEarning, agent_earning: agentEarning,
-      admin_earning: pfee + (deliveryCharge - agentEarning),
+      admin_earning: adminEarning,
       coupon_code: couponCode || null,
     }).select().single()
     if (order) {
@@ -141,6 +144,13 @@ export default function CheckoutContent() {
         unit_price: i.price, total_price: i.price * i.quantity
       })))
       await supabase.from('order_status_history').insert({ order_id: order.id, status: 'payment_confirmed', changed_by: userId })
+      try {
+        await supabase.from('notifications').insert({
+          user_id: cart[0].shop_id, title: '🛒 New Order!',
+          body: `Order ${order.order_number} received`, type: 'new_order',
+          data: { order_id: order.id }
+        })
+      } catch { /* optional */ }
       localStorage.removeItem('vo_cart')
       router.push(`/customer/orders/${order.id}`)
     }
@@ -151,7 +161,9 @@ export default function CheckoutContent() {
     if (!user || !selectedAddr || cart.length === 0) return
     setCodLoading(true)
     const agentEarning = Math.round(deliveryCharge * 0.8)
-    const shopEarning = subtotal - pfee
+    // Shop always earns full item subtotal — admin absorbs coupon + platform fee
+    const shopEarning = subtotal
+    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount
     try {
       const res = await fetch('/api/orders/place-cod', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -159,7 +171,7 @@ export default function CheckoutContent() {
           customerId: user.id, shopId: cart[0].shop_id, addressId: selectedAddr,
           cart, subtotal, deliveryCharge, platformFee: pfee,
           couponDiscount, total, agentEarning, shopEarning,
-          adminEarning: pfee + (deliveryCharge - agentEarning),
+          adminEarning,
           couponCode: couponCode || null
         })
       })
@@ -183,15 +195,17 @@ export default function CheckoutContent() {
     if (!user || !selectedAddr || cart.length === 0) return
     setLoading(true)
 
-    // Free order (₹0 total) — skip Razorpay entirely
-    if (total <= 0) {
+    // Free order (₹0 total after coupon) — skip Razorpay, only for online mode
+    if (total <= 0 && paymentMode !== 'cod') {
       await placeFreeOrder(user.id)
       setLoading(false)
       return
     }
 
     const agentEarning = Math.round(deliveryCharge * 0.8)
-    const shopEarning = subtotal - pfee
+    // Shop always earns full item subtotal — admin absorbs coupon + platform fee
+    const shopEarning = subtotal
+    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount
 
     try {
       const rzpRes = await fetch('/api/payment/create-order', {
@@ -224,7 +238,7 @@ export default function CheckoutContent() {
             subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
             discount_amount: couponDiscount, total_amount: total,
             shopkeeper_earning: shopEarning, agent_earning: agentEarning,
-            admin_earning: pfee + (deliveryCharge - agentEarning),
+            admin_earning: adminEarning,
             coupon_code: couponCode || null,
             razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
@@ -443,8 +457,8 @@ export default function CheckoutContent() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1.5px solid var(--border)' }}>
-                <span style={{ fontWeight: 800, fontSize: '1rem' }}>Total</span>
-                <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{total.toFixed(0)}</span>
+                <span style={{ fontWeight: 800, fontSize: '1rem' }}>Final Payable</span>
+                <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{Math.max(0, total).toFixed(0)}</span>
               </div>
             </div>
           </div>
@@ -481,7 +495,7 @@ export default function CheckoutContent() {
           {paymentMode === 'cod' ? (
             <>
               <div style={{ background: '#fefce8', border: '1.5px solid #fde047', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: '0.83rem', color: '#854d0e' }}>
-                💡 <strong>Cash on Delivery:</strong> Pay ₹{total.toFixed(0)} in cash to the delivery agent. They will show you a QR code or collect cash at your doorstep.
+                💡 <strong>Cash on Delivery:</strong> Pay ₹{Math.max(0, total).toFixed(0)} in cash to the delivery agent. They will show you a QR code or collect cash at your doorstep.
               </div>
               <button
                 className="btn btn-full btn-lg"
@@ -489,7 +503,7 @@ export default function CheckoutContent() {
                 disabled={codLoading || !selectedAddr}
                 style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, padding: '14px', fontSize: '1rem', cursor: 'pointer', opacity: (!selectedAddr || codLoading) ? 0.6 : 1 }}
               >
-                {codLoading ? '⏳ Placing Order...' : `💵 Place COD Order — ₹${total.toFixed(0)}`}
+                {codLoading ? '⏳ Placing Order...' : `💵 Place COD Order — ₹${Math.max(0, total).toFixed(0)}`}
               </button>
             </>
           ) : (

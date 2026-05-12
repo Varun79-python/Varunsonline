@@ -115,6 +115,31 @@ export default function DeliveryDashboard() {
   }
 
   useEffect(() => {
+    if (!agentId) return
+    function pushGPS() {
+      if (!navigator.geolocation) return
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude, longitude } = pos.coords
+          supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
+          if (activeOrder) {
+            setAgentLat(latitude); setAgentLon(longitude)
+            if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
+              setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
+            if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
+              setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      )
+    }
+    pushGPS()
+    const interval = setInterval(pushGPS, 30000)
+    return () => clearInterval(interval)
+  }, [agentId, activeOrder, supabase])
+
+  useEffect(() => {
     let mounted = true
     let channel: ReturnType<typeof supabase.channel> | null = null
 
@@ -131,11 +156,8 @@ export default function DeliveryDashboard() {
       const active = await fetchActive(user.id)
       if (!mounted) return
       setActiveOrder(active)
-      // Only fetch available orders if the agent is online
       if (!active && ag.is_available) await fetchAvailable()
       setLoading(false)
-
-      // Auto-get GPS if there's an active order
       if (active) refreshGPS(active)
 
       channel = supabase.channel(`delivery-live-${user.id}`)
@@ -144,7 +166,6 @@ export default function DeliveryDashboard() {
         const act = await fetchActive(user.id)
         setActiveOrder(act)
 
-        // Play alert when THIS agent is newly assigned to an order (auto-assignment)
         if (
           act &&
           payload.new?.agent_id === user.id &&
@@ -152,20 +173,18 @@ export default function DeliveryDashboard() {
           alertedOrderIdRef.current !== act.id
         ) {
           alertedOrderIdRef.current = act.id
-          excludedAgentsRef.current = []   // reset rejection chain for new order
+          excludedAgentsRef.current = []
           startAlert()
           showToast('🔔 New delivery assigned to you!')
         }
 
-        // Only show new available orders if agent is online
+        if (payload.new?.status === 'picked_up' && payload.new?.agent_id === user.id) {
+          stopAlert()
+        }
+
         if (!act && ag.is_available) { 
           await fetchAvailable()
           setDistToCustomer(null)
-
-          // Play alert when a new order becomes available in the general pool
-          if (
-            payload.new?.status === 'order_packed' &&
-            payload.new?.agent_id === null &&
             payload.old?.status !== 'order_packed'
           ) {
             startAlert()
@@ -638,62 +657,86 @@ export default function DeliveryDashboard() {
                   </button>
                 )}
 
-                {/* COD Cash Collection UI (shown after OTP verified) */}
+                {/* COD Collection UI — QR or Cash */}
                 {codPending && (
                   <div style={{ marginTop: 16, border: '2.5px solid #f59e0b', borderRadius: 14, overflow: 'hidden' }}>
                     <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: '1.4rem' }}>💵</span>
                       <div>
                         <div style={{ fontWeight: 800, color: '#92400e', fontSize: '1rem' }}>Collect ₹{codAmount} from Customer</div>
-                        <div style={{ fontSize: '0.72rem', color: '#78350f' }}>Cash on Delivery — show QR for UPI payment</div>
+                        <div style={{ fontSize: '0.72rem', color: '#78350f' }}>Choose how customer pays</div>
                       </div>
                     </div>
                     <div style={{ padding: 16, background: 'white' }}>
-                      {/* UPI QR — uses platform UPI ID from env */}
-                      {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID ? (
-                        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8, fontWeight: 600 }}>📱 Ask customer to scan to pay</div>
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${process.env.NEXT_PUBLIC_PLATFORM_UPI_ID}&pn=VarunsOnline&am=${codAmount}&cu=INR&tn=Order%20${activeOrder.order_number}`)}`}
-                            alt="UPI Payment QR"
-                            style={{ width: 220, height: 220, borderRadius: 12, border: '3px solid #e2e8f0', display: 'block', margin: '0 auto' }}
-                          />
-                          <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 6 }}>UPI ID: {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID} · ₹{codAmount}</p>
+                      {/* Option 1 — QR/UPI */}
+                      {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID && (
+                        <div style={{ marginBottom: 16, padding: 14, border: '2px solid #e2e8f0', borderRadius: 12 }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 8, color: '#0f172a' }}>📱 Option 1 — UPI / QR Payment</div>
+                          <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Ask customer to scan &amp; pay directly to platform</div>
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=${process.env.NEXT_PUBLIC_PLATFORM_UPI_ID}&pn=VarunsOnline&am=${codAmount}&cu=INR&tn=Order%20${activeOrder.order_number}`)}`}
+                              alt="UPI QR" style={{ width: 200, height: 200, borderRadius: 10, border: '2px solid #e2e8f0', display: 'block', margin: '0 auto' }}
+                            />
+                            <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 4 }}>UPI: {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID} · ₹{codAmount}</p>
+                          </div>
+                          <button
+                            disabled={codCollecting}
+                            onClick={async () => {
+                              if (!agentId) return
+                              setCodCollecting(true)
+                              try {
+                                const res = await fetch('/api/delivery/collect-cash', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ orderId: activeOrder.id, agentId, paymentMethod: 'qr' })
+                                })
+                                const data = await res.json()
+                                if (data.success) {
+                                  setCodPending(false)
+                                  setAgent(prev => prev ? { ...prev, wallet_balance: data.newWalletBalance } : prev)
+                                  setActiveOrder(null); setDistToCustomer(null)
+                                  await fetchAvailable()
+                                  showToast('✅ UPI payment confirmed & delivery complete!')
+                                } else showToast(data.error || 'Failed', false)
+                              } finally { setCodCollecting(false) }
+                            }}
+                            style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', opacity: codCollecting ? 0.6 : 1 }}
+                          >
+                            {codCollecting ? '⏳...' : '✅ Customer Paid via UPI — Mark Complete'}
+                          </button>
                         </div>
-                      ) : null}
-                      <button
-                        onClick={async () => {
-                          if (!agentId) return
-                          setCodCollecting(true)
-                          try {
-                            const res = await fetch('/api/delivery/collect-cash', {
-                              method: 'POST', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ orderId: activeOrder.id, agentId })
-                            })
-                            const data = await res.json()
-                            if (data.success) {
-                              setCodCollected(true)
-                              setCodPending(false)
-                              setAgent(prev => prev ? { ...prev, wallet_balance: data.newWalletBalance } : prev)
-                              setActiveOrder(null)
-                              setDistToCustomer(null)
-                              await fetchAvailable()
-                              showToast(data.newWalletBalance < 0
-                                ? `⚠️ Cash recorded! Remit ₹${Math.abs(data.newWalletBalance)} to platform via Wallet page`
-                                : '✅ Cash collected & recorded!', data.newWalletBalance >= 0)
-                            } else {
-                              showToast(data.error || 'Failed', false)
-                            }
-                          } finally { setCodCollecting(false) }
-                        }}
-                        disabled={codCollecting}
-                        style={{ width: '100%', padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: '0.95rem', opacity: codCollecting ? 0.6 : 1 }}
-                      >
-                        {codCollecting ? '⏳ Recording...' : '💵 Mark Cash Collected from Customer'}
-                      </button>
-                      <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 8, textAlign: 'center' }}>
-                        ⚠️ This will deduct ₹{codAmount} from your wallet. Go to <strong>Wallet</strong> to settle via Razorpay.
-                      </p>
+                      )}
+                      {/* Option 2 — Cash */}
+                      <div style={{ padding: 14, border: '2px solid #fde68a', borderRadius: 12 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 6, color: '#0f172a' }}>💵 Option 2 — Cash Collection</div>
+                        <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 10 }}>Collect ₹{codAmount} cash physically. Amount will be debited from your wallet — settle later via Wallet page.</p>
+                        <button
+                          disabled={codCollecting}
+                          onClick={async () => {
+                            if (!agentId) return
+                            setCodCollecting(true)
+                            try {
+                              const res = await fetch('/api/delivery/collect-cash', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ orderId: activeOrder.id, agentId, paymentMethod: 'cash' })
+                              })
+                              const data = await res.json()
+                              if (data.success) {
+                                setCodPending(false)
+                                setAgent(prev => prev ? { ...prev, wallet_balance: data.newWalletBalance } : prev)
+                                setActiveOrder(null); setDistToCustomer(null)
+                                await fetchAvailable()
+                                showToast(data.newWalletBalance < 0
+                                  ? `⚠️ Cash recorded! Remit ₹${Math.abs(data.newWalletBalance)} via Wallet page`
+                                  : '✅ Cash collected & recorded!', data.newWalletBalance >= 0)
+                              } else showToast(data.error || 'Failed', false)
+                            } finally { setCodCollecting(false) }
+                          }}
+                          style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', opacity: codCollecting ? 0.6 : 1 }}
+                        >
+                          {codCollecting ? '⏳ Recording...' : '💵 Collected Cash — Mark Delivered'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -730,6 +773,13 @@ export default function DeliveryDashboard() {
                     <div>
                       <div className="dl-avail-num">{order.order_number}</div>
                       <div className="dl-avail-route">🏪 {order.shops?.name} → 🏠 {order.addresses?.city}</div>
+                      {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer != null && (
+                        <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: 3 }}>
+                          🗺️ Trip: {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
+                            ? `${Math.round((order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! * 1000)}m`
+                            : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`}
+                        </div>
+                      )}
                     </div>
                     <div className="dl-avail-earn">₹{order.agent_earning}</div>
                   </div>

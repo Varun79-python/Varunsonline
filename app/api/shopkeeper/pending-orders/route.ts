@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     // Fetch pending orders
     const { data: orders, error } = await supabase
       .from('orders')
-      .select('id, order_number, status, total_amount, created_at')
+      .select('id, order_number, status, total_amount, shopkeeper_earning, subtotal, created_at')
       .eq('shop_id', shopId)
       .eq('status', 'payment_confirmed')
       .order('created_at', { ascending: false })
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       .in('order_id', orderIds)
 
     // Merge items into orders
-    const merged = orders.map((o: { id: string; order_number: string; status: string; total_amount: number; created_at: string }) => ({
+    const merged = orders.map((o: { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string }) => ({
       ...o,
       items: (allItems || []).filter((i: { order_id: string }) => i.order_id === o.id)
     }))

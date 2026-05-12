@@ -55,13 +55,20 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
 
     type Agent = { id: string; full_name: string; total_deliveries: number; last_lat: number | null; last_lon: number | null }
 
+    const NEARBY_RADIUS_KM = 5
+
     const best = (agents as Agent[])
       .map(a => {
         const dist = (shopLat && shopLon && a.last_lat && a.last_lon)
           ? haversineKm(a.last_lat, a.last_lon, shopLat, shopLon) : 9999
-        return { ...a, score: dist * 1000 + (a.total_deliveries || 0) }
+        return { ...a, distScore: dist, score: dist * 1000 + (a.total_deliveries || 0) }
       })
-      .sort((a, b) => a.score - b.score)[0]
+      .sort((a, b) => a.score - b.score)
+      // Prefer agents within 5km radius; fall back to all if none
+      .filter((a, _i, arr) => {
+        const hasNearby = arr.some(x => x.distScore <= NEARBY_RADIUS_KM)
+        return hasNearby ? a.distScore <= NEARBY_RADIUS_KM : true
+      })[0]
 
     // Final race-condition check — verify agent still idle
     const { data: agentBusy } = await supabase
@@ -98,18 +105,25 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
  * The agent's Supabase user_id IS their delivery_agents.id.
  */
 async function notifyAgent(
-  supabase: any,
+  supabase: ReturnType<typeof import('@supabase/supabase-js').createClient>,
   agentId: string,
   orderId: string,
   orderNumber: string,
   shopName: string,
-  customerCity: string
+  customerCity: string,
+  distAgentToShop: number | null,
+  distShopToCustomer: number | null
 ): Promise<void> {
+  const distPart = [
+    distAgentToShop !== null ? `📍 You → Shop: ${distAgentToShop < 1 ? `${Math.round(distAgentToShop * 1000)}m` : `${distAgentToShop.toFixed(1)}km`}` : null,
+    distShopToCustomer !== null ? `🏠 Shop → Customer: ${distShopToCustomer < 1 ? `${Math.round(distShopToCustomer * 1000)}m` : `${distShopToCustomer.toFixed(1)}km`}` : null,
+  ].filter(Boolean).join(' · ')
+
   await pushToUser(
     supabase,
     agentId,
     '🛵 New Delivery Assigned!',
-    `Order ${orderNumber} — Pick up from ${shopName}, deliver to ${customerCity}. Tap to view.`,
+    `Order ${orderNumber} — Pick up from ${shopName}, deliver to ${customerCity}. ${distPart}`,
     {
       type: 'agent_assigned',
       role: 'delivery_agent',
@@ -185,7 +199,7 @@ export async function POST(req: NextRequest) {
         // Fetch order details for the notification body
         const { data: orderDetails } = await supabase
           .from('orders')
-          .select('order_number, shops:shop_id(name), addresses:address_id(city)')
+          .select('order_number, shops:shop_id(name, latitude, longitude), addresses:address_id(city, latitude, longitude)')
           .eq('id', orderId)
           .single()
 
@@ -193,8 +207,31 @@ export async function POST(req: NextRequest) {
         const city = (orderDetails?.addresses as unknown as { city: string } | null)?.city || 'customer'
         const orderNum = orderDetails?.order_number || orderId.slice(0, 8).toUpperCase()
 
-        // Fire-and-forget — push failure must NOT break the order flow
-        notifyAgent(supabase, assignResult.agentId, orderId, orderNum, shopName, city).catch(() => {})
+        // Compute distances for the push notification
+        const shopLat2 = (orderDetails?.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
+        const shopLon2 = (orderDetails?.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
+        const custLat = (orderDetails?.addresses as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
+        const custLon = (orderDetails?.addresses as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
+
+        // Get agent's last known GPS
+        const { data: agentGps } = await supabase
+          .from('delivery_agents')
+          .select('last_lat, last_lon')
+          .eq('id', assignResult.agentId)
+          .single()
+
+        function haversine2(la1: number, lo1: number, la2: number, lo2: number) {
+          const R = 6371, d1 = (la2 - la1) * Math.PI / 180, d2 = (lo2 - lo1) * Math.PI / 180
+          const a = Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2
+          return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2))
+        }
+
+        const distAgentToShop = (agentGps?.last_lat && agentGps?.last_lon && shopLat2 && shopLon2)
+          ? haversine2(agentGps.last_lat, agentGps.last_lon, shopLat2, shopLon2) : null
+        const distShopToCustomer = (shopLat2 && shopLon2 && custLat && custLon)
+          ? haversine2(shopLat2, shopLon2, custLat, custLon) : null
+
+        notifyAgent(supabase, assignResult.agentId, orderId, orderNum, shopName, city, distAgentToShop, distShopToCustomer).catch(() => {})
       }
     }
 

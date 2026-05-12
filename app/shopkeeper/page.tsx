@@ -5,7 +5,7 @@ import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
-interface Order { id: string; order_number: string; status: string; total_amount: number; created_at: string; items: OrderItem[] }
+interface Order { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string; items: OrderItem[] }
 
 export default function ShopkeeperDashboard() {
   const supabase = createClient()
@@ -401,9 +401,9 @@ export default function ShopkeeperDashboard() {
                         {new Date(order.created_at).toLocaleTimeString('en-IN')}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{order.total_amount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
+                  <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{itemCount} item{itemCount !== 1 ? 's' : ''} · Your Earning</div>
                     </div>
                   </div>
                 </div>
@@ -443,8 +443,8 @@ export default function ShopkeeperDashboard() {
                       ))}
                       {/* Total row */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#fff7ed', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text)' }}>Total</span>
-                        <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.total_amount}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text)' }}>Your Earnings</span>
+                        <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
                       </div>
                     </div>
                   )}

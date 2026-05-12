@@ -62,10 +62,8 @@ export default function ShopkeeperOrders() {
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{new Date(order.created_at).toLocaleString('en-IN')}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.shopkeeper_earning > 0 ? order.shopkeeper_earning : order.total_amount}</div>
-                {order.shopkeeper_earning > 0 && (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--success)' }}>Your Earn: ₹{order.shopkeeper_earning}</div>
-                )}
+                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.shopkeeper_earning || order.total_amount}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Your Earning</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>

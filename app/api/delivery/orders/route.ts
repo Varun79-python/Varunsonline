@@ -24,7 +24,26 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ orders: orders || [] })
+
+    // Compute shop→customer distance for each order
+    function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+      const R = 6371
+      const dLat = (lat2 - lat1) * Math.PI / 180
+      const dLon = (lon2 - lon1) * Math.PI / 180
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+      return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2))
+    }
+
+    const enriched = (orders || []).map((o: Record<string, unknown>) => {
+      const shop = o.shops as { latitude?: number; longitude?: number } | null
+      const addr = o.addresses as { latitude?: number; longitude?: number } | null
+      const distShopToCustomer = (shop?.latitude && shop?.longitude && addr?.latitude && addr?.longitude)
+        ? haversineKm(shop.latitude, shop.longitude, addr.latitude, addr.longitude)
+        : null
+      return { ...o, distShopToCustomer }
+    })
+
+    return NextResponse.json({ orders: enriched })
   } catch (err) {
     console.error('Available orders error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
