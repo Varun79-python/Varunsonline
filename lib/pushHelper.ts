@@ -9,7 +9,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { sendFcmToMany } from './fcm'
 
 export async function pushToUser(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
   title: string,
   body: string,

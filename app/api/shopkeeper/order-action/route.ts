@@ -73,7 +73,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
  * The agent's Supabase user_id IS their delivery_agents.id.
  */
 async function notifyAgent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   agentId: string,
   orderId: string,
   orderNumber: string,
