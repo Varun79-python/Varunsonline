@@ -4,33 +4,58 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Order {
-  id: string; order_number: string; status: string; total_amount: number
-  created_at: string; shop_id: string; shops: { name: string }
+  id: string
+  order_number: string
+  status: string
+  total_amount: number
+  created_at: string
+  shop_id: string
+  payment_method: string
+  payment_status: string
+  shops: { name: string; address_line1?: string; city?: string }
+  order_items?: { product_name: string; quantity: number; product_image_url?: string }[]
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  placed: '📋 Placed', payment_pending: '💳 Payment Pending',
-  payment_confirmed: '✅ Confirmed', shop_accepted: '🏪 Accepted',
-  order_packed: '📦 Packed', agent_assigned: '🛵 Agent Assigned',
-  picked_up: '🏃 Picked Up', out_for_delivery: '🚴 Out for Delivery',
-  delivered: '✅ Delivered', cancelled: '❌ Cancelled', rejected: '❌ Rejected'
+interface OrderItem {
+  id: string
+  product_name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  product_image_url?: string
 }
 
-const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
-  delivered:         { bg: '#f0fdf4', color: '#16a34a' },
-  cancelled:         { bg: '#fef2f2', color: '#dc2626' },
-  rejected:          { bg: '#fef2f2', color: '#dc2626' },
-  out_for_delivery:  { bg: '#eff6ff', color: '#2563eb' },
-  order_packed:      { bg: '#fff7ed', color: '#ea580c' },
-  shop_accepted:     { bg: '#fff7ed', color: '#ea580c' },
-  placed:            { bg: '#f8fafc', color: '#475569' },
+const STATUS_CONFIG: Record<string, { label: string; icon: string; bg: string; color: string; progressLabel: string }> = {
+  placed: { label: 'Order Placed', icon: '📋', bg: '#f8fafc', color: '#64748b', progressLabel: 'Order Placed' },
+  payment_pending: { label: 'Payment Pending', icon: '💳', bg: '#fef3c7', color: '#d97706', progressLabel: 'Awaiting Payment' },
+  payment_confirmed: { label: 'Payment Confirmed', icon: '✅', bg: '#dcfce7', color: '#16a34a', progressLabel: 'Payment Confirmed' },
+  shop_accepted: { label: 'Shop Accepted', icon: '🏪', bg: '#fef3c7', color: '#d97706', progressLabel: 'Preparing Order' },
+  order_packed: { label: 'Order Packed', icon: '📦', bg: '#ffedd5', color: '#ea580c', progressLabel: 'Ready for Pickup' },
+  agent_assigned: { label: 'Agent Assigned', icon: '🛵', bg: '#e0e7ff', color: '#4f46e5', progressLabel: 'Agent Assigned' },
+  picked_up: { label: 'Picked Up', icon: '🏃', bg: '#e0e7ff', color: '#4f46e5', progressLabel: 'Picked Up' },
+  out_for_delivery: { label: 'Out for Delivery', icon: '🚴', bg: '#dbeafe', color: '#2563eb', progressLabel: 'On the Way' },
+  delivered: { label: 'Delivered', icon: '🎉', bg: '#dcfce7', color: '#16a34a', progressLabel: 'Delivered' },
+  cancelled: { label: 'Cancelled', icon: '❌', bg: '#fee2e2', color: '#dc2626', progressLabel: 'Cancelled' },
+  rejected: { label: 'Rejected', icon: '❌', bg: '#fee2e2', color: '#dc2626', progressLabel: 'Rejected' }
 }
-const STATUS_DEFAULT = { bg: '#f8fafc', color: '#64748b' }
+
+const PROGRESS_STEPS = [
+  { status: 'payment_confirmed', label: 'Confirmed', icon: '✅' },
+  { status: 'shop_accepted', label: 'Accepted', icon: '🏪' },
+  { status: 'order_packed', label: 'Packed', icon: '📦' },
+  { status: 'agent_assigned', label: 'Agent', icon: '🛵' },
+  { status: 'out_for_delivery', label: 'Delivery', icon: '🚴' },
+  { status: 'delivered', label: 'Delivered', icon: '🎉' },
+]
+
+const ACTIVE_STATUSES = ['placed', 'payment_pending', 'payment_confirmed', 'shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery']
+const COMPLETED_STATUSES = ['delivered', 'cancelled', 'rejected']
 
 export default function OrdersPage() {
   const router = useRouter()
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
+  const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -43,12 +68,29 @@ export default function OrdersPage() {
 
       const { data } = await supabase
         .from('orders')
-        .select('*, shops(name)')
+        .select('*, shops(name, address_line1, city)')
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
 
       if (!mounted) return
-      setOrders(data || [])
+
+      if (data) {
+        setOrders(data)
+        const orderIds = data.map(o => o.id)
+        const { data: items } = await supabase
+          .from('order_items')
+          .select('*')
+          .in('order_id', orderIds)
+
+        if (items && mounted) {
+          const grouped: Record<string, OrderItem[]> = {}
+          items.forEach(item => {
+            if (!grouped[item.order_id]) grouped[item.order_id] = []
+            grouped[item.order_id].push(item)
+          })
+          setOrderItems(grouped)
+        }
+      }
       setLoading(false)
 
       channel = supabase.channel(`customer-orders-${user.id}`)
@@ -69,130 +111,218 @@ export default function OrdersPage() {
     }
   }, [])
 
+  const activeOrders = orders.filter(o => ACTIVE_STATUSES.includes(o.status))
+  const completedOrders = orders.filter(o => COMPLETED_STATUSES.includes(o.status))
+
+  function getCurrentStep(status: string) {
+    const idx = PROGRESS_STEPS.findIndex(s => s.status === status)
+    return idx >= 0 ? idx : 0
+  }
+
+  function formatDateTime(dateStr: string) {
+    const date = new Date(dateStr)
+    return {
+      date: date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      time: date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    }
+  }
+
+  function getTotalItems(items: OrderItem[]) {
+    return items.reduce((sum, item) => sum + item.quantity, 0)
+  }
+
   if (loading) return (
     <div style={{ padding: '60px 20px', display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
 
-  if (orders.length === 0) return (
-    <div style={{ textAlign: 'center', padding: '70px 24px' }}>
-      <div style={{ fontSize: '3.5rem', marginBottom: 14 }}>📦</div>
-      <h2 style={{ marginBottom: 8, fontSize: '1.15rem' }}>No orders yet</h2>
-      <p style={{ marginBottom: 22, fontSize: '0.88rem', color: '#64748b' }}>Place your first order from a nearby shop!</p>
-      <button className="btn btn-primary" onClick={() => router.push('/customer')}>Browse Shops</button>
-    </div>
-  )
-
   return (
-    <div className="fade-in ord-root">
-      <div className="ord-header">
-        <h2 className="ord-title">My Orders</h2>
-        <span className="ord-count">{orders.length} order{orders.length !== 1 ? 's' : ''}</span>
+    <div style={{ padding: '0 0 100px', background: '#f8fafc', minHeight: '100vh' }}>
+      <div style={{ padding: '20px 16px 12px', background: 'white', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 10 }}>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>My Orders</h2>
+        <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0' }}>{orders.length} order{orders.length !== 1 ? 's' : ''}</p>
       </div>
 
-      <div className="ord-list">
-        {orders.map(order => {
-          const sc = STATUS_COLOR[order.status] || STATUS_DEFAULT
-          const date = new Date(order.created_at)
-          const dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-          const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      {orders.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+          <div style={{ width: 100, height: 100, borderRadius: 30, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <span style={{ fontSize: '3rem' }}>📦</span>
+          </div>
+          <h2 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#0f172a' }}>No orders yet</h2>
+          <p style={{ marginBottom: 24, fontSize: '0.9rem', color: '#64748b' }}>Place your first order from a nearby shop!</p>
+          <button onClick={() => router.push('/customer')} style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 12, padding: '14px 28px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 16px rgba(249,115,22,0.3)' }}>
+            Browse Shops
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Active Orders Section */}
+          {activeOrders.length > 0 && (
+            <div style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', animation: 'pulse 2s infinite' }} />
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Current Orders</span>
+                <span style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{activeOrders.length}</span>
+              </div>
 
-          return (
-            <div
-              key={order.id}
-              className="ord-card"
-              onClick={() => router.push(`/customer/orders/${order.id}`)}
-            >
-              {/* Left: order info */}
-              <div className="ord-card-left">
-                <div className="ord-num">{order.order_number}</div>
-                <div className="ord-shop">{order.shops?.name}</div>
-                <div className="ord-date">{dateStr} · {timeStr}</div>
-              </div>
-              {/* Right: amount + status */}
-              <div className="ord-card-right">
-                <div className="ord-amount">₹{order.total_amount}</div>
-                <span
-                  className="ord-status-badge"
-                  style={{ background: sc.bg, color: sc.color }}
-                >
-                  {STATUS_LABEL[order.status] || order.status}
-                </span>
-              </div>
-              {/* Chevron */}
-              <div className="ord-chevron">›</div>
+              {activeOrders.map(order => {
+                const items = orderItems[order.id] || []
+                const statusConfig = STATUS_CONFIG[order.status] || STATUS_CONFIG.placed
+                const currentStep = getCurrentStep(order.status)
+                const { date, time } = formatDateTime(order.created_at)
+                const totalItems = getTotalItems(items)
+
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => router.push(`/customer/orders/${order.id}`)}
+                    style={{
+                      background: 'white',
+                      borderRadius: 20,
+                      marginBottom: 16,
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                      border: '1px solid #f1f5f9',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {/* Shop Header */}
+                    <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ width: 50, height: 50, borderRadius: 14, background: 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '1.5rem' }}>🏪</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>{order.shops?.name}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 2 }}>{order.shops?.city || 'Local Delivery'}</div>
+                      </div>
+                      <div style={{ background: statusConfig.bg, padding: '6px 12px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '0.75rem' }}>{statusConfig.icon}</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: statusConfig.color }}>{statusConfig.label}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Tracker */}
+                    <div style={{ padding: '16px', background: '#fafbfc' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                        <div style={{ position: 'absolute', top: 10, left: 20, right: 20, height: 3, background: '#e2e8f0', borderRadius: 2 }}>
+                          <div style={{ width: `${(currentStep / (PROGRESS_STEPS.length - 1)) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #f97316, #ea580c)', borderRadius: 2, transition: 'width 0.3s ease' }} />
+                        </div>
+                        {PROGRESS_STEPS.map((step, idx) => {
+                          const isCompleted = idx <= currentStep
+                          const isCurrent = idx === currentStep
+                          return (
+                            <div key={step.status} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
+                              <div style={{
+                                width: 20, height: 20, borderRadius: '50%',
+                                background: isCompleted ? '#f97316' : '#e2e8f0',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: isCurrent ? '0 0 0 4px rgba(249,115,22,0.2)' : 'none',
+                                transition: 'all 0.2s'
+                              }}>
+                                {isCompleted ? <span style={{ fontSize: '0.6rem' }}>✓</span> : null}
+                              </div>
+                              <span style={{ fontSize: '0.55rem', color: isCompleted ? '#f97316' : '#94a3b8', fontWeight: isCompleted ? 600 : 400, marginTop: 4, textAlign: 'center', maxWidth: 40 }}>{step.label}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Order Details */}
+                    <div style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Items: </span>
+                          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: '0.75rem', background: order.payment_method === 'cod' ? '#fef3c7' : '#dcfce7', color: order.payment_method === 'cod' ? '#d97706' : '#16a34a', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+                            {order.payment_method === 'cod' ? '💵 COD' : '💳 Online'}
+                          </span>
+                          <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f97316' }}>₹{order.total_amount}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{date} · {time}</span>
+                        <button style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                          Track Order →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
-      </div>
+          )}
+
+          {/* Completed Orders Section */}
+          {completedOrders.length > 0 && (
+            <div style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Past Orders</span>
+              </div>
+
+              {completedOrders.map(order => {
+                const items = orderItems[order.id] || []
+                const statusConfig = STATUS_CONFIG[order.status] || STATUS_CONFIG.delivered
+                const { date, time } = formatDateTime(order.created_at)
+                const totalItems = getTotalItems(items)
+                const isDelivered = order.status === 'delivered'
+
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => router.push(`/customer/orders/${order.id}`)}
+                    style={{
+                      background: 'white',
+                      borderRadius: 16,
+                      marginBottom: 12,
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                      border: '1px solid #f1f5f9',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: isDelivered ? '#f0fdf4' : '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '1.3rem' }}>{isDelivered ? '✅' : '❌'}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>{order.shops?.name}</div>
+                          <div style={{ background: statusConfig.bg, padding: '4px 10px', borderRadius: 12 }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: statusConfig.color }}>{statusConfig.label}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>
+                          {totalItems} item{totalItems !== 1 ? 's' : ''} · ₹{order.total_amount} · {order.payment_method === 'cod' ? 'COD' : 'Online'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 2 }}>{date} · {time}</div>
+                      </div>
+                    </div>
+
+                    {isDelivered && (
+                      <div style={{ padding: '0 14px 14px', display: 'flex', gap: 8 }}>
+                        <button style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                          ⭐ Rate Order
+                        </button>
+                        <button style={{ flex: 1, background: 'white', border: '1px solid #f97316', color: '#f97316', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                          🔁 Reorder
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       <style>{`
-        .ord-root { padding: 0; }
-
-        .ord-header {
-          display: flex; align-items: baseline;
-          justify-content: space-between;
-          padding: 16px 16px 10px;
-        }
-        .ord-title { font-size: 1.15rem; font-weight: 800; color: #0f172a; margin: 0; }
-        .ord-count { font-size: 0.78rem; color: #94a3b8; }
-
-        .ord-list {
-          display: flex; flex-direction: column;
-          gap: 1px;
-          background: #f1f5f9;
-          border-top: 1px solid #e2e8f0;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .ord-card {
-          background: white;
-          display: flex; align-items: center;
-          padding: 14px 16px;
-          cursor: pointer;
-          gap: 12px;
-          -webkit-tap-highlight-color: transparent;
-          touch-action: manipulation;
-          transition: background 0.1s;
-        }
-        .ord-card:active { background: #f8fafc; }
-
-        .ord-card-left { flex: 1; min-width: 0; }
-        .ord-num  { font-weight: 700; font-size: 0.9rem; color: #0f172a; margin-bottom: 2px; }
-        .ord-shop { font-size: 0.78rem; color: #64748b; margin-bottom: 3px;
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ord-date { font-size: 0.72rem; color: #94a3b8; }
-
-        .ord-card-right {
-          flex-shrink: 0;
-          display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
-        }
-        .ord-amount { font-weight: 800; font-size: 0.95rem; color: #f97316; }
-        .ord-status-badge {
-          font-size: 0.65rem; font-weight: 700;
-          padding: 3px 8px; border-radius: 99px;
-          white-space: nowrap;
-        }
-        .ord-chevron {
-          font-size: 1.3rem; color: #cbd5e1;
-          flex-shrink: 0; margin-left: -4px;
-          line-height: 1;
-        }
-
-        @media (min-width: 640px) {
-          .ord-list {
-            gap: 8px;
-            background: transparent;
-            border: none;
-            padding: 0 16px;
-          }
-          .ord-card {
-            border-radius: 14px;
-            border: 1.5px solid #e2e8f0;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-          }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
       `}</style>
     </div>
   )
