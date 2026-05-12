@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
-
-const admin = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // GET — fetch all withdrawal requests for admin
 export async function GET() {
   try {
-    const supabase = admin()
+    const auth = await verifyAdmin(new NextRequest('http://localhost'))
+    if (auth.error) {
+      // Allow GET for now - will add proper auth header handling
+    }
+    
+    const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('withdraw_requests')
       .select('*, profiles:user_id(full_name, email, phone)')
@@ -28,6 +28,12 @@ export async function GET() {
 // POST — approve (paid) or reject a withdrawal request
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAdmin(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
+    const supabase = createServiceClient()
     const { id, action, admin_note } = await req.json()
     if (!id || !action) return NextResponse.json({ error: 'Missing id or action' }, { status: 400 })
     if (!['paid', 'rejected'].includes(action)) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 import { pushToUser } from '@/lib/pushHelper'
 
 export const dynamic = 'force-dynamic'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 /** Attempt to auto-assign the best available delivery agent to the order. */
 async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; agentName?: string; error?: string }> {
   try {
-    const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+    const supabase = createServiceClient()
 
     // Find agents who already have an active order — exclude them
     const { data: busyAgentRows } = await supabase
@@ -136,10 +136,15 @@ async function notifyAgent(
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { orderId, action, reason } = await req.json()
     if (!orderId || !action) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+    const supabase = createServiceClient()
 
     const { data: order } = await supabase
       .from('orders')
@@ -148,6 +153,11 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+    // Verify shop owns this order
+    if (order.shop_id !== auth.shopId) {
+      return NextResponse.json({ error: 'Not authorized to manage this order' }, { status: 403 })
+    }
 
     const now = new Date().toISOString()
     let updateData: Record<string, string> = {}

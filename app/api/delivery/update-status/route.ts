@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
-
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, agentId, status } = await req.json()
-    if (!orderId || !agentId || !status) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { orderId, status } = await req.json()
+    if (!orderId || !status) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    const supabase = createServiceClient()
 
     // Verify this agent owns the order before updating
     const { data: order } = await supabase
       .from('orders')
       .select('id, status, agent_id, agent_earning')
       .eq('id', orderId)
-      .eq('agent_id', agentId)  // security: only the assigned agent can update
+      .eq('agent_id', auth.agentId)  // security: only the logged-in agent can update
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found or not assigned to you' }, { status: 404 })

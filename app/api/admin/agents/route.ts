@@ -3,18 +3,56 @@ import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-const admin = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+async function verifyAdmin(request: NextRequest): Promise<{ error?: string; userId?: string }> {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { error: 'No authorization header' }
+  }
+  
+  const token = authHeader.substring(7)
+  const supabase = getAdminClient()
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) {
+    return { error: 'Invalid token' }
+  }
+  
+  // Check if admin
+  const metaRole = user.user_metadata?.role
+  if (metaRole === 'admin' || user.email === ADMIN_EMAIL) {
+    return { userId: user.id }
+  }
+  
+  // Check profiles table
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') {
+    return { error: 'Not authorized' }
+  }
+  
+  return { userId: user.id }
+}
 
 // POST — approve | reject | deactivate a delivery agent
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAdmin(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { agentId, action, reason } = await req.json()
     if (!agentId || !action) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
-    const supabase = admin()
+    const supabase = getAdminClient()
 
     if (action === 'approve') {
       const { error } = await supabase

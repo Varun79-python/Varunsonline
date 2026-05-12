@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url)
-    const shopId = searchParams.get('shopId')
-    if (!shopId) return NextResponse.json({ error: 'shopId required' }, { status: 400 })
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
-    // Fetch pending orders
+    // Fetch pending orders for this shop
     const { data: orders, error } = await supabase
       .from('orders')
       .select('id, order_number, status, total_amount, shopkeeper_earning, subtotal, created_at')
-      .eq('shop_id', shopId)
+      .eq('shop_id', auth.shopId)
       .eq('status', 'payment_confirmed')
       .order('created_at', { ascending: false })
 
