@@ -39,6 +39,7 @@ export default function ShopRegisterPage() {
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({
     full_name: '',
@@ -169,7 +170,10 @@ export default function ShopRegisterPage() {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
-              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: 0 }}>{showPassword ? '🙈' : '👁️'}</button>
+              </div>
             </div>
 
             <div>

@@ -8,6 +8,7 @@ export default function AdminLoginPage() {
   const supabase = createClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -87,7 +88,10 @@ export default function AdminLoginPage() {
           </div>
           <div className="input-group">
             <label className="input-label">Password</label>
-            <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+            <div style={{ position: 'relative' }}>
+              <input className="input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" style={{ paddingRight: 44 }} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)' }}>{showPassword ? '🙈' : '👁️'}</button>
+            </div>
           </div>
           <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}>
             {loading ? '⏳ Verifying...' : '👑 Admin Login'}

@@ -8,11 +8,12 @@ export default function ResetPasswordPage() {
   const supabase = createClient()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<'loading' | 'valid' | 'invalid'>('loading')
-  const [showPass, setShowPass] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -179,29 +180,34 @@ export default function ResetPasswordPage() {
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>New Password</label>
               <div style={{ position: 'relative' }}>
                 <input
-                  type={showPass ? 'text' : 'password'}
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Min 6 characters"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', paddingRight: 44 }}
+                  style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }}
                 />
-                <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                  {showPass ? '🙈' : '👁️'}
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: 0 }}>
+                  {showPassword ? '🙈' : '👁️'}
                 </button>
               </div>
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Confirm New Password</label>
-              <input
-                type={showPass ? 'text' : 'password'}
-                placeholder="Re-enter password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                required
-                style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: confirm && confirm !== password ? '1.5px solid #dc2626' : '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  placeholder="Re-enter password"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 10, border: confirm && confirm !== password ? '1.5px solid #dc2626' : '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: 0 }}>
+                  {showConfirm ? '🙈' : '👁️'}
+                </button>
+              </div>
               {confirm && confirm !== password && (
                 <span style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: 4, display: 'block' }}>❌ Passwords don't match</span>
               )}
