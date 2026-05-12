@@ -27,8 +27,11 @@ export default function ShopkeeperLayout({ children }: { children: React.ReactNo
 
   useEffect(() => {
     async function checkAuth() {
-      if (pathname === '/shopkeeper/register') { setChecking(false); return }
       const { data: { user } } = await supabase.auth.getUser()
+      if (pathname === '/shopkeeper/register') {
+        if (user) { router.replace('/shopkeeper'); return }
+        setChecking(false); return
+      }
       if (!user) { router.replace('/login'); return }
       const metaRole = user.user_metadata?.role
       if (metaRole && metaRole !== 'shopkeeper') { router.replace('/login'); return }
