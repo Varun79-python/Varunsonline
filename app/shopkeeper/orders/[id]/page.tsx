@@ -166,18 +166,18 @@ export default function OrderDetailPage() {
             ))}
 
             {/* Total row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: '#fff7ed', borderTop: '1.5px dashed var(--border)' }}>
-              <span style={{ fontWeight: 700 }}>Order Total</span>
-              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.05rem' }}>₹{order.total_amount}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: '#f8fafc', borderTop: '1.5px dashed #e2e8f0' }}>
+              <span style={{ fontWeight: 700, color: '#64748b' }}>Order Total</span>
+              <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>₹{order.total_amount}</span>
             </div>
           </div>
         )}
 
-        {/* Bill — shopkeeper only sees their earnings, no coupon details */}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 4 }}>
-            <span style={{ fontWeight: 700, color: 'var(--success)' }}>💰 Your Earnings</span>
-            <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: '1.05rem' }}>₹{order.shopkeeper_earning}</span>
+        {/* Your Earnings - Highlighted */}
+        <div style={{ marginTop: 14, padding: '14px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: 'white', fontSize: '0.95rem' }}>💰 Your Earnings</span>
+            <span style={{ fontWeight: 800, color: 'white', fontSize: '1.3rem' }}>₹{order.shopkeeper_earning}</span>
           </div>
         </div>
       </div>
@@ -199,16 +199,6 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Payment — no coupon details shown to shopkeeper */}
-      <div className="card">
-        <h3 style={{ marginBottom: 10, fontSize: '1rem' }}>💳 Payment</h3>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-          <span style={{ color: 'var(--text-muted)' }}>Status</span>
-          <span style={{ fontWeight: 700, color: order.payment_status === 'paid' ? 'var(--success)' : 'var(--danger)' }}>
-            {order.payment_status === 'paid' ? '✅ Paid' : order.payment_status}
-          </span>
-        </div>
       </div>
-    </div>
   )
 }
