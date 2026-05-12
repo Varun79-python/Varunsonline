@@ -107,7 +107,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         </div>
       </div>
 
-      {cartCount > 0 && (
+      {cartCount > 0 && pathname !== '/customer/cart' && (
         <div
           onClick={() => router.push('/customer/cart')}
           style={{

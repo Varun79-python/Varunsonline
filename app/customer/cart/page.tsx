@@ -159,7 +159,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <button onClick={() => router.push(`/customer/checkout?discount=${couponDiscount}&coupon=${couponCode}`)} style={{ position: 'fixed', bottom: 136, left: 16, right: 16, background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 14, padding: '16px 24px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 24px rgba(249,115,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 70 }}>
+      <button onClick={() => router.push(`/customer/checkout?discount=${couponDiscount}&coupon=${couponCode}`)} style={{ position: 'fixed', bottom: 84, left: 8, right: 8, background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 16, padding: '18px 24px', fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 32px rgba(249,115,22,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 70 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 8, fontSize: '0.85rem' }}>{cart.length} item{cart.length !== 1 ? 's' : ''}</span>
           Proceed to Checkout
