@@ -85,16 +85,25 @@ export default function CustomerProfile() {
     if (!editingId) return
     if (!editForm.house_name || !editForm.street_name || !editForm.city) { alert('Please fill House Name, Street and City'); return }
     setEditSaving(true)
-    const updateData: Record<string, unknown> = { house_name: editForm.house_name, street_name: editForm.street_name, city: editForm.city }
-    if (editForm.label) updateData.label = editForm.label
-    if (editForm.landmark !== undefined) updateData.landmark = editForm.landmark || null
-    if (editForm.pincode) updateData.pincode = editForm.pincode
-    if (editForm.phone) updateData.phone = editForm.phone
-    if (editForm.latitude && editForm.latitude !== 0) updateData.latitude = editForm.latitude
-    if (editForm.longitude && editForm.longitude !== 0) updateData.longitude = editForm.longitude
+    const addressData: Record<string, unknown> = { house_name: editForm.house_name, street_name: editForm.street_name, city: editForm.city }
+    if (editForm.label) addressData.label = editForm.label
+    if (editForm.landmark !== undefined) addressData.landmark = editForm.landmark || null
+    if (editForm.pincode) addressData.pincode = editForm.pincode
+    if (editForm.phone) addressData.phone = editForm.phone
+    if (editForm.latitude && editForm.latitude !== 0) addressData.latitude = editForm.latitude
+    if (editForm.longitude && editForm.longitude !== 0) addressData.longitude = editForm.longitude
 
-    const { error } = await supabase.from('addresses').update(updateData).eq('id', editingId)
-    if (error) { alert('Failed to update: ' + error.message) } else { setAddresses(prev => prev.map(a => a.id === editingId ? { ...a, ...updateData } : a)); setEditingId(null) }
+    if (editingId === 'new') {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setEditSaving(false); return }
+      addressData.customer_id = user.id
+      const { data: newAddr, error } = await supabase.from('addresses').insert(addressData).select().single()
+      if (error) { alert('Failed to add: ' + error.message) } else if (newAddr) { setAddresses(prev => [...prev, newAddr]) }
+      setEditingId(null)
+    } else {
+      const { error } = await supabase.from('addresses').update(addressData).eq('id', editingId)
+      if (error) { alert('Failed to update: ' + error.message) } else { setAddresses(prev => prev.map(a => a.id === editingId ? { ...a, ...addressData } : a)); setEditingId(null) }
+    }
     setEditSaving(false)
   }
 
@@ -127,8 +136,8 @@ export default function CustomerProfile() {
       </div>
 
       <div style={{ background: 'white', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', padding: 16, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}><span style={{ fontSize: '1.1rem' }}>📍</span><span style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>Saved Addresses</span></div>
-        {addresses.length === 0 && <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: '0.9rem' }}>No saved addresses yet. Add one during checkout.</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}><span style={{ fontSize: '1.1rem' }}>📍</span><span style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>Saved Addresses</span><button onClick={() => { setEditingId('new'); setEditForm({ ...blankEdit }) }} style={{ marginLeft: 'auto', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', borderRadius: 8, padding: '8px 14px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>+ Add Address</button></div>
+        {addresses.length === 0 && <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: '0.9rem' }}>No saved addresses yet.</p>}
         {addresses.map(a => (
           <div key={a.id as string} style={{ marginBottom: 16 }}>
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14, border: editingId === a.id ? '1.5px solid #f97316' : '1px solid #e2e8f0' }}>
@@ -140,13 +149,24 @@ export default function CustomerProfile() {
                 <div style={{ marginTop: 14, padding: 14, background: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label><select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>{['Home', 'Work', 'Other'].map(l => <option key={l}>{l}</option>)}</select></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>House *</label><input style={inputStyle} placeholder="e.g. Sunrise Apartments" value={editForm.house_name} onChange={e => setEditForm(f => ({ ...f, house_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Street *</label><input style={inputStyle} placeholder="e.g. MG Road" value={editForm.street_name} onChange={e => setEditForm(f => ({ ...f, street_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>City *</label><input style={inputStyle} placeholder="City" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Landmark</label><input style={inputStyle} placeholder="Near City Mall" value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Pincode</label><input style={inputStyle} placeholder="500001" value={editForm.pincode} onChange={e => setEditForm(f => ({ ...f, pincode: e.target.value }))} /></div><div style={{ gridColumn: '1/-1' }}><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Phone Number</label><input style={inputStyle} type="tel" placeholder="+91 9XXXXXXXXX" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div></div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}><button onClick={getEditGPS} disabled={editGPS} style={{ background: '#f1f5f9', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 14px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><LocationIcon />{editGPS ? 'Detecting...' : 'Update GPS'}</button>{editForm.latitude !== 0 && editGpsAccuracy !== null && (() => { const acc = Math.round(editGpsAccuracy); const cfg = acc < 20 ? { color: '#16a34a', bg: '#f0fdf4', label: `✓ ±${acc}m` } : acc < 50 ? { color: '#d97706', bg: '#fef3c7', label: `±${acc}m` } : acc < 100 ? { color: '#ea580c', bg: '#fff7ed', label: `⚠ ±${acc}m` } : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m` }; return <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '4px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color }}>{cfg.label}</span> })()}</div>
-                  <div style={{ display: 'flex', gap: 8 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : 'Save Changes'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
+                  <div style={{ display: 'flex', gap: 8 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : (editingId === 'new' ? 'Add Address' : 'Save Changes')}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
                 </div>
               )}
             </div>
           </div>
         ))}
-      </div>
+      {editingId === 'new' && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14, border: '1.5px solid #f97316' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', marginBottom: 14 }}>➕ Add New Address</div>
+            <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label><select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>{['Home', 'Work', 'Other'].map(l => <option key={l}>{l}</option>)}</select></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>House *</label><input style={inputStyle} placeholder="e.g. Sunrise Apartments" value={editForm.house_name} onChange={e => setEditForm(f => ({ ...f, house_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Street *</label><input style={inputStyle} placeholder="e.g. MG Road" value={editForm.street_name} onChange={e => setEditForm(f => ({ ...f, street_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>City *</label><input style={inputStyle} placeholder="City" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Landmark</label><input style={inputStyle} placeholder="Near City Mall" value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Pincode</label><input style={inputStyle} placeholder="500001" value={editForm.pincode} onChange={e => setEditForm(f => ({ ...f, pincode: e.target.value }))} /></div><div style={{ gridColumn: '1/-1' }}><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Phone (for delivery)</label><input style={inputStyle} placeholder="Mobile number" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div></div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}><button onClick={getEditGPS} disabled={editGPS} style={{ background: '#f1f5f9', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 14px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><LocationIcon />{editGPS ? 'Detecting...' : 'Get Current Location'}</button>{editForm.latitude !== 0 && editGpsAccuracy !== null && (() => { const acc = Math.round(editGpsAccuracy); const cfg = acc < 20 ? { color: '#16a34a', bg: '#f0fdf4', label: `✓ ±${acc}m` } : acc < 50 ? { color: '#d97706', bg: '#fef3c7', label: `±${acc}m` } : acc < 100 ? { color: '#ea580c', bg: '#fff7ed', label: `⚠ ±${acc}m` } : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m` }; return <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '4px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color }}>{cfg.label}</span> })()}</div>
+              <div style={{ display: 'flex', gap: 8 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Adding...' : 'Add Address'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button onClick={handleLogout} style={{ width: '100%', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 14, padding: '16px', color: '#dc2626', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><LogoutIcon />Logout</button>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
