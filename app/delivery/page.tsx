@@ -178,19 +178,10 @@ export default function DeliveryDashboard() {
           showToast('🔔 New delivery assigned to you!')
         }
 
-        if (payload.new?.status === 'picked_up' && payload.new?.agent_id === user.id) {
-          stopAlert()
-        }
-
-        if (!act && ag.is_available) { 
+        if (!act && ag.is_available) {
           await fetchAvailable()
           setDistToCustomer(null)
-            payload.old?.status !== 'order_packed'
-          ) {
-            startAlert()
-            showToast('🔔 New delivery order available!')
-          }
-        } else {
+        } else if (act) {
           setAvailOrders([])
         }
       }).subscribe()
