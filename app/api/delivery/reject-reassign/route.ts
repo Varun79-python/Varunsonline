@@ -48,16 +48,29 @@ export async function POST(req: NextRequest) {
     // Unassign current agent
     await supabase.from('orders').update({ agent_id: null, status: 'order_packed' }).eq('id', orderId)
 
+    // Find agents who already have an active order (enforce 1 order per agent)
+    const { data: busyAgentRows } = await supabase
+      .from('orders')
+      .select('agent_id')
+      .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
+      .not('agent_id', 'is', null)
+
+    const busyIds: string[] = (busyAgentRows || [])
+      .map((r: { agent_id: string | null }) => r.agent_id)
+      .filter(Boolean) as string[]
+
+    // Combine all exclusions: explicitly excluded + currently busy agents
+    const combinedExclude = [...new Set([...fullExclude, ...busyIds])]
+
     // Find next best agent
     let query = supabase
       .from('delivery_agents')
       .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
-      .is('current_order_id', null)
 
-    if (fullExclude.length > 0) {
-      query = query.not('id', 'in', `(${fullExclude.join(',')})`)
+    if (combinedExclude.length > 0) {
+      query = query.not('id', 'in', `(${combinedExclude.join(',')})`)
     }
 
     const { data: agents } = await query

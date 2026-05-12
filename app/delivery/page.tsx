@@ -62,7 +62,6 @@ export default function DeliveryDashboard() {
   const [codAmount, setCodAmount] = useState(0)
   const [codCollecting, setCodCollecting] = useState(false)
   const [codCollected, setCodCollected] = useState(false)
-  const [showQR, setShowQR] = useState(false)
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
@@ -646,28 +645,22 @@ export default function DeliveryDashboard() {
                       <span style={{ fontSize: '1.4rem' }}>💵</span>
                       <div>
                         <div style={{ fontWeight: 800, color: '#92400e', fontSize: '1rem' }}>Collect ₹{codAmount} from Customer</div>
-                        <div style={{ fontSize: '0.72rem', color: '#78350f' }}>This is a Cash on Delivery order</div>
+                        <div style={{ fontSize: '0.72rem', color: '#78350f' }}>Cash on Delivery — show QR for UPI payment</div>
                       </div>
                     </div>
                     <div style={{ padding: 16, background: 'white' }}>
-                      {/* QR Toggle */}
-                      <button
-                        onClick={() => setShowQR(!showQR)}
-                        style={{ width: '100%', padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', marginBottom: 12, fontSize: '0.88rem' }}
-                      >
-                        {showQR ? '❌ Hide QR' : '📱 Show Payment QR (Customer Scan)'}
-                      </button>
-                      {showQR && (
-                        <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                      {/* UPI QR — uses platform UPI ID from env */}
+                      {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID ? (
+                        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8, fontWeight: 600 }}>📱 Ask customer to scan to pay</div>
                           <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${process.env.NEXT_PUBLIC_PLATFORM_UPI_ID || 'varunsonline@upi'}&pn=VarunsOnline&am=${codAmount}&cu=INR&tn=Order%20${activeOrder.order_number}`)}`}
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=${process.env.NEXT_PUBLIC_PLATFORM_UPI_ID}&pn=VarunsOnline&am=${codAmount}&cu=INR&tn=Order%20${activeOrder.order_number}`)}`}
                             alt="UPI Payment QR"
-                            style={{ width: 220, height: 220, borderRadius: 12, border: '3px solid #e2e8f0' }}
+                            style={{ width: 220, height: 220, borderRadius: 12, border: '3px solid #e2e8f0', display: 'block', margin: '0 auto' }}
                           />
-                          <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 6 }}>Customer scans this QR to pay ₹{codAmount} via UPI</p>
+                          <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 6 }}>UPI ID: {process.env.NEXT_PUBLIC_PLATFORM_UPI_ID} · ₹{codAmount}</p>
                         </div>
-                      )}
-                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0' }}>— OR —</div>
+                      ) : null}
                       <button
                         onClick={async () => {
                           if (!agentId) return
@@ -681,13 +674,12 @@ export default function DeliveryDashboard() {
                             if (data.success) {
                               setCodCollected(true)
                               setCodPending(false)
-                              // Update agent wallet display
                               setAgent(prev => prev ? { ...prev, wallet_balance: data.newWalletBalance } : prev)
                               setActiveOrder(null)
                               setDistToCustomer(null)
                               await fetchAvailable()
                               showToast(data.newWalletBalance < 0
-                                ? `⚠️ Cash recorded! Wallet: ₹${data.newWalletBalance} (negative — remit to platform)`
+                                ? `⚠️ Cash recorded! Remit ₹${Math.abs(data.newWalletBalance)} to platform via Wallet page`
                                 : '✅ Cash collected & recorded!', data.newWalletBalance >= 0)
                             } else {
                               showToast(data.error || 'Failed', false)
@@ -700,7 +692,7 @@ export default function DeliveryDashboard() {
                         {codCollecting ? '⏳ Recording...' : '💵 Mark Cash Collected from Customer'}
                       </button>
                       <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 8, textAlign: 'center' }}>
-                        ⚠️ Marking cash collected will deduct ₹{codAmount} from your wallet. You must remit this to the platform.
+                        ⚠️ This will deduct ₹{codAmount} from your wallet. Go to <strong>Wallet</strong> to settle via Razorpay.
                       </p>
                     </div>
                   </div>

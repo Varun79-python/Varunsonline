@@ -6,9 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order {
   id: string; order_number: string; status: string; total_amount: number
-  subtotal: number; platform_fee: number; delivery_charge: number
-  discount_amount: number; shopkeeper_earning: number; created_at: string
-  payment_status: string; coupon_code: string; rejection_reason: string
+  subtotal: number; shopkeeper_earning: number; created_at: string
+  payment_status: string; rejection_reason: string
   addresses: { house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number }
 }
 
@@ -174,19 +173,9 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Bill — shopkeeper only sees what's relevant to them */}
+        {/* Bill — shopkeeper only sees their earnings, no coupon details */}
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Items Subtotal</span>
-            <span>₹{order.subtotal || order.total_amount}</span>
-          </div>
-          {order.discount_amount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: '0.85rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Coupon Discount</span>
-              <span style={{ color: 'var(--success)' }}>−₹{Math.abs(order.discount_amount || 0)}</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1.5px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 4 }}>
             <span style={{ fontWeight: 700, color: 'var(--success)' }}>💰 Your Earnings</span>
             <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: '1.05rem' }}>₹{order.shopkeeper_earning}</span>
           </div>
@@ -210,7 +199,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Payment */}
+      {/* Payment — no coupon details shown to shopkeeper */}
       <div className="card">
         <h3 style={{ marginBottom: 10, fontSize: '1rem' }}>💳 Payment</h3>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
@@ -219,12 +208,6 @@ export default function OrderDetailPage() {
             {order.payment_status === 'paid' ? '✅ Paid' : order.payment_status}
           </span>
         </div>
-        {order.coupon_code && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '0.88rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Coupon Applied</span>
-            <span style={{ fontWeight: 600, color: 'var(--success)' }}>🏷️ {order.coupon_code}</span>
-          </div>
-        )}
       </div>
     </div>
   )

@@ -5,17 +5,15 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/shopkeeper/auto-assign-agent
- * Body: { orderId: string }
+ * Body: { orderId: string; excludeAgentIds?: string[] }
  *
- * Finds the best available, approved delivery agent and atomically assigns
- * them to the order.
+ * Finds the best available, approved, IDLE delivery agent and atomically assigns
+ * them to the order. An agent is idle only if they have NO active order with
+ * status in [agent_assigned, picked_up, out_for_delivery].
  *
  * Selection priority:
  *   1. Nearest agent (if order has shop GPS and agent has last_lat/last_lon)
- *   2. Least busy agent (fewest active orders today)
- *   3. Round-robin (lowest total_deliveries — gives new agents a fair start)
- *
- * Returns: { success, agentId, agentName } or { error }
+ *   2. Round-robin (lowest total_deliveries — gives new agents a fair start)
  */
 export async function POST(req: Request) {
   try {
@@ -40,16 +38,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Order not in assignable state', status: order.status }, { status: 409 })
     }
 
-    // ── 2. Fetch available, approved agents (exclude blacklist) ─────────────
+    // ── 2. Find agents who already have an active order (MUST exclude them) ──
+    const { data: busyAgentRows } = await supabase
+      .from('orders')
+      .select('agent_id')
+      .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
+      .not('agent_id', 'is', null)
+
+    const busyAgentIds: string[] = (busyAgentRows || [])
+      .map((r: { agent_id: string | null }) => r.agent_id)
+      .filter(Boolean) as string[]
+
+    // Combine explicit exclusions with busy agents — enforce 1 order per agent
+    const allExclude = [...new Set([...excludeAgentIds, ...busyAgentIds])]
+
+    // ── 3. Fetch available, approved agents ─────────────────────────────────
     let query = supabase
       .from('delivery_agents')
       .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
-      .is('current_order_id', null)   // only idle agents
 
-    if (excludeAgentIds.length > 0) {
-      query = query.not('id', 'in', `(${excludeAgentIds.join(',')})`)
+    if (allExclude.length > 0) {
+      query = query.not('id', 'in', `(${allExclude.join(',')})`)
     }
 
     const { data: agents } = await query
@@ -58,7 +69,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No available agents', noAgents: true }, { status: 503 })
     }
 
-    // ── 3. Score agents ─────────────────────────────────────────────────────
+    // ── 4. Score agents ─────────────────────────────────────────────────────
     type Agent = { id: string; full_name: string; total_deliveries: number; last_lat: number | null; last_lon: number | null }
 
     function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -84,7 +95,19 @@ export async function POST(req: Request) {
 
     const best = scored[0]
 
-    // ── 4. Atomically assign agent to order ─────────────────────────────────
+    // ── 5. Final race-condition guard: re-verify agent is still idle ─────────
+    const { data: agentActiveCheck } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('agent_id', best.id)
+      .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
+      .maybeSingle()
+
+    if (agentActiveCheck) {
+      return NextResponse.json({ error: 'Selected agent just got assigned another order — retry', retry: true }, { status: 409 })
+    }
+
+    // ── 6. Atomically assign agent to order ─────────────────────────────────
     const { data: updated, error: updateErr } = await supabase
       .from('orders')
       .update({ agent_id: best.id, status: 'agent_assigned' })
@@ -98,7 +121,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Assignment race condition — retry', retry: true }, { status: 409 })
     }
 
-    // ── 5. Log status history ────────────────────────────────────────────────
+    // ── 7. Log status history ────────────────────────────────────────────────
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status: 'agent_assigned',

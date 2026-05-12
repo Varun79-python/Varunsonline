@@ -12,13 +12,28 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
-    const { data: agents } = await supabase
+    // Find agents who already have an active order — exclude them
+    const { data: busyAgentRows } = await supabase
+      .from('orders')
+      .select('agent_id')
+      .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
+      .not('agent_id', 'is', null)
+
+    const busyIds: string[] = (busyAgentRows || [])
+      .map((r: { agent_id: string | null }) => r.agent_id)
+      .filter(Boolean) as string[]
+
+    let query = supabase
       .from('delivery_agents')
       .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
-      .is('current_order_id', null)
 
+    if (busyIds.length > 0) {
+      query = query.not('id', 'in', `(${busyIds.join(',')})`)
+    }
+
+    const { data: agents } = await query
     if (!agents || agents.length === 0) return { error: 'no_agents' }
 
     const { data: ord } = await supabase
@@ -47,6 +62,16 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
         return { ...a, score: dist * 1000 + (a.total_deliveries || 0) }
       })
       .sort((a, b) => a.score - b.score)[0]
+
+    // Final race-condition check — verify agent still idle
+    const { data: agentBusy } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('agent_id', best.id)
+      .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
+      .maybeSingle()
+
+    if (agentBusy) return { error: 'race_condition' }
 
     const { data: updated } = await supabase
       .from('orders')
