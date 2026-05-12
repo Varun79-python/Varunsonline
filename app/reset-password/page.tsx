@@ -1,48 +1,101 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-function ResetPasswordForm() {
+export default function ResetPasswordPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
-  const [validSession, setValidSession] = useState(false)
-  const [checking, setChecking] = useState(true)
+  const [status, setStatus] = useState<'loading' | 'valid' | 'invalid'>('loading')
   const [showPass, setShowPass] = useState(false)
 
   useEffect(() => {
-    async function checkRecoverySession() {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get('access_token')
-      const refreshToken = hashParams.get('refresh_token')
+    let mounted = true
 
-      if (accessToken && refreshToken) {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        })
-        if (!error) {
-          setValidSession(true)
-          setChecking(false)
+    async function initRecoverySession() {
+      try {
+        // First, check if Supabase has already processed the hash (it auto-reads tokens from URL hash)
+        const { data: { session: existingSession } } = await supabase.auth.getSession()
+        
+        if (existingSession && existingSession.user) {
+          // Session already exists from hash processing
+          if (mounted) {
+            setStatus('valid')
+          }
           return
         }
-      }
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        setValidSession(true)
+        // If no existing session, manually check hash for tokens
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
+
+        // Also check if type=recovery in query params (some setups use query params)
+        const urlParams = new URLSearchParams(window.location.search)
+        const queryType = urlParams.get('type')
+        const queryToken = urlParams.get('token')
+
+        // If we have access token in hash, try to set session
+        if (accessToken && refreshToken) {
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (sessionError) {
+            console.error('Session error:', sessionError)
+            if (mounted) setStatus('invalid')
+            return
+          }
+
+          if (data.session) {
+            if (mounted) setStatus('valid')
+            return
+          }
+        }
+
+        // Try query params if present
+        if (queryToken && queryType === 'recovery') {
+          // Some Supabase configs use query params - need to exchange for access token
+          // This is less common but handle it anyway
+          console.log('Query token detected, may need exchange')
+        }
+
+        // Check if we have any valid session at all
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session && session.user) {
+          if (mounted) setStatus('valid')
+          return
+        }
+
+        // No valid session found
+        if (mounted) setStatus('invalid')
+      } catch (err) {
+        console.error('Recovery init error:', err)
+        if (mounted) setStatus('invalid')
       }
-      setChecking(false)
     }
 
-    checkRecoverySession()
-  }, [])
+    // Also listen for auth state changes - Supabase sends PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        if (mounted) setStatus('valid')
+      }
+    })
+
+    initRecoverySession()
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault()
@@ -51,19 +104,54 @@ function ResetPasswordForm() {
     if (password !== confirm) { setError('Passwords do not match'); return }
 
     setLoading(true)
+    
+    // Verify we have a valid session before updating
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setError('Session expired. Please request a new password reset link.')
+      setLoading(false)
+      return
+    }
+
     const { error: err } = await supabase.auth.updateUser({ password })
     setLoading(false)
 
-    if (err) { setError(err.message); return }
+    if (err) { 
+      setError(err.message)
+      return 
+    }
+    
+    // Sign out after password change for security
+    await supabase.auth.signOut()
     setDone(true)
+    
+    // Redirect after showing success message
     setTimeout(() => router.push('/login'), 3000)
   }
 
-  if (checking) {
+  if (status === 'loading') {
     return (
-      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Verifying reset link...</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  if (status === 'invalid') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
+          <h2 style={{ marginBottom: 12, fontWeight: 700, color: '#0f172a' }}>Invalid or Expired Link</h2>
+          <p style={{ color: '#64748b', marginBottom: 24, maxWidth: 300 }}>
+            This password reset link is invalid, expired, or has already been used. Please request a new one.
+          </p>
+          <button onClick={() => router.push('/forgot-password')} style={{ padding: '12px 24px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+            Request New Link
+          </button>
+        </div>
       </div>
     )
   }
@@ -84,17 +172,6 @@ function ResetPasswordForm() {
             <p style={{ color: '#64748b', marginBottom: 24 }}>
               Your password has been changed successfully. Redirecting to login...
             </p>
-          </div>
-        ) : !validSession ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
-            <h2 style={{ marginBottom: 12, fontWeight: 700, color: '#0f172a' }}>Invalid or Expired Link</h2>
-            <p style={{ color: '#64748b', marginBottom: 24 }}>
-              This reset link has expired or already been used. Please request a new one.
-            </p>
-            <button onClick={() => router.push('/login')} style={{ padding: '12px 24px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-              Go to Login
-            </button>
           </div>
         ) : (
           <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -146,22 +223,5 @@ function ResetPasswordForm() {
         )}
       </div>
     </div>
-  )
-}
-
-function Loading() {
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
-}
-
-export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <ResetPasswordForm />
-    </Suspense>
   )
 }
