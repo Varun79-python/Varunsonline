@@ -182,22 +182,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Delivery address */}
-      {addr && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h3 style={{ marginBottom: 10, fontSize: '1rem' }}>📍 Delivery Address</h3>
-          <div style={{ fontWeight: 600 }}>{addr.house_name}</div>
-          <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: '0.88rem' }}>
-            {addr.street_name}{addr.landmark ? `, near ${addr.landmark}` : ''}, {addr.city}
-          </div>
-          {addr.latitude > 0 && (
-            <a href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`} target="_blank" rel="noreferrer"
-              style={{ fontSize: '0.82rem', color: 'var(--primary)', marginTop: 8, display: 'inline-block', fontWeight: 600 }}>
-              📌 Open in Google Maps →
-            </a>
-          )}
-        </div>
-      )}
+      
 
       </div>
   )
