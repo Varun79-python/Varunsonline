@@ -25,18 +25,18 @@ const CATEGORIES = [
   { label: 'Restaurant', icon: '🍽️' },
   { label: 'Electronics', icon: '📱' },
   { label: 'Clothing', icon: '👕' },
-  { label: 'Stationary', icon: '✏️' },
+  { label: 'Stationery', icon: '✏️' },
   { label: 'Other', icon: '📦' },
 ]
 
 const CAT_COLOR: Record<string, string> = {
   Grocery: '#16a34a', Bakery: '#ca8a04', Restaurant: '#dc2626',
-  Electronics: '#2563eb', Clothing: '#7c3aed', Stationary: '#0891b2',
+  Electronics: '#2563eb', Clothing: '#7c3aed', Stationery: '#0891b2',
   Other: '#64748b', All: '#f97316',
 }
 const CAT_BG: Record<string, string> = {
   Grocery: '#dcfce7', Bakery: '#fef9c3', Restaurant: '#fee2e2',
-  Electronics: '#dbeafe', Clothing: '#ede9fe', Stationary: '#cffafe',
+  Electronics: '#dbeafe', Clothing: '#ede9fe', Stationery: '#cffafe',
   Other: '#f1f5f9', All: '#fff7ed',
 }
 
