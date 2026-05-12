@@ -18,12 +18,6 @@ const config: CapacitorConfig = {
   },
 
   android: {
-    // Hardware acceleration for smooth scrolling/animations
-    hardwareAccelerated: true,
-    // Allow text input to be captured correctly
-    captureInput: true,
-    // Disable remote debugging in production (set true during testing)
-    webContentsDebuggingEnabled: false,
   },
 
   plugins: {
