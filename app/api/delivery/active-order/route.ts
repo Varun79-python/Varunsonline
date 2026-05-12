@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,20 +13,18 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url)
-    const agentId = searchParams.get('agentId')
-    if (!agentId) return NextResponse.json({ error: 'agentId required' }, { status: 400 })
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     // Fetch active order for this agent
     const { data: order } = await supabase
       .from('orders')
       .select('id, order_number, status, agent_earning, total_amount, delivery_charge, created_at, shop_id, address_id, payment_method')
-      .eq('agent_id', agentId)
+      .eq('agent_id', auth.agentId)
       .in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
       .maybeSingle()
 

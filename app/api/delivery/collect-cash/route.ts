@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, agentId, paymentMethod } = await req.json()
-    // paymentMethod: 'qr' (UPI) | 'cash'
-    if (!orderId || !agentId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { orderId, paymentMethod } = await req.json()
+    // paymentMethod: 'qr' (UPI) | 'cash'
+    if (!orderId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    const supabase = createServiceClient()
 
     // Fetch order — must be COD, OTP verified, not yet delivered
     const { data: order } = await supabase
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-    if (order.agent_id !== agentId) return NextResponse.json({ error: 'Not your order' }, { status: 403 })
+    if (order.agent_id !== auth.agentId) return NextResponse.json({ error: 'Not your order' }, { status: 403 })
     if (order.payment_method !== 'cod') return NextResponse.json({ error: 'Not a COD order' }, { status: 400 })
     if (order.status === 'delivered') return NextResponse.json({ error: 'Already delivered', alreadyDone: true }, { status: 409 })
     if (!order.otp_verified) return NextResponse.json({ error: 'OTP not verified yet' }, { status: 400 })

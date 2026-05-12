@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,7 @@ function safeCompare(a: string, b: string): boolean {
 
 /**
  * POST /api/delivery/settlement/verify
- * Body: { agentId, razorpay_order_id, razorpay_payment_id, razorpay_signature, settleAmount }
+ * Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature, settleAmount }
  *
  * 1. Verifies Razorpay payment signature.
  * 2. Checks for duplicate settlement (idempotency).
@@ -20,6 +20,11 @@ function safeCompare(a: string, b: string): boolean {
  * 4. Logs a wallet transaction.
  */
 export async function POST(req: NextRequest) {
+  const auth = await verifyDeliveryAgent(req)
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: 401 })
+  }
+
   const secret = process.env.RAZORPAY_KEY_SECRET
   if (!secret) {
     return NextResponse.json({ error: 'Payment verification is not configured' }, { status: 500 })

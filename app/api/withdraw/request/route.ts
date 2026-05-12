@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/authMiddleware'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-const admin = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-// POST — create a withdrawal request (bypasses RLS using service role)
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(req.headers.get('authorization')?.replace('Bearer ', '') || '')
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { user_id, user_type, amount, payment_method, upi_id, bank_account_number, bank_ifsc } = body
 
@@ -18,16 +23,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const supabase = admin()
+    // Verify the requesting user matches the user_id in body
+    if (user.id !== user_id) {
+      return NextResponse.json({ error: 'Cannot request withdrawal for another user' }, { status: 403 })
+    }
+
+    const serviceSupabase = createServiceClient()
 
     // Verify the user exists
-    const { data: profile } = await supabase.from('profiles').select('id').eq('id', user_id).single()
+    const { data: profile } = await serviceSupabase.from('profiles').select('id').eq('id', user_id).single()
     if (!profile) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
     // Check current balance
     const table = user_type === 'shopkeeper' ? 'shops' : 'delivery_agents'
     const idCol = user_type === 'shopkeeper' ? 'owner_id' : 'id'
-    const { data: acct } = await supabase.from(table).select('wallet_balance').eq(idCol, user_id).single()
+    const { data: acct } = await serviceSupabase.from(table).select('wallet_balance').eq(idCol, user_id).single()
     const currentBalance = acct?.wallet_balance || 0
 
     if (amount > currentBalance) {
@@ -35,7 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for existing pending request
-    const { data: existing } = await supabase
+    const { data: existing } = await serviceSupabase
       .from('withdraw_requests')
       .select('id')
       .eq('user_id', user_id)
@@ -45,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You already have a pending withdrawal request. Please wait for it to be processed.' }, { status: 409 })
     }
 
-    const { data, error } = await supabase.from('withdraw_requests').insert({
+    const { data, error } = await serviceSupabase.from('withdraw_requests').insert({
       user_id,
       user_type,
       amount,

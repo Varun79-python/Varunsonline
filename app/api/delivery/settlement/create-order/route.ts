@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/delivery/settlement/create-order
- * Body: { agentId: string; amount: number }
+ * Body: { amount: number }
  *
  * Creates a Razorpay order for the agent to pay back COD cash owed to the platform.
  * Returns: Razorpay order object (id, amount, currency, key_id)
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
     const keySecret = process.env.RAZORPAY_KEY_SECRET
 
@@ -19,21 +24,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Payment gateway is not configured' }, { status: 500 })
     }
 
-    const { agentId, amount } = await req.json()
-    if (!agentId || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json({ error: 'Invalid agentId or amount' }, { status: 400 })
+    const { amount } = await req.json()
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     // Fetch agent's current pending balance
     const { data: agent } = await supabase
       .from('delivery_agents')
       .select('wallet_balance, full_name')
-      .eq('id', agentId)
+      .eq('id', auth.agentId)
       .single()
 
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

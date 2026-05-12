@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 // GET — list all available packed orders (no agent assigned yet)
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
+    const supabase = createServiceClient()
 
     const { data: orders, error } = await supabase
       .from('orders')
@@ -53,13 +55,15 @@ export async function GET() {
 // POST — atomically claim an order (race-condition safe)
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, agentId } = await req.json()
-    if (!orderId || !agentId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { orderId } = await req.json()
+    if (!orderId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    const supabase = createServiceClient()
 
     // Atomic update: only succeeds if status=order_packed AND agent_id IS NULL
     // This prevents 2 agents accepting the same order
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
       .from('orders')
       .update({
         status: 'agent_assigned',
-        agent_id: agentId,
+        agent_id: auth.agentId,
       })
       .eq('id', orderId)
       .eq('status', 'order_packed')   // guard: must still be packed
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status: 'agent_assigned',
-      changed_by: agentId
+      changed_by: auth.agentId
     })
 
     return NextResponse.json({ success: true, order: data[0] })

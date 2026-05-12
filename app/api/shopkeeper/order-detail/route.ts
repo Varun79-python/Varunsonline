@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const orderId = searchParams.get('orderId')
     if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 })
 
-    // Service role bypasses RLS — shopkeeper can read order + items
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     const [{ data: order, error: ordErr }, { data: items }] = await Promise.all([
       supabase.from('orders').select('*, addresses(*)').eq('id', orderId).single(),
@@ -21,6 +22,11 @@ export async function GET(req: NextRequest) {
     ])
 
     if (ordErr || !order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+    // Verify shop owns this order
+    if (order.shop_id !== auth.shopId) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
 
     return NextResponse.json({ order, items: items || [] })
   } catch (err) {

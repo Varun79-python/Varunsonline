@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId, shopId, durationDays } = await req.json()
+
+    // Verify the shop belongs to this shopkeeper
+    if (shopId !== auth.shopId) {
+      return NextResponse.json({ error: 'Not authorized for this shop' }, { status: 403 })
+    }
 
     // Verify Razorpay signature
     const body = razorpay_order_id + '|' + razorpay_payment_id
@@ -15,10 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     const now = new Date()
     const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)

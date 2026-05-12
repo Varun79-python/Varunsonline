@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,7 +7,7 @@ const MAX_REASSIGN_ATTEMPTS = 5   // guard against infinite loops
 
 /**
  * POST /api/delivery/reject-reassign
- * Body: { orderId: string; agentId: string; excludeAgentIds?: string[] }
+ * Body: { orderId: string; excludeAgentIds?: string[] }
  *
  * Called when a delivery agent rejects/skips an assigned order.
  * - Unassigns the current agent
@@ -17,13 +17,15 @@ const MAX_REASSIGN_ATTEMPTS = 5   // guard against infinite loops
  */
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, agentId, excludeAgentIds = [] } = await req.json()
-    if (!orderId || !agentId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    const auth = await verifyDeliveryAgent(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { orderId, excludeAgentIds = [] } = await req.json()
+    if (!orderId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    const supabase = createServiceClient()
 
     // Verify order still exists and is agent_assigned
     const { data: order } = await supabase
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     // Build the full exclusion list (current agent + all previous rejectors)
-    const fullExclude: string[] = [...new Set([...excludeAgentIds, agentId])]
+    const fullExclude: string[] = [...new Set([...excludeAgentIds, auth.agentId])]
 
     // Guard: stop reassigning after too many attempts
     if (fullExclude.length >= MAX_REASSIGN_ATTEMPTS) {

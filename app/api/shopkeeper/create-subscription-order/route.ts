@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
+import { verifyShopkeeper } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { planId, shopId, amount } = await req.json()
     if (!planId || !shopId || !amount) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+
+    // Verify the shop belongs to this shopkeeper
+    if (shopId !== auth.shopId) {
+      return NextResponse.json({ error: 'Not authorized for this shop' }, { status: 403 })
+    }
 
     const razorpay = new Razorpay({
       key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
