@@ -33,7 +33,7 @@ const roles: RoleCard[] = [
   {
     id: 'shopkeeper',
     label: 'Shop Owner',
-    desc: 'Manage your shop',
+    desc: 'Make Your Business Online',
     icon: '🏪',
     color: '#0ea5e9',
     bgColor: '#f0f9ff',
