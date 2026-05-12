@@ -57,6 +57,11 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({})
   const [loading, setLoading] = useState(true)
+  const [ratingModal, setRatingModal] = useState<{ orderId: string; shopName: string } | null>(null)
+  const [shopRating, setShopRating] = useState(0)
+  const [deliveryRating, setDeliveryRating] = useState(0)
+  const [ratingSubmitting, setRatingSubmitting] = useState(false)
+  const [ratedOrders, setRatedOrders] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let mounted = true
@@ -129,6 +134,54 @@ export default function OrdersPage() {
 
   function getTotalItems(items: OrderItem[]) {
     return items.reduce((sum, item) => sum + item.quantity, 0)
+  }
+
+  async function submitRating() {
+    if (!ratingModal || (shopRating === 0 && deliveryRating === 0)) return
+    setRatingSubmitting(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('order_ratings').insert({
+        order_id: ratingModal.orderId,
+        customer_id: user.id,
+        shop_rating: shopRating || null,
+        delivery_rating: deliveryRating || null,
+      })
+      setRatedOrders(prev => new Set([...prev, ratingModal.orderId]))
+    }
+    setShopRating(0)
+    setDeliveryRating(0)
+    setRatingModal(null)
+    setRatingSubmitting(false)
+  }
+
+  function handleRateClick(e: React.MouseEvent, order: Order) {
+    e.stopPropagation()
+    if (ratedOrders.has(order.id)) return
+    setRatingModal({ orderId: order.id, shopName: order.shops?.name || 'Shop' })
+  }
+
+  function handleReorderClick(e: React.MouseEvent, order: Order) {
+    e.stopPropagation()
+    router.push(`/customer/shop/${order.shop_id}`)
+  }
+
+  function StarIcon({ filled, half, onClick }: { filled: boolean; half?: boolean; onClick?: () => void }) {
+    return (
+      <span
+        onClick={onClick}
+        style={{
+          fontSize: '1.5rem',
+          cursor: onClick ? 'pointer' : 'default',
+          color: filled || half ? '#f59e0b' : '#d1d5db',
+          transition: 'transform 0.1s',
+          transform: onClick ? 'scale(1.1)' : 'scale(1)',
+          display: 'inline-block'
+        }}
+      >
+        {filled ? '★' : half ? '★' : '☆'}
+      </span>
+    )
   }
 
   if (loading) return (
@@ -304,10 +357,14 @@ export default function OrdersPage() {
 
                     {isDelivered && (
                       <div style={{ padding: '0 14px 14px', display: 'flex', gap: 8 }}>
-                        <button style={{ flex: 1, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                          ⭐ Rate Order
+                        <button
+                          onClick={(e) => handleRateClick(e, order)}
+                          disabled={ratedOrders.has(order.id)}
+                          style={{ flex: 1, background: ratedOrders.has(order.id) ? '#dcfce7' : '#f1f5f9', border: '1px solid', borderColor: ratedOrders.has(order.id) ? '#86efac' : '#e2e8f0', color: ratedOrders.has(order.id) ? '#16a34a' : '#475569', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: ratedOrders.has(order.id) ? 'default' : 'pointer' }}
+                        >
+                          {ratedOrders.has(order.id) ? '✓ Rated' : '⭐ Rate Order'}
                         </button>
-                        <button style={{ flex: 1, background: 'white', border: '1px solid #f97316', color: '#f97316', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                        <button onClick={(e) => handleReorderClick(e, order)} style={{ flex: 1, background: 'white', border: '1px solid #f97316', color: '#f97316', padding: '10px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                           🔁 Reorder
                         </button>
                       </div>
@@ -318,6 +375,84 @@ export default function OrdersPage() {
             </div>
           )}
         </>
+      )}
+
+      {ratingModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, backdropFilter: 'blur(4px)'
+        }} onClick={() => setRatingModal(null)}>
+          <div style={{
+            background: 'white', borderRadius: 24, padding: 24, width: '90%', maxWidth: 360,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: '2rem', marginBottom: 8 }}>⭐</div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Rate Your Order</h3>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 4 }}>{ratingModal.shopName}</p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 10 }}>Shop/Food Rating</div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <span
+                    key={star}
+                    onClick={() => setShopRating(star)}
+                    style={{
+                      fontSize: '2rem', cursor: 'pointer', color: star <= shopRating ? '#f59e0b' : '#d1d5db',
+                      transition: 'transform 0.1s'
+                    }}
+                  >
+                    {star <= shopRating ? '★' : '☆'}
+                  </span>
+                ))}
+              </div>
+              {shopRating > 0 && (
+                <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600 }}>
+                  {shopRating === 5 ? 'Excellent!' : shopRating === 4 ? 'Great!' : shopRating === 3 ? 'Good' : shopRating === 2 ? 'Fair' : 'Poor'}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 10 }}>Delivery Rating</div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <span
+                    key={star}
+                    onClick={() => setDeliveryRating(star)}
+                    style={{
+                      fontSize: '2rem', cursor: 'pointer', color: star <= deliveryRating ? '#f59e0b' : '#d1d5db',
+                      transition: 'transform 0.1s'
+                    }}
+                  >
+                    {star <= deliveryRating ? '★' : '☆'}
+                  </span>
+                ))}
+              </div>
+              {deliveryRating > 0 && (
+                <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600 }}>
+                  {deliveryRating === 5 ? 'Excellent!' : deliveryRating === 4 ? 'Great!' : deliveryRating === 3 ? 'Good' : deliveryRating === 2 ? 'Fair' : 'Poor'}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setRatingModal(null)} style={{ flex: 1, background: '#f1f5f9', border: 'none', color: '#475569', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={submitRating}
+                disabled={ratingSubmitting || (shopRating === 0 && deliveryRating === 0)}
+                style={{ flex: 1, background: (shopRating === 0 && deliveryRating === 0) ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: (shopRating === 0 && deliveryRating === 0) ? 'not-allowed' : 'pointer' }}
+              >
+                {ratingSubmitting ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`
