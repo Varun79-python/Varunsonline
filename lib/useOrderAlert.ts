@@ -23,7 +23,7 @@ export function useOrderAlert() {
       const a = new Audio('/sounds/incoming-order.mp3')
       a.loop = true
       a.volume = 0.85
-      // If mp3 fails to load, fall back silently (beep will handle it)
+      // If file fails to load, fall back silently (beep will handle it)
       a.onerror = () => {
         audioRef.current = null
       }

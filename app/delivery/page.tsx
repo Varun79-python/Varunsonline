@@ -145,7 +145,7 @@ export default function DeliveryDashboard() {
         const act = await fetchActive(user.id)
         setActiveOrder(act)
 
-        // Play alert when THIS agent is newly assigned to an order
+        // Play alert when THIS agent is newly assigned to an order (auto-assignment)
         if (
           act &&
           payload.new?.agent_id === user.id &&
@@ -159,8 +159,22 @@ export default function DeliveryDashboard() {
         }
 
         // Only show new available orders if agent is online
-        if (!act && ag.is_available) { await fetchAvailable(); setDistToCustomer(null) }
-        else setAvailOrders([])
+        if (!act && ag.is_available) { 
+          await fetchAvailable()
+          setDistToCustomer(null)
+
+          // Play alert when a new order becomes available in the general pool
+          if (
+            payload.new?.status === 'order_packed' &&
+            payload.new?.agent_id === null &&
+            payload.old?.status !== 'order_packed'
+          ) {
+            startAlert()
+            showToast('🔔 New delivery order available!')
+          }
+        } else {
+          setAvailOrders([])
+        }
       }).subscribe()
     }
 
@@ -172,7 +186,7 @@ export default function DeliveryDashboard() {
     if (!agentId || accepting) return
     setAccepting(order.id)
     stopAlert()   // stop any assignment alert
-    alertedOrderIdRef.current = null
+    alertedOrderIdRef.current = order.id // Prevent sound from playing when accepted manually
     try {
       const res = await fetch('/api/delivery/orders', {
         method: 'POST',
