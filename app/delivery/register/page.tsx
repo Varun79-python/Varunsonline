@@ -19,7 +19,6 @@ export default function DeliveryRegisterPage() {
   })
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [formError, setFormError] = useState('')
@@ -71,9 +70,9 @@ export default function DeliveryRegisterPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const tempId = 'temp-' + Date.now()
     const ext = file.name.split('.').pop()
-    const path = `aadhar/${user?.id}/aadhar-${Date.now()}.${ext}`
+    const path = `aadhar/${tempId}/aadhar-${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('agent-documents').upload(path, file, { upsert: true })
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
@@ -136,25 +135,13 @@ export default function DeliveryRegisterPage() {
     </div>
   )
 
-  if (alreadyRegistered && done) return (
+  if (done) return (
     <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Submitted</h2>
-        <p style={{ color: '#64748b', marginBottom: 16 }}>Your registration is pending approval. We'll notify you once reviewed.</p>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Submitted!</h2>
+        <p style={{ color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>Your registration has been submitted successfully.<br/><br/>Admin will review your application and approve it.<br/>You'll be notified once approved.</p>
         <button onClick={() => router.push('/login/delivery')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Back to Login</button>
-      </div>
-    </div>
-  )
-
-  if (alreadyRegistered && !done) return (
-    <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: '3rem', marginBottom: 16 }}>⏳</div>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Under Review</h2>
-        <p style={{ color: '#64748b', marginBottom: 16 }}>Your application is being reviewed. You'll be notified once approved.</p>
-        <button onClick={() => { setAlreadyRegistered(false); setDone(false); setForm(f => ({...f, password: ''})) }} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 600, cursor: 'pointer', marginRight: 10 }}>Register New Account</button>
-        <button onClick={() => supabase.auth.signOut().then(() => router.push('/login/delivery'))} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
       </div>
     </div>
   )

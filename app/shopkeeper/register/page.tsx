@@ -53,7 +53,8 @@ export default function ShopRegisterPage() {
   async function uploadPhoto(file: File) {
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const path = `shop_photos/${Date.now()}.${ext}`
+    const tempId = 'temp-' + Date.now()
+    const path = `shop_photos/${tempId}-${Date.now()}.${ext}`
     const { data, error } = await supabase.storage.from('uploads').upload(path, file)
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
     const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(path)
