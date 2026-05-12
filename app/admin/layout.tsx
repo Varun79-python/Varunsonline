@@ -2,20 +2,19 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Sidebar from '@/components/Sidebar'
 
 const navItems = [
   { href: '/admin', icon: '📊', label: 'Dashboard' },
+  { href: '/admin/orders', icon: '📦', label: 'Orders' },
   { href: '/admin/shops', icon: '🏪', label: 'Shops' },
   { href: '/admin/agents', icon: '🛵', label: 'Agents' },
-  { href: '/admin/customers', icon: '👥', label: 'Customers' },
-  { href: '/admin/orders', icon: '📦', label: 'Orders' },
+  { href: '/admin/customers', icon: '👥', label: 'Users' },
+  { href: '/admin/withdrawals', icon: '💸', label: 'Payouts' },
+  { href: '/admin/agent-settlements', icon: '💳', label: 'Settle' },
   { href: '/admin/plans', icon: '📋', label: 'Plans' },
-  { href: '/admin/withdrawals', icon: '💸', label: 'Withdrawals' },
-  { href: '/admin/agent-settlements', icon: '💳', label: 'Settlements' },
   { href: '/admin/coupons', icon: '🏷️', label: 'Coupons' },
+  { href: '/admin/complaints', icon: '🎫', label: 'Tickets' },
   { href: '/admin/settings', icon: '⚙️', label: 'Settings' },
-  { href: '/admin/complaints', icon: '📋', label: 'Complaints' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +24,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [checking, setChecking] = useState(true)
   const [adminName, setAdminName] = useState('')
 
-  // Skip auth check on the login page itself
   const isLoginPage = pathname === '/admin/login'
 
   useEffect(() => {
@@ -33,39 +31,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        router.replace('/admin/login')
-        return
-      }
+      if (!user) { router.replace('/admin/login'); return }
 
       const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
-
-      // Check user_metadata / app_metadata first (no DB required)
       const metaRole = user.user_metadata?.role || user.app_metadata?.role
       if (metaRole === 'admin' || user.email === ADMIN_EMAIL) {
         setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
-        setChecking(false)
-        return
+        setChecking(false); return
       }
 
-      // Fallback: check profiles table
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile || profile.role !== 'admin') {
-        await supabase.auth.signOut()
-        router.replace('/admin/login')
-        return
-      }
+      const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
+      if (!profile || profile.role !== 'admin') { await supabase.auth.signOut(); router.replace('/admin/login'); return }
 
       setAdminName(profile.full_name || user.email || 'Admin')
       setChecking(false)
     }
-
     checkAuth()
   }, [pathname])
 
@@ -74,44 +54,98 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/admin/login')
   }
 
-  // Show login page without the admin shell
-  if (isLoginPage) {
-    return <>{children}</>
-  }
+  if (isLoginPage) return <>{children}</>
 
-  // Show full-screen spinner while verifying identity
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <div style={{ width: 44, height: 44, border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <p style={{ color: 'var(--text-muted)' }}>Verifying admin access...</p>
+      <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <div style={{ width: 44, height: 44, border: '4px solid #334155', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: '#94a3b8' }}>Verifying admin access...</p>
       </div>
     )
   }
 
   return (
-    <div className="app-layout">
-      <Sidebar navItems={navItems} brandIcon="👑" brand="Admin Panel" />
-      <div className="main-content">
-        <div className="topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: '1.4rem' }}>👑</span>
-            <div>
-              <div style={{ fontWeight: 700, lineHeight: 1.2 }}>Admin Control Panel</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{adminName}</div>
-            </div>
+    <div className="admin-layout">
+      {/* Mobile Header */}
+      <header className="admin-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '1.1rem' }}>👑</span>
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span className="badge badge-orange">Super Admin</span>
-            <button
-              onClick={handleLogout}
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
-              Logout →
-            </button>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'white', lineHeight: 1.2 }}>Varun's Online</div>
+            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Admin Panel</div>
           </div>
         </div>
-        <div className="page-content">{children}</div>
-      </div>
+        <button onClick={handleLogout} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#94a3b8', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+      </header>
+
+      <main className="admin-main">{children}</main>
+
+      {/* Bottom Navigation */}
+      <nav className="admin-bottom-nav">
+        {navItems.map(item => {
+          const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+          return (
+            <a key={item.href} href={item.href} className={`admin-nav-item${isActive ? ' admin-nav-active' : ''}`}>
+              <span className="admin-nav-icon">{item.icon}</span>
+              <span className="admin-nav-label">{item.label}</span>
+            </a>
+          )
+        })}
+      </nav>
+
+      <style>{`
+        .admin-layout { min-height: 100vh; background: #f8fafc; }
+        .admin-header { display: none; }
+        .admin-main { padding-bottom: 80px; }
+        .admin-bottom-nav { display: none; }
+
+        @media (max-width: 768px) {
+          .admin-header { 
+            display: flex !important; 
+            align-items: center; 
+            justify-content: space-between; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            padding: 12px 16px; 
+            padding-top: calc(12px + env(safe-area-inset-top,0px)); 
+            position: sticky; top: 0; z-index: 50; 
+          }
+          .admin-main { padding: 12px; }
+          
+          .admin-bottom-nav {
+            display: flex !important;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 70px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            z-index: 50;
+            padding-bottom: env(safe-area-inset-bottom, 8px);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+            justify-content: space-around;
+            align-items: center;
+            overflow-x: auto;
+          }
+          .admin-nav-item {
+            flex: 1;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 2px; text-decoration: none;
+            color: #94a3b8; position: relative;
+            padding: 8px 4px;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.15s ease;
+            min-width: 50px;
+          }
+          .admin-nav-active { color: #f97316; }
+          .admin-nav-icon { font-size: 1.2rem; line-height: 1; }
+          .admin-nav-label { font-size: 0.55rem; font-weight: 600; white-space: nowrap; }
+          .admin-nav-active .admin-nav-label { font-weight: 700; }
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }

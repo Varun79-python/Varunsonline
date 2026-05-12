@@ -4,14 +4,14 @@ import { createClient } from '@/lib/supabase/client'
 
 export default function AdminDashboard() {
   const supabase = createClient()
-  const [stats, setStats] = useState({ shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0, customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, pendingWithdrawals: 0 })
+  const [stats, setStats] = useState({ shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0, customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, pendingWithdrawals: 0, complaints: 0 })
   const [loading, setLoading] = useState(true)
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
 
   useEffect(() => {
     async function load() {
       const today = new Date().toISOString().split('T')[0]
-      const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders] = await Promise.all([
+      const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders, complaints] = await Promise.all([
         supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', true),
         supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
         supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', true),
@@ -20,10 +20,11 @@ export default function AdminDashboard() {
         supabase.from('orders').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('id,admin_earning', { count: 'exact' }).gte('created_at', today).eq('payment_status', 'paid'),
         supabase.from('withdraw_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(8)
+        supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(8),
+        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'open')
       ])
       const todayRev = (todayOrds.data || []).reduce((s: number, o: { admin_earning: number }) => s + (o.admin_earning || 0), 0)
-      setStats({ shops: shops.count || 0, pendingShops: pendShops.count || 0, agents: agents.count || 0, pendingAgents: pendAgents.count || 0, customers: customers.count || 0, orders: orders.count || 0, todayOrders: todayOrds.count || 0, todayRevenue: todayRev, totalRevenue: 0, pendingWithdrawals: withdrawals.count || 0 })
+      setStats({ shops: shops.count || 0, pendingShops: pendShops.count || 0, agents: agents.count || 0, pendingAgents: pendAgents.count || 0, customers: customers.count || 0, orders: orders.count || 0, todayOrders: todayOrds.count || 0, todayRevenue: todayRev, totalRevenue: 0, pendingWithdrawals: withdrawals.count || 0, complaints: complaints.count || 0 })
       setRecentOrders(recOrders.data || [])
       setLoading(false)
     }
@@ -31,53 +32,107 @@ export default function AdminDashboard() {
   }, [])
 
   const statCards = [
-    { icon: '🏪', label: 'Active Shops', value: stats.shops, sub: `${stats.pendingShops} pending`, color: '#0ea5e9', href: '/admin/shops' },
-    { icon: '🛵', label: 'Active Agents', value: stats.agents, sub: `${stats.pendingAgents} pending`, color: '#22c55e', href: '/admin/agents' },
-    { icon: '👥', label: 'Customers', value: stats.customers, sub: 'total registered', color: '#a855f7', href: '/admin/customers' },
-    { icon: '📦', label: "Today's Orders", value: stats.todayOrders, sub: `${stats.orders} total`, color: '#f97316', href: '/admin/orders' },
-    { icon: '💰', label: "Today's Revenue", value: `₹${stats.todayRevenue.toFixed(0)}`, sub: 'admin earnings', color: '#eab308', href: '/admin/orders' },
-    { icon: '💸', label: 'Pending Withdrawals', value: stats.pendingWithdrawals, sub: 'awaiting approval', color: '#ef4444', href: '/admin/withdrawals' },
+    { icon: '🏪', label: 'Active Shops', value: stats.shops, sub: `${stats.pendingShops} pending`, color: '#0ea5e9', bg: '#f0f9ff', href: '/admin/shops' },
+    { icon: '🛵', label: 'Active Agents', value: stats.agents, sub: `${stats.pendingAgents} pending`, color: '#22c55e', bg: '#f0fdf4', href: '/admin/agents' },
+    { icon: '👥', label: 'Customers', value: stats.customers, sub: 'registered', color: '#a855f7', bg: '#faf5ff', href: '/admin/customers' },
+    { icon: '📦', label: "Today's Orders", value: stats.todayOrders, sub: `${stats.orders} total`, color: '#f97316', bg: '#fff7ed', href: '/admin/orders' },
+    { icon: '💰', label: "Today's Earnings", value: `₹${stats.todayRevenue.toFixed(0)}`, sub: 'platform revenue', color: '#eab308', bg: '#fefce8', href: '/admin/orders' },
+    { icon: '💸', label: 'Withdrawals', value: stats.pendingWithdrawals, sub: 'pending', color: '#ef4444', bg: '#fef2f2', href: '/admin/withdrawals' },
+    { icon: '🎫', label: 'Complaints', value: stats.complaints, sub: 'open tickets', color: '#f59e0b', bg: '#fffbeb', href: '/admin/complaints' },
   ]
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spin" style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto' }} /></div>
+  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto', animation: 'spin 0.8s linear infinite' }} /></div>
+
+  const getStatusBadge = (status: string) => {
+    const colors: Record<string, { bg: string; text: string }> = {
+      delivered: { bg: '#dcfce7', text: '#16a34a' },
+      cancelled: { bg: '#fee2e2', text: '#dc2626' },
+      rejected: { bg: '#fee2e2', text: '#dc2626' },
+      payment_confirmed: { bg: '#fef3c7', text: '#d97706' },
+      shop_accepted: { bg: '#dbeafe', text: '#2563eb' },
+      order_packed: { bg: '#e0e7ff', text: '#4f46e5' },
+      out_for_delivery: { bg: '#dcfce7', text: '#16a34a' },
+    }
+    const c = colors[status] || { bg: '#f1f5f9', text: '#64748b' }
+    return <span style={{ background: c.bg, color: c.text, fontSize: '0.65rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{status.replace('_', ' ')}</span>
+  }
 
   return (
-    <div className="fade-in">
-      <h2 style={{ marginBottom: 6 }}>📊 Platform Overview</h2>
-      <p style={{ marginBottom: 28 }}>Full control of Varun&apos;s Online platform</p>
+    <div style={{ padding: '0 4px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ marginBottom: 4, fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>📊 Command Center</h2>
+        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      </div>
 
-      <div className="grid-3" style={{ marginBottom: 32 }}>
+      {/* Stats Grid */}
+      <div className="admin-stats-grid">
         {statCards.map(s => (
           <a key={s.label} href={s.href} style={{ textDecoration: 'none' }}>
-            <div className="stat-card" style={{ cursor: 'pointer' }}>
-              <div className="stat-icon" style={{ background: `${s.color}20`, fontSize: '1.5rem' }}>{s.icon}</div>
-              <div>
-                <div className="stat-value">{s.value}</div>
-                <div className="stat-label">{s.label}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: 2 }}>{s.sub}</div>
-              </div>
+            <div className="admin-stat-card" style={{ background: s.bg }}>
+              <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
+              <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: 2 }}>{s.sub}</div>
             </div>
           </a>
         ))}
       </div>
 
-      <h3 style={{ marginBottom: 16 }}>Recent Orders</h3>
-      <div className="table-container">
-        <table className="data-table">
-          <thead><tr><th>Order #</th><th>Shop</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
-          <tbody>
-            {recentOrders.map((o: Record<string, unknown>) => (
-              <tr key={o.id as string}>
-                <td><a href={`/admin/orders/${o.id}`} style={{ color: 'var(--primary)', fontWeight: 600 }}>{o.order_number as string}</a></td>
-                <td>{(o.shops as { name: string })?.name}</td>
-                <td>₹{o.total_amount as number}</td>
-                <td><span className={`badge ${(o.status as string) === 'delivered' ? 'badge-green' : (o.status as string) === 'cancelled' ? 'badge-red' : 'badge-orange'}`}>{o.status as string}</span></td>
-                <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{new Date(o.created_at as string).toLocaleDateString('en-IN')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Quick Actions */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ marginBottom: 12, fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>⚡ Quick Actions</h3>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+          {stats.pendingShops > 0 && (
+            <a href="/admin/shops?tab=pending" style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>🏪 {stats.pendingShops} Shop Approvals</a>
+          )}
+          {stats.pendingAgents > 0 && (
+            <a href="/admin/agents?tab=pending" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: 'white', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>🛵 {stats.pendingAgents} Agent Approvals</a>
+          )}
+          {stats.pendingWithdrawals > 0 && (
+            <a href="/admin/withdrawals" style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>💸 {stats.pendingWithdrawals} Withdrawals</a>
+          )}
+          {stats.complaints > 0 && (
+            <a href="/admin/complaints" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>🎫 {stats.complaints} Complaints</a>
+          )}
+        </div>
       </div>
+
+      {/* Recent Orders */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>📦 Recent Orders</h3>
+          <a href="/admin/orders" style={{ color: '#f97316', fontSize: '0.8rem', fontWeight: 600 }}>View All →</a>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {recentOrders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, background: '#f8fafc', borderRadius: 12 }}>No recent orders</div>
+          ) : (
+            recentOrders.map((o: Record<string, unknown>) => (
+              <a key={o.id as string} href={`/admin/orders/${o.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0', textDecoration: 'none' }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>{o.order_number as string}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{(o.shops as { name: string })?.name}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800, color: '#f97316', fontSize: '0.95rem' }}>₹{o.total_amount as number}</div>
+                  {getStatusBadge(o.status as string)}
+                </div>
+              </a>
+            ))
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        .admin-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .admin-stat-card { border-radius: 12px; padding: 14px 10px; text-align: center; border: 1px solid; }
+        @media (max-width: 768px) {
+          .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .admin-stat-card { padding: 12px 8px; }
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }

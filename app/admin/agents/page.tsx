@@ -104,81 +104,75 @@ export default function AdminAgents() {
         </div>
       )}
 
-      <div className="flex-between" style={{ marginBottom: 20 }}>
-        <h2>🛵 Delivery Agents</h2>
-        <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>🔄 Refresh</button>
+      <div style={{ padding: '0 4px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🛵 Delivery Agents</h2>
+        <button onClick={load} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>🔄 Refresh</button>
       </div>
 
-      <div className="tabs" style={{ marginBottom: 20, maxWidth: 460 }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
         {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
-          <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+          <button key={t} onClick={() => setTab(t)} style={{ 
+            flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
+            background: tab === t ? '#22c55e' : 'white', borderColor: tab === t ? '#22c55e' : '#e2e8f0',
+            color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+          }}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name &amp; Contact</th>
-              <th>Vehicle</th>
-              <th>License No.</th>
-              <th>Deliveries</th>
-              <th>Wallet</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading agents...</td></tr>
-            )}
-            {!loading && agents.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No {tab === 'all' ? '' : tab} agents found</td></tr>
-            )}
-            {agents.map(agent => (
-              <tr key={agent.id}>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{agent.full_name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No name</span>}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.phone || '—'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{agent.email || '—'}</div>
-                </td>
-                <td>
-                  <div style={{ fontWeight: 500 }}>{agent.vehicle_type || '—'}</div>
-                  {agent.vehicle_number && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{agent.vehicle_number}</div>}
-                </td>
-                <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>{agent.license_number || '—'}</td>
-                <td>{agent.total_deliveries || 0}</td>
-                <td>₹{(agent.wallet_balance || 0).toFixed(0)}</td>
-                <td>
-                  {agent.is_approved
-                    ? <span className="badge badge-green">✓ Active</span>
-                    : agent.rejection_reason
-                      ? <span className="badge badge-red">✕ Rejected</span>
-                      : <span className="badge badge-yellow">⏳ Pending</span>
-                  }
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="btn btn-outline btn-sm" onClick={() => setSelected(agent)}>👁 View</button>
-                    {!agent.is_approved && !agent.rejection_reason && <>
-                      <button className="btn btn-success btn-sm" onClick={() => approve(agent)}>✅ Approve</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => reject(agent)}>❌ Reject</button>
-                    </>}
-                    {agent.rejection_reason && !agent.is_approved && (
-                      <button className="btn btn-success btn-sm" onClick={() => approve(agent)}>✅ Re-Approve</button>
-                    )}
-                    {agent.is_approved && (
-                      <button className="btn btn-danger btn-sm" onClick={() => deactivate(agent)}>🚫 Deactivate</button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Agents List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {loading && <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Loading...</div>}
+        {!loading && agents.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🛵</div>
+            <p style={{ color: '#64748b' }}>No agents found</p>
+          </div>
+        )}
+        {agents.map(agent => (
+          <div key={agent.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+              <div style={{ width: 50, height: 50, borderRadius: 10, background: agent.is_available ? '#dcfce7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                {agent.is_available ? '🟢' : '🔴'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{agent.full_name || 'Unknown'}</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{agent.phone || 'N/A'} • {agent.vehicle_type || 'N/A'}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {agent.is_approved ? (
+                  <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Active</span>
+                ) : agent.rejection_reason ? (
+                  <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Rejected</span>
+                ) : (
+                  <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                🚗 {agent.vehicle_number || 'N/A'} • 📦 {agent.total_deliveries || 0} deliveries • 💰 ₹{(agent.wallet_balance || 0).toFixed(0)}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setSelected(agent)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>View</button>
+                {!agent.is_approved && !agent.rejection_reason && (
+                  <>
+                    <button onClick={() => approve(agent)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>✓</button>
+                    <button onClick={() => reject(agent)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                  </>
+                )}
+                {agent.is_approved && (
+                  <button onClick={() => deactivate(agent)} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>⏸</button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
+                  </div>
 
       {/* Detail Modal */}
       {selected && (

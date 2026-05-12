@@ -28,14 +28,20 @@ export default function AdminShops() {
   const [loading, setLoading] = useState(true)
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [stats, setStats] = useState({ pendingShops: 0 })
 
   async function load() {
     setLoading(true)
+    const [shopsCount, pendingShops] = await Promise.all([
+      supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
+      Promise.resolve(shops)
+    ])
     let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
     if (tab === 'pending') q = q.eq('is_approved', false)
     else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
     const { data } = await q
     setShops(data || [])
+    setStats({ pendingShops: shopsCount.count || 0 })
     setLoading(false)
   }
 
@@ -150,74 +156,73 @@ export default function AdminShops() {
         </div>
       )}
 
-      <h2 style={{ marginBottom: 20 }}>🏪 Shop Management</h2>
-      <div className="tabs" style={{ marginBottom: 20, maxWidth: 400 }}>
-        {(['pending', 'active', 'all'] as const).map(t => <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+      <div style={{ padding: '0 4px' }}>
+      <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops</h2>
+      
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+        {(['pending', 'active', 'all'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ 
+            flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
+            background: tab === t ? '#f97316' : 'white', borderColor: tab === t ? '#f97316' : '#e2e8f0',
+            color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+          }}>
+            {t.charAt(0).toUpperCase() + t.slice(1)} {t === 'pending' && stats.pendingShops > 0 && <span style={{ background: 'white', color: '#f97316', padding: '2px 6px', borderRadius: 10, marginLeft: 4 }}>{stats.pendingShops}</span>}
+          </button>
+        ))}
       </div>
 
-      {loading ? <p>Loading...</p> : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Shop</th>
-                <th>Owner</th>
-                <th>Contact</th>
-                <th>City</th>
-                <th>Orders</th>
-                <th>Rating</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shops.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40 }}>No shops in this category</td></tr>}
-              {shops.map(shop => (
-                <tr key={shop.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {shop.shop_image_url && <img src={shop.shop_image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />}
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{shop.name}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{shop.category}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{shop.full_name || '—'}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{shop.email || '—'}</div>
-                  </td>
-                  <td>{shop.phone || '—'}</td>
-                  <td>{shop.city || '—'}</td>
-                  <td>{shop.total_orders}</td>
-                  <td>{shop.rating > 0 ? `⭐ ${shop.rating}` : '—'}</td>
-                  <td>
-                    {!shop.is_approved ? (
-                      <span className="badge badge-yellow">Pending</span>
-                    ) : shop.is_active ? (
-                      <span className="badge badge-green">Active</span>
-                    ) : (
-                      <span className="badge badge-gray">Inactive</span>
-                    )}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {!shop.is_approved && (
-                        <button className="btn btn-primary btn-sm" onClick={() => setSelectedShop(shop)}>
-                          👁️ View
-                        </button>
-                      )}
-                      {shop.is_approved && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => toggleActive(shop)}>
-                          {shop.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {shops.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏪</div>
+              <p style={{ color: '#64748b' }}>No shops found</p>
+            </div>
+          )}
+          {shops.map(shop => (
+            <div key={shop.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                {shop.shop_image_url ? (
+                  <img src={shop.shop_image_url} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🏪</div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{shop.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{shop.category} • {shop.city || 'N/A'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  {!shop.is_approved ? (
+                    <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
+                  ) : shop.is_active ? (
+                    <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Active</span>
+                  ) : (
+                    <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Inactive</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  👤 {shop.full_name || 'N/A'} • 📱 {shop.phone || 'N/A'}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {!shop.is_approved && (
+                    <button onClick={() => setSelectedShop(shop)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
+                  )}
+                  {shop.is_approved && (
+                    <button onClick={() => toggleActive(shop)} style={{ background: shop.is_active ? '#fef3c7' : '#dcfce7', color: shop.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                      {shop.is_active ? '⏸️ Pause' : '▶️ Activate'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9', fontSize: '0.7rem', color: '#64748b' }}>
+                <span>📦 {shop.total_orders || 0} orders</span>
+                <span>⭐ {shop.rating > 0 ? shop.rating : 'N/A'}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

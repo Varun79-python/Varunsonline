@@ -15,28 +15,35 @@ export default function AdminCustomers() {
   const filtered = search ? customers.filter(c => (c.full_name as string)?.toLowerCase().includes(search.toLowerCase()) || (c.email as string)?.toLowerCase().includes(search.toLowerCase())) : customers
 
   return (
-    <div className="fade-in">
-      <h2 style={{ marginBottom: 20 }}>👥 Customers ({customers.length})</h2>
-      <div className="search-bar" style={{ marginBottom: 20 }}>
-        <span className="search-icon">🔍</span>
-        <input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} />
+    <div style={{ padding: '0 4px' }}>
+      <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>👥 Customers ({customers.length})</h2>
+      
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '1rem' }}>🔍</span>
+        <input placeholder="Search customers..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
       </div>
-      <div className="table-container">
-        <table className="data-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Joined</th></tr></thead>
-          <tbody>
-            {filtered.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30 }}>No customers found</td></tr>}
-            {filtered.map(c => (
-              <tr key={c.id as string}>
-                <td style={{ fontWeight: 600 }}>{c.full_name as string || 'N/A'}</td>
-                <td>{c.email as string}</td>
-                <td>{c.phone as string || '—'}</td>
-                <td><span className={`badge ${(c.is_active as boolean) ? 'badge-green' : 'badge-gray'}`}>{(c.is_active as boolean) ? 'Active' : 'Inactive'}</span></td>
-                <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{new Date(c.created_at as string).toLocaleDateString('en-IN')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filtered.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>No customers found</div>
+        )}
+        {filtered.map(c => (
+          <div key={c.id as string} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{c.full_name as string || 'N/A'}</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.email as string}</div>
+              </div>
+              <span style={{ background: (c.is_active as boolean) ? '#dcfce7' : '#f1f5f9', color: (c.is_active as boolean) ? '#16a34a' : '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>
+                {(c.is_active as boolean) ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: '0.7rem', color: '#94a3b8' }}>
+              <span>📱 {c.phone as string || 'N/A'}</span>
+              <span>📅 Joined {new Date(c.created_at as string).toLocaleDateString('en-IN')}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
