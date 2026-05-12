@@ -12,6 +12,7 @@ const navItems = [
   { href: '/admin/orders', icon: '📦', label: 'Orders' },
   { href: '/admin/plans', icon: '📋', label: 'Plans' },
   { href: '/admin/withdrawals', icon: '💸', label: 'Withdrawals' },
+  { href: '/admin/agent-settlements', icon: '💳', label: 'Settlements' },
   { href: '/admin/coupons', icon: '🏷️', label: 'Coupons' },
   { href: '/admin/settings', icon: '⚙️', label: 'Settings' },
 ]
