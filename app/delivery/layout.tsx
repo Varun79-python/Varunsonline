@@ -77,7 +77,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
         <div className="dl-page-wrap">{children}</div>
       </div>
 
-      {/* Mobile bottom nav */}
+{/* Mobile bottom nav */}
       <nav className="dl-bottom-nav">
         {navItems.map(item => {
           const isActive = pathname === item.href || (item.href !== '/delivery' && pathname.startsWith(item.href))
@@ -102,7 +102,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
           .page-content { padding: 0 !important; }
 
           .dl-page-wrap {
-            padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
           }
 
           .dl-bottom-nav {
@@ -110,27 +110,27 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
             position: fixed;
             bottom: 0; left: 0; right: 0;
             height: calc(60px + env(safe-area-inset-bottom, 0px));
-            background: #0f172a;
-            border-top: 1px solid #1e293b;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-top: 1px solid rgba(255,255,255,0.1);
             z-index: 50;
             padding-bottom: env(safe-area-inset-bottom, 0px);
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
           }
 
           .dl-nav-item {
             flex: 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            gap: 3px; text-decoration: none;
-            color: #475569; position: relative;
+            gap: 2px; text-decoration: none;
+            color: #64748b; position: relative;
             min-height: 60px;
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
-            transition: color 0.12s;
+            transition: all 0.15s;
           }
           .dl-nav-active { color: #22c55e; }
           .dl-nav-pip {
             position: absolute; top: 0;
-            width: 24px; height: 3px;
+            width: 28px; height: 3px;
             background: #22c55e;
             border-radius: 0 0 4px 4px;
           }
@@ -140,7 +140,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
         }
         @media (max-width: 360px) {
           .dl-nav-icon { font-size: 1.15rem; }
-          .dl-nav-label { font-size: 0.57rem; }
+          .dl-nav-label { font-size: 0.55rem; }
         }
       `}</style>
     </div>

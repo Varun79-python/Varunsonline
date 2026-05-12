@@ -281,18 +281,21 @@ export default function DeliveryDashboard() {
 
   return (
     <div className="dl-root">
+      {/* Mobile Header */}
       <div className="dl-mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: '1.3rem' }}>🛵</span>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '1.3rem' }}>🛵</span>
+          </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white', lineHeight: 1.1 }}>Delivery Partner</div>
-            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)' }}>
-              {agent?.is_available ? '🟢 Online' : '🔴 Offline'}
+            <div style={{ fontSize: '0.7rem', color: agent?.is_available ? '#4ade80' : '#f87171' }}>
+              {agent?.is_available ? '● Online' : '○ Offline'}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>₹{agent?.wallet_balance?.toFixed(0) || 0}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)', fontWeight: 700 }}>₹{agent?.wallet_balance?.toFixed(0) || 0}</span>
           <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="dl-logout-btn">Logout</button>
         </div>
       </div>
@@ -300,16 +303,16 @@ export default function DeliveryDashboard() {
         <div className={`dl-toast dl-toast-${toast.ok ? 'ok' : 'err'}`}>{toast.msg}</div>
       )}
 
-      {/* Stats */}
+      {/* Stats Row */}
       <div className="dl-stats-row">
         {[
-          { icon: '💰', label: 'Today', value: `₹${agent?.today_earnings?.toFixed(0) || 0}`, color: '#22c55e' },
-          { icon: '🏦', label: 'Wallet', value: `₹${agent?.wallet_balance?.toFixed(0) || 0}`, color: '#f97316' },
-          { icon: '📦', label: 'Deliveries', value: agent?.total_deliveries || 0, color: '#0ea5e9' },
+          { icon: '💰', label: 'Today Earnings', value: `₹${agent?.today_earnings?.toFixed(0) || 0}`, color: '#22c55e', bg: '#f0fdf4' },
+          { icon: '🏦', label: 'Wallet', value: `₹${agent?.wallet_balance?.toFixed(0) || 0}`, color: '#f97316', bg: '#fff7ed' },
+          { icon: '📦', label: 'Deliveries', value: agent?.total_deliveries || 0, color: '#0ea5e9', bg: '#f0f9ff' },
         ].map(s => (
-          <div key={s.label} className="dl-stat-card">
-            <div className="dl-stat-icon" style={{ background: `${s.color}22`, color: s.color }}>{s.icon}</div>
-            <div className="dl-stat-value">{s.value}</div>
+          <div key={s.label} className="dl-stat-card" style={{ background: s.bg }}>
+            <div style={{ fontSize: '1.2rem', marginBottom: 4 }}>{s.icon}</div>
+            <div className="dl-stat-value" style={{ color: s.color }}>{s.value}</div>
             <div className="dl-stat-label">{s.label}</div>
           </div>
         ))}
@@ -378,87 +381,82 @@ export default function DeliveryDashboard() {
       {/* ── Active Order ── */}
       {activeOrder && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
-
-          {/* Header */}
-          <div className={`card${alertedOrderIdRef.current === activeOrder.id ? ' dl-avail-new' : ''}`} style={{ borderLeft: '4px solid var(--primary)', padding: 0, overflow: 'hidden' }}>
-            {alertedOrderIdRef.current === activeOrder.id && (
-              <div style={{ background: 'linear-gradient(90deg,#22c55e,#16a34a)', color: 'white', fontSize: '0.72rem', fontWeight: 800, padding: '5px 14px', letterSpacing: '0.3px' }}>
-                🔔 New Assignment — Accept or Reject below
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px' }}>
+          {/* Order Header Card */}
+          <div className="dl-active-header">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>🔥 {activeOrder.order_number}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>Active Delivery</div>
+                <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>#{activeOrder.order_number}</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                  {activeOrder.status === 'agent_assigned' ? '📦 Ready for Pickup' : 
+                   activeOrder.status === 'picked_up' ? '🚴 Picked Up' : 
+                   activeOrder.status === 'out_for_delivery' ? '🏠 Out for Delivery' : 'Active Delivery'}
+                </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 800, color: 'var(--success)', fontSize: '1rem' }}>₹{activeOrder.agent_earning} earn</div>
-                {activeOrder.distanceKm !== null && (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, marginTop: 2 }}>📍 {activeOrder.distanceKm} km trip</div>
-                )}
+                <div style={{ fontWeight: 800, color: '#4ade80', fontSize: '1.1rem' }}>₹{activeOrder.agent_earning}</div>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>Your Earnings</div>
               </div>
             </div>
           </div>
 
           {/* Shop → Customer */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="card" style={{ padding: 14, borderTop: '3px solid #f97316' }}>
-              <div style={{ fontWeight: 700, marginBottom: 8, color: '#f97316', fontSize: '0.82rem', textTransform: 'uppercase' }}>🏪 Pick Up</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{activeOrder.shop?.name || '—'}</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="dl-location-card" style={{ borderTop: '3px solid #f97316' }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: '#f97316', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 4 }}>🏪 PICKUP</div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 4 }}>{activeOrder.shop?.name || '—'}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
                 {activeOrder.shop?.address_line1 ? `${activeOrder.shop.address_line1}, ` : ''}{activeOrder.shop?.city || ''}
               </div>
               {distToShop !== null && (
                 <div style={{
                   marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontWeight: 800, fontSize: '0.82rem', padding: '3px 10px', borderRadius: 99,
+                  fontWeight: 700, fontSize: '0.7rem', padding: '3px 8px', borderRadius: 99,
                   background: distToShop < 0.5 ? '#f0fdf4' : distToShop < 2 ? '#fef3c7' : '#fef2f2',
                   color: distToShop < 0.5 ? '#16a34a' : distToShop < 2 ? '#d97706' : '#dc2626',
                 }}>
-                  📍 {distToShop < 1 ? `${Math.round(distToShop * 1000)}m to shop` : `${distToShop.toFixed(2)} km to shop`}
+                  📍 {distToShop < 1 ? `${Math.round(distToShop * 1000)}m` : `${distToShop.toFixed(1)}km`}
                 </div>
               )}
               {(activeOrder.shop?.latitude > 0) && (
                 <a href={`https://maps.google.com/?q=${activeOrder.shop.latitude},${activeOrder.shop.longitude}`} target="_blank" rel="noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, fontSize: '0.78rem', color: '#f97316', fontWeight: 700, background: '#fff7ed', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
-                  🗺️ Open Maps
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: '0.72rem', color: '#f97316', fontWeight: 700, background: '#fff7ed', padding: '4px 8px', borderRadius: 6, textDecoration: 'none' }}>
+                  🗺️ Navigate
                 </a>
               )}
             </div>
 
-
-            <div className="card" style={{ padding: 14, borderTop: '3px solid #22c55e' }}>
-              <div style={{ fontWeight: 700, marginBottom: 8, color: '#16a34a', fontSize: '0.82rem', textTransform: 'uppercase' }}>🏠 Deliver To</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{activeOrder.address?.house_name || '—'}</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                {activeOrder.address?.street_name || ''}{activeOrder.address?.landmark ? `, near ${activeOrder.address.landmark}` : ''}{activeOrder.address?.city ? `, ${activeOrder.address.city}` : ''}
+            <div className="dl-location-card" style={{ borderTop: '3px solid #22c55e' }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: '#16a34a', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 4 }}>🏠 DELIVER</div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 4 }}>{activeOrder.address?.house_name || '—'}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                {activeOrder.address?.street_name || ''}{activeOrder.address?.landmark ? `, ${activeOrder.address.landmark}` : ''}
               </div>
               {distToCustomer !== null && (
                 <div style={{
                   marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontWeight: 800, fontSize: '0.82rem', padding: '3px 10px', borderRadius: 99,
+                  fontWeight: 700, fontSize: '0.7rem', padding: '3px 8px', borderRadius: 99,
                   background: distToCustomer < 0.1 ? '#f0fdf4' : distToCustomer < 0.5 ? '#fef3c7' : '#fef2f2',
                   color: distToCustomer < 0.1 ? '#16a34a' : distToCustomer < 0.5 ? '#d97706' : '#dc2626',
                 }}>
-                  📍 {distToCustomer < 1 ? `${Math.round(distToCustomer * 1000)}m to customer` : `${distToCustomer.toFixed(2)} km to customer`}
+                  📍 {distToCustomer < 1 ? `${Math.round(distToCustomer * 1000)}m` : `${distToCustomer.toFixed(1)}km`}
                 </div>
               )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
                 {(activeOrder.address?.latitude > 0) ? (
                   <a href={`https://maps.google.com/?q=${activeOrder.address.latitude},${activeOrder.address.longitude}`} target="_blank" rel="noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
-                    🗺️ Open Maps
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '4px 8px', borderRadius: 6, textDecoration: 'none' }}>
+                    🗺️
                   </a>
                 ) : (
                   <a href={`https://maps.google.com/search?q=${encodeURIComponent(`${activeOrder.address?.house_name || ''} ${activeOrder.address?.street_name || ''} ${activeOrder.address?.city || ''}`)}`} target="_blank" rel="noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
-                    🔍 Search Maps
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#16a34a', fontWeight: 700, background: '#f0fdf4', padding: '4px 8px', borderRadius: 6, textDecoration: 'none' }}>
+                    🔍
                   </a>
                 )}
                 {activeOrder.address?.phone && (
                   <a href={`tel:${activeOrder.address.phone}`}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '5px 10px', borderRadius: 6, textDecoration: 'none' }}>
-                    📞 {activeOrder.address.phone}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '4px 8px', borderRadius: 6, textDecoration: 'none' }}>
+                    📞
                   </a>
                 )}
               </div>
@@ -492,67 +490,41 @@ export default function DeliveryDashboard() {
             )}
           </div>
 
-          {/* Proximity check + Action */}
-          <div className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ background: '#fff7ed', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: '0.85rem' }}>
-              <strong>Verify Order ID on Package:</strong>{' '}
-              <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '1rem' }}>{activeOrder.order_number}</span>
+          {/* Action Buttons Section */}
+          <div className="dl-action-section">
+            {/* Order Verification */}
+            <div style={{ background: '#fff7ed', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '0.85rem' }}>
+              <strong>Verify Order ID:</strong>{' '}
+              <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '1rem', fontWeight: 700 }}>{activeOrder.order_number}</span>
             </div>
 
-            {/* Proximity indicator — only show for Mark Delivered step */}
-            {activeOrder.status === 'out_for_delivery' && activeOrder.address?.latitude > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  padding: '10px 14px', borderRadius: 8, fontSize: '0.83rem', fontWeight: 600,
-                  background: withinRange ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
-                  border: `1px solid ${withinRange ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
-                  color: withinRange ? '#16a34a' : '#dc2626',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <span>
-                    {distToCustomer !== null
-                      ? `📍 ${(distToCustomer * 1000).toFixed(0)}m from customer ${withinRange ? '✅ In range' : '— move closer!'}`
-                      : '📡 Checking your location...'}
-                  </span>
-                  <button onClick={() => refreshGPS(activeOrder)} disabled={gpsChecking}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>
-                    {gpsChecking ? '⏳' : '🔄'}
-                  </button>
-                </div>
-                {!withinRange && distToCustomer !== null && (
-                  <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-                    You must be within <strong>100m</strong> of the delivery address to mark as Delivered.
-                  </p>
-                )}
-              </div>
-            )}
-
+            {/* Status Buttons */}
             {activeOrder.status === 'agent_assigned' && (
-              <button className="btn btn-primary btn-full" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'picked_up')}>
-                {updatingStatus ? '⏳ Updating...' : '✅ Picked Up from Shop'}
+              <button className="dl-primary-btn" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'picked_up')}>
+                {updatingStatus ? '⏳ Processing...' : '📦 Mark as Picked Up'}
               </button>
             )}
             {activeOrder.status === 'picked_up' && (
-              <button className="btn btn-primary btn-full" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'out_for_delivery')}>
-                {updatingStatus ? '⏳ Updating...' : '🚴 Out for Delivery'}
+              <button className="dl-primary-btn" disabled={updatingStatus} onClick={() => updateStatus(activeOrder.id, 'out_for_delivery')}>
+                {updatingStatus ? '⏳ Processing...' : '🚴 Start Delivery'}
               </button>
             )}
             {activeOrder.status === 'out_for_delivery' && (
               <div>
                 {/* Proximity indicator */}
                 {activeOrder.address?.latitude > 0 && (
-                  <div style={{ marginBottom: 14 }}>
+                  <div style={{ marginBottom: 12 }}>
                     <div style={{
-                      padding: '10px 14px', borderRadius: 8, fontSize: '0.83rem', fontWeight: 600,
-                      background: withinRange ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
-                      border: `1px solid ${withinRange ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                      padding: '10px 14px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600,
+                      background: withinRange ? '#f0fdf4' : '#fef2f2',
+                      border: `1px solid ${withinRange ? '#86efac' : '#fca5a5'}`,
                       color: withinRange ? '#16a34a' : '#dc2626',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                     }}>
                       <span>
                         {distToCustomer !== null
-                          ? `📍 ${(distToCustomer * 1000).toFixed(0)}m from customer ${withinRange ? '✅ In range' : '— move closer!'}`
-                          : '📡 Checking your location...'}
+                          ? `📍 ${(distToCustomer * 1000).toFixed(0)}m away ${withinRange ? '✅ Ready' : '— Get closer'}`
+                          : '📡 Getting location...'}
                       </span>
                       <button onClick={() => refreshGPS(activeOrder)} disabled={gpsChecking}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>
@@ -741,34 +713,36 @@ export default function DeliveryDashboard() {
       {!activeOrder && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>📦 Available Orders ({availOrders.length})</h3>
-            <button onClick={fetchAvailable} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.82rem' }}>🔄 Refresh</button>
+            <h3 style={{ fontSize: '1.1rem' }}>📦 Available Orders ({availOrders.length})</h3>
+            <button onClick={fetchAvailable} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem', padding: '6px 12px', borderRadius: 8, background: 'rgba(249,115,22,0.1)' }}>🔄 Refresh</button>
           </div>
-          {/* Offline warning — agent must go online to see orders */}
+          {/* Offline warning */}
           {!agent?.is_available ? (
-            <div className="card" style={{ textAlign: 'center', padding: 40, borderTop: '4px solid #f97316' }}>
+            <div className="dl-offline-card">
               <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔴</div>
               <h4 style={{ marginBottom: 8, color: '#f97316' }}>You are Offline</h4>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Go to <strong>Profile</strong> and toggle your Availability Status to <strong>Online</strong> to start receiving orders.</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Go to <strong>Profile</strong> and toggle Availability to <strong>Online</strong> to receive orders.</p>
             </div>
           ) : availOrders.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
-              <p>No orders available right now. Check back soon!</p>
+            <div className="dl-empty-card">
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
+              <p>No orders available. Check back soon!</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {availOrders.map((order: AvailOrder) => (
                 <div key={order.id} className="dl-avail-card">
                   <div className="dl-avail-top">
-                    <div>
-                      <div className="dl-avail-num">{order.order_number}</div>
-                      <div className="dl-avail-route">🏪 {order.shops?.name} → 🏠 {order.addresses?.city}</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="dl-avail-num">#{order.order_number}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
+                        <span style={{ color: '#f97316' }}>🏪</span> {order.shops?.name} → <span style={{ color: '#16a34a' }}>🏠</span> {order.addresses?.city}
+                      </div>
                       {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer != null && (
-                        <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: 3 }}>
-                          🗺️ Trip: {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
+                          🗺️ {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
                             ? `${Math.round((order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! * 1000)}m`
-                            : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`}
+                            : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`} trip
                         </div>
                       )}
                     </div>
@@ -776,7 +750,7 @@ export default function DeliveryDashboard() {
                   </div>
                   <div className="dl-avail-actions">
                     <button className="dl-accept-btn" disabled={accepting === order.id || !!rejecting} onClick={() => acceptOrder(order)}>
-                      {accepting === order.id ? '⏳ Accepting...' : '✅ Accept'}
+                      {accepting === order.id ? '⏳ Accepting...' : '✓ Accept'}
                     </button>
                     <button className="dl-reject-btn" disabled={rejecting === order.id || !!accepting} onClick={() => rejectOrder(order)}>✕ Skip</button>
                   </div>
@@ -790,40 +764,39 @@ export default function DeliveryDashboard() {
       <style>{`
         .dl-root { min-height: 100%; }
         .dl-mobile-header { display: none; }
-        .dl-stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; padding: 16px 16px 0; margin-bottom: 20px; }
-        .dl-stat-card { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-        .dl-stat-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-        .dl-stat-value { font-size: 1.2rem; font-weight: 800; color: #0f172a; line-height: 1; }
-        .dl-stat-label { font-size: 0.72rem; color: #64748b; font-weight: 600; }
+        .dl-stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; padding: 16px 16px 0; margin-bottom: 16px; }
+        .dl-stat-card { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .dl-stat-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+        .dl-stat-value { font-size: 1.1rem; font-weight: 800; color: #0f172a; line-height: 1.2; margin-top: 4px; }
+        .dl-stat-label { font-size: 0.65rem; color: #64748b; font-weight: 600; }
         .dl-toast { position: fixed; z-index: 9999; top: calc(16px + env(safe-area-inset-top,0px)); left: 12px; right: 12px; border-radius: 10px; padding: 12px 18px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); font-weight: 600; font-size: 0.9rem; text-align: center; animation: fadeIn 0.2s ease; }
         .dl-toast-ok  { background: #f0fdf4; border: 1.5px solid #22c55e; color: #15803d; }
         .dl-toast-err { background: #fef2f2; border: 1.5px solid #ef4444; color: #dc2626; }
-        .dl-avail-card { background: white; border: 1.5px solid #e2e8f0; border-left: 4px solid #22c55e; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        /* New assignment pulse */
-        @keyframes dl-pulse-glow {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
-          50%       { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
-        }
-        .dl-avail-new { animation: dl-pulse-glow 1.2s ease infinite; }
-        .dl-avail-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px 10px; gap: 10px; }
-        .dl-avail-num { font-weight: 800; font-size: 0.95rem; color: #0f172a; margin-bottom: 3px; }
-        .dl-avail-route { font-size: 0.78rem; color: #64748b; }
-        .dl-avail-earn { font-weight: 800; color: #16a34a; font-size: 1.1rem; flex-shrink: 0; }
+        .dl-active-header { background: linear-gradient(135deg, #0f172a, #1e293b); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+        .dl-location-card { background: white; border-radius: 12px; padding: 12px; }
+        .dl-action-section { background: white; border-radius: 12px; padding: 14px; }
+        .dl-primary-btn { width: 100%; padding: 16px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; }
+        .dl-primary-btn:disabled { opacity: 0.6; }
+        .dl-avail-card { background: white; border: 1.5px solid #e2e8f0; border-left: 4px solid #22c55e; border-radius: 12px; overflow: hidden; }
+        .dl-offline-card { background: #fef2f2; border: 2px solid #fca5a5; border-radius: 14px; padding: 30px; text-align: center; }
+        .dl-empty-card { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 30px; text-align: center; }
+        .dl-avail-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 14px 8px; gap: 10px; }
+        .dl-avail-num { font-weight: 800; fontSize: 0.95rem; color: #0f172a; }
+        .dl-avail-earn { font-weight: 800; color: #16a34a; font-size: 1.2rem; flex-shrink: 0; }
         .dl-avail-actions { display: flex; border-top: 1px solid #f1f5f9; }
-        .dl-accept-btn { flex: 1; min-height: 52px; background: #16a34a; color: white; border: none; font-weight: 700; font-size: 0.92rem; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .dl-accept-btn { flex: 1; min-height: 50px; background: #16a34a; color: white; border: none; font-weight: 700; font-size: 0.95rem; cursor: pointer; }
         .dl-accept-btn:active { background: #15803d; }
-        .dl-accept-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .dl-reject-btn { width: 80px; min-height: 52px; background: #fef2f2; color: #dc2626; border: none; border-left: 1px solid #fecaca; font-weight: 700; font-size: 0.88rem; cursor: pointer; touch-action: manipulation; flex-shrink: 0; }
+        .dl-accept-btn:disabled { opacity: 0.6; }
+        .dl-reject-btn { width: 70px; min-height: 50px; background: #fef2f2; color: #dc2626; border: none; border-left: 1px solid #fecaca; font-weight: 600; font-size: 0.85rem; cursor: pointer; flex-shrink: 0; }
         .dl-reject-btn:active { background: #fee2e2; }
         .dl-reject-btn:disabled { opacity: 0.5; }
         @media (max-width: 768px) {
           .dl-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: #0f172a; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; }
-          .dl-logout-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: white; border-radius: 99px; padding: 6px 14px; font-size: 0.72rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
-          .dl-stats-row { padding: 12px 12px 0; gap: 8px; margin-bottom: 12px; }
-          .dl-stat-card { padding: 12px 10px; border-radius: 12px; }
-          .dl-stat-value { font-size: 1.05rem; }
-          .dl-stat-label { font-size: 0.65rem; }
-          .dl-stat-icon  { width: 32px; height: 32px; font-size: 0.95rem; border-radius: 8px; }
+          .dl-logout-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: white; border-radius: 8px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+          .dl-stats-row { padding: 12px 12px 0; gap: 8px; margin-bottom: 10px; }
+          .dl-stat-card { padding: 10px 8px; border-radius: 10px; }
+          .dl-stat-value { font-size: 1rem; }
+          .dl-stat-label { font-size: 0.6rem; }
         }
       `}</style>
     </div>

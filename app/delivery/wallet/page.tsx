@@ -179,75 +179,53 @@ export default function DeliveryWallet() {
   }
 
   return (
-    <div className="fade-in" style={{ maxWidth: 560, margin: '0 auto' }}>
+    <div className="fade-in" style={{ maxWidth: 560, margin: '0 auto', padding: '0 12px' }}>
 
       {/* ── Pending COD Balance Alert ── */}
       {pendingBalance > 0 && (
-        <div style={{
-          background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 14,
-          padding: '18px 20px', marginBottom: 20
-        }}>
-          <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '1rem', marginBottom: 6 }}>
-            ⚠️ COD Cash Owed to Platform
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#dc2626', marginBottom: 8 }}>
-            ₹{pendingBalance.toFixed(2)}
-          </div>
-          <div style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>
-            You collected this cash on delivery and need to remit it to the platform.
-            Pay now via Razorpay to clear your balance.
+        <div className="dl-cod-alert">
+          <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '0.95rem', marginBottom: 4 }}>⚠️ COD Amount Owed</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#dc2626', marginBottom: 8 }}>₹{pendingBalance.toFixed(2)}</div>
+          <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 12 }}>
+            Collect cash from customers and remit to platform
           </div>
           {settleError && (
-            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: '0.83rem', color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>
+            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>
               ❌ {settleError}
             </div>
           )}
-          <button
-            onClick={payCodSettlement}
-            disabled={settling}
-            style={{
-              background: settling ? '#94a3b8' : '#dc2626', color: 'white',
-              border: 'none', borderRadius: 10, padding: '12px 24px',
-              fontWeight: 800, fontSize: '0.95rem', cursor: settling ? 'not-allowed' : 'pointer',
-              width: '100%'
-            }}
-          >
-            {settling ? '⏳ Opening Payment...' : `💳 Pay ₹${pendingBalance.toFixed(2)} via Razorpay`}
+          <button onClick={payCodSettlement} disabled={settling} className="dl-settle-btn">
+            {settling ? '⏳ Opening...' : `💳 Pay ₹${pendingBalance.toFixed(2)}`}
           </button>
         </div>
       )}
 
-      {/* ── Available Balance Card ── */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(34,197,94,0.1))',
-        border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-        padding: 28, textAlign: 'center', marginBottom: 24
-      }}>
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: 8 }}>Available Balance</div>
-        <div style={{ fontSize: '2.8rem', fontWeight: 900, color: 'var(--primary)', marginBottom: 16 }}>
-          ₹{availableBalance.toFixed(2)}
-        </div>
+      {/* ── Wallet Summary Card ── */}
+      <div className="dl-wallet-card">
+        <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>Available Balance</div>
+        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', marginBottom: 16 }}>₹{availableBalance.toFixed(2)}</div>
+        
         {pendingBalance > 0 ? (
-          <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 16px', fontSize: '0.83rem', color: '#92400e', fontWeight: 600 }}>
-            ⚠️ Clear your pending COD balance of ₹{pendingBalance.toFixed(2)} before withdrawing
+          <div style={{ background: 'rgba(252,165,165,0.2)', border: '1px solid rgba(252,165,165,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: '0.78rem', color: '#fca5a5', fontWeight: 600 }}>
+            ⚠️ Clear COD debt to withdraw
           </div>
         ) : hasPending ? (
-          <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 16px', fontSize: '0.83rem', color: '#92400e', fontWeight: 600 }}>
-            ⏳ Withdrawal request pending — admin will process shortly
+          <div style={{ background: 'rgba(251,191,36,0.2)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: '0.78rem', color: '#fbbf24', fontWeight: 600 }}>
+            ⏳ Withdrawal pending...
           </div>
         ) : availableBalance > 0 ? (
-          <button className="btn btn-primary" onClick={() => { setFormError(''); setShowWithdraw(true) }}>
-            Withdraw →
+          <button className="dl-withdraw-btn" onClick={() => { setFormError(''); setShowWithdraw(true) }}>
+            💰 Withdraw
           </button>
         ) : (
-          <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>
-            Complete deliveries to earn money
+          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            Complete deliveries to earn
           </div>
         )}
       </div>
 
       {successMsg && (
-        <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: '0.88rem', color: 'var(--success)', fontWeight: 600 }}>
+        <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: '0.85rem', color: '#16a34a', fontWeight: 600 }}>
           {successMsg}
         </div>
       )}
@@ -261,24 +239,20 @@ export default function DeliveryWallet() {
               <button className="modal-close" onClick={() => { setShowWithdraw(false); setFormError('') }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
               {formError && (
                 <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>
                   ⚠️ {formError}
                 </div>
               )}
-
               <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 14px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                Available Balance: <strong style={{ color: 'var(--primary)' }}>₹{availableBalance.toFixed(2)}</strong>
+                Available: <strong style={{ color: '#f97316' }}>₹{availableBalance.toFixed(2)}</strong>
               </div>
-
               <div className="input-group">
                 <label className="input-label">Amount (₹)</label>
                 <input className="input" type="number" min={1} max={availableBalance} value={form.amount}
                   onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setFormError('') }}
-                  placeholder={`Enter amount (max ₹${availableBalance.toFixed(0)})`} />
+                  placeholder={`Max ₹${availableBalance.toFixed(0)}`} />
               </div>
-
               <div className="input-group">
                 <label className="input-label">Payment Method</label>
                 <select className="input" value={form.payment_method}
@@ -287,7 +261,6 @@ export default function DeliveryWallet() {
                   <option value="bank_transfer">Bank Transfer</option>
                 </select>
               </div>
-
               {form.payment_method === 'upi' ? (
                 <div className="input-group">
                   <label className="input-label">UPI ID</label>
@@ -309,7 +282,6 @@ export default function DeliveryWallet() {
                   </div>
                 </>
               )}
-
               <button className="btn btn-primary" onClick={requestWithdraw} disabled={submitting} style={{ marginTop: 4 }}>
                 {submitting ? '⏳ Submitting...' : '✅ Request Withdrawal'}
               </button>
@@ -319,16 +291,16 @@ export default function DeliveryWallet() {
       )}
 
       {/* ── Transaction History ── */}
-      <h3 style={{ marginBottom: 14 }}>Transaction History</h3>
+      <h3 style={{ marginBottom: 12, fontSize: '1.1rem' }}>📊 Transactions</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {txns.length === 0 && (
-          <div className="card" style={{ textAlign: 'center', padding: 30 }}>No transactions yet</div>
+          <div className="card" style={{ textAlign: 'center', padding: 24 }}>No transactions yet</div>
         )}
         {txns.map(t => (
-          <div key={t.id} className="card-flat flex-between">
+          <div key={t.id} className="dl-txn-card">
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{t.description}</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: 2 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: 2 }}>
                 {new Date(t.created_at).toLocaleDateString('en-IN')}
                 {t.razorpay_payment_id && (
                   <span style={{ marginLeft: 8, color: '#16a34a', fontWeight: 600 }}>✓ Verified</span>
@@ -337,13 +309,22 @@ export default function DeliveryWallet() {
             </div>
             <span style={{
               fontWeight: 800,
-              color: t.type === 'credit' || t.type === 'settlement' ? 'var(--success)' : 'var(--danger)'
+              fontSize: '0.95rem',
+              color: t.type === 'credit' || t.type === 'settlement' ? '#16a34a' : '#dc2626'
             }}>
               {t.type === 'credit' || t.type === 'settlement' ? '+' : '−'}₹{Math.abs(t.amount)}
             </span>
           </div>
         ))}
       </div>
+
+      <style>{`
+        .dl-cod-alert { background: #fef2f2; border: 2px solid #fca5a5; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+        .dl-settle-btn { width: 100%; padding: 12px; background: #dc2626; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; }
+        .dl-wallet-card { background: linear-gradient(135deg, #0f172a, #1e293b); border-radius: 16px; padding: 20px; margin-bottom: 16px; text-align: center; }
+        .dl-withdraw-btn { background: #22c55e; color: white; border: none; border-radius: 10px; padding: 10px 24px; font-weight: 700; cursor: pointer; }
+        .dl-txn-card { background: white; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+      `}</style>
     </div>
   )
 }

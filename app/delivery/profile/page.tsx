@@ -68,32 +68,28 @@ export default function DeliveryProfilePage() {
   )
 
   return (
-    <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ marginBottom: 20 }}>👤 My Profile</h2>
+    <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto', padding: '0 12px' }}>
+      <h2 style={{ marginBottom: 16 }}>👤 My Profile</h2>
 
-      {/* Status Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 24 }}>
-        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-          <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>✅</div>
-          <div style={{ fontWeight: 700, color: agent.is_approved ? 'var(--success)' : 'var(--warning)' }}>
-            {agent.is_approved ? 'Approved' : 'Pending Approval'}
+      {/* Status Cards - Compact Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+        <div className="dl-profile-stat">
+          <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>✅</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: agent.is_approved ? '#16a34a' : '#d97706' }}>
+            {agent.is_approved ? 'Approved' : 'Pending'}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Account Status</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-          <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>💰</div>
-          <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '1.2rem' }}>₹{agent.wallet_balance || 0}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Wallet Balance</div>
+        <div className="dl-profile-stat">
+          <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>💰</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f97316' }}>₹{agent.wallet_balance || 0}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-          <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>📦</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{agent.total_deliveries || 0}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Deliveries</div>
+        <div className="dl-profile-stat">
+          <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>📦</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{agent.total_deliveries || 0}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-          <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>📅</div>
-          <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: '1.2rem' }}>₹{agent.today_earnings || 0}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Today&apos;s Earnings</div>
+        <div className="dl-profile-stat">
+          <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>💵</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#16a34a' }}>₹{agent.today_earnings || 0}</div>
         </div>
       </div>
 
@@ -176,9 +172,13 @@ export default function DeliveryProfilePage() {
         </div>
       </div>
 
-      <p style={{ textAlign: 'center', marginTop: 16, fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+      <p style={{ textAlign: 'center', marginTop: 12, fontSize: '0.75rem', color: 'var(--text-dim)' }}>
         Member since {new Date(agent.created_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
       </p>
+
+      <style>{`
+        .dl-profile-stat { background: white; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
+      `}</style>
     </div>
   )
 }
