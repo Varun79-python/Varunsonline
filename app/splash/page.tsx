@@ -20,7 +20,7 @@ export default function SplashPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+      background: 'white',
       opacity: fadeOut ? 0 : 1,
       transition: 'opacity 0.5s ease',
     }}>
@@ -29,10 +29,9 @@ export default function SplashPage() {
         animation: 'pulse 2s ease-in-out infinite',
       }}>
         <img src="/logo.png" alt="VarunsOnline" style={{
-          width: 140,
-          height: 140,
+          width: 220,
+          height: 220,
           objectFit: 'contain',
-          filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.2))',
         }} />
         <style>{`@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }`}</style>
       </div>

@@ -56,11 +56,11 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#f8fafc',
+      background: 'white',
       padding: '20px 16px 40px',
     }}>
       <div style={{ textAlign: 'center', marginBottom: 32, paddingTop: 20 }}>
-        <img src="/logo.png" alt="VarunsOnline" style={{ width: 100, height: 100, objectFit: 'contain', marginBottom: 16 }} />
+        <img src="/logo.png" alt="VarunsOnline" style={{ width: 160, height: 160, objectFit: 'contain', marginBottom: 16 }} />
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Welcome Back</h1>
         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Select your role to continue</p>
       </div>
