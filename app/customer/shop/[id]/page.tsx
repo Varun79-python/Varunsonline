@@ -14,6 +14,9 @@ interface Shop {
   distance?: number | null
   latitude?: number | null
   longitude?: number | null
+  shop_rating?: number | null
+  delivery_rating?: number | null
+  total_ratings?: number | null
 }
 interface CartItem { product_id: string; name: string; price: number; quantity: number; shop_id: string; shop_name: string; image_url: string }
 
@@ -197,11 +200,14 @@ export default function ShopPage() {
             <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 800, marginBottom: 8 }}>{shop.name}</h1>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              {/* Rating */}
-              {shop.rating > 0 && (
+              {/* Shop Rating (Average from all customers) */}
+              {(shop.shop_rating || 0) > 0 && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 20, backdropFilter: 'blur(10px)' }}>
                   <StarIcon />
-                  <span style={{ color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>{shop.rating}</span>
+                  <span style={{ color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>{shop.shop_rating}</span>
+                  {shop.total_ratings && shop.total_ratings > 0 && (
+                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>({shop.total_ratings})</span>
+                  )}
                 </span>
               )}
               

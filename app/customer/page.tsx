@@ -8,6 +8,9 @@ interface Shop {
   shop_image_url: string; rating: number; total_orders: number
   address_line1: string; city: string; latitude: number; longitude: number
   distance?: number | null
+  shop_rating?: number | null
+  delivery_rating?: number | null
+  total_ratings?: number | null
 }
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -249,7 +252,14 @@ export default function CustomerHome() {
                 <div className="ch-card-body">
                   <div className="ch-card-name">{shop.name}</div>
                   <div className="ch-card-meta">
-                    {shop.rating > 0 && <span className="ch-card-rating">⭐ {shop.rating}</span>}
+                    {(shop.shop_rating || shop.rating || 0) > 0 && (
+                      <span className="ch-card-rating" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        ⭐ <span style={{ fontWeight: 700 }}>{(shop.shop_rating || shop.rating)}</span>
+                        {shop.total_ratings && shop.total_ratings > 0 && (
+                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({shop.total_ratings})</span>
+                        )}
+                      </span>
+                    )}
                     {shop.distance != null && (
                       <span className="ch-card-dist" style={{
                         color: (shop.distance as number) < 2 ? '#16a34a'
