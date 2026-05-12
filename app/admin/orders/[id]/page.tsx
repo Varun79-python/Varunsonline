@@ -47,7 +47,7 @@ export default function AdminOrderDetail() {
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
-      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      const authHeader: HeadersInit = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
       fetch(`/api/admin/order-detail/${id}`, { headers: { ...authHeader } })
         .then(r => r.json())
         .then(d => { if (d.error) setError(d.error); else setData(d) })

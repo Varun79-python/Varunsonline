@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status: 'delivered',
-      changed_by: agentId
+      changed_by: auth.agentId
     })
 
     // 2. Credit shop + agent earnings (processEarnings handles wallet credits)
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const { data: agent } = await supabase
       .from('delivery_agents')
       .select('wallet_balance')
-      .eq('id', agentId)
+      .eq('id', auth.agentId)
       .single()
 
     const balanceAfterEarnings = agent?.wallet_balance || 0
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       settlementNote = `QR/UPI payment collected for order ${order.order_number}`
 
       await supabase.from('wallet_transactions').insert({
-        user_id: agentId,
+        user_id: auth.agentId,
         user_type: 'delivery_agent',
         type: 'info',
         amount: collectedAmount,
@@ -87,10 +87,10 @@ export async function POST(req: NextRequest) {
 
       await supabase.from('delivery_agents')
         .update({ wallet_balance: newBalance })
-        .eq('id', agentId)
+        .eq('id', auth.agentId)
 
       await supabase.from('wallet_transactions').insert({
-        user_id: agentId,
+        user_id: auth.agentId,
         user_type: 'delivery_agent',
         type: 'debit',
         amount: collectedAmount,

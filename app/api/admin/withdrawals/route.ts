@@ -38,8 +38,6 @@ export async function POST(req: NextRequest) {
     if (!id || !action) return NextResponse.json({ error: 'Missing id or action' }, { status: 400 })
     if (!['paid', 'rejected'].includes(action)) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-    const supabase = admin()
-
     // Fetch the withdrawal request
     const { data: wr, error: fetchErr } = await supabase
       .from('withdraw_requests')
