@@ -124,7 +124,7 @@ export default function ShopPage() {
 
   // Section products
   const bestSellers = products.slice(0, 6)
-  const recommended = products.filter(p => p.rating > 0).slice(0, 6)
+  const recommended = products.filter(p => (p.rating || 0) > 0).slice(0, 6)
   const popular = products.sort((a, b) => (b.stock_quantity || 0) - (a.stock_quantity || 0)).slice(0, 6)
 
   if (loading) return (
@@ -438,7 +438,7 @@ export default function ShopPage() {
                   )}
 
                   {/* Out of Stock Overlay */}
-                  {p.stock_quantity === 0 && (
+                  {(p.stock_quantity || 0) === 0 && (
                     <div style={{
                       position: 'absolute', inset: 0,
                       background: 'rgba(0,0,0,0.5)',
@@ -483,7 +483,7 @@ export default function ShopPage() {
                   </div>
 
                   {/* Add to Cart / Quantity Controls */}
-                  {p.stock_quantity === 0 ? (
+                  {(p.stock_quantity || 0) === 0 ? (
                     <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: '#f1f5f9', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>
                       Unavailable
                     </div>
