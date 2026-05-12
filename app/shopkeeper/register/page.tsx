@@ -1,147 +1,210 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
+const TERMS_TEXT = `### Shopkeeper Terms & Conditions
+
+1. The shopkeeper must provide genuine and accurate information during registration.
+
+2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
+
+3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken including warnings, temporary suspension, payment hold, or permanent account removal.
+
+4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.
+
+5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition before handing over to delivery agents.
+
+6. Intentional order cancellations after accepting orders, repeated delays, or bad order handling may reduce shop visibility or result in penalties.
+
+7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
+
+8. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning and legal action.
+
+9. Shopkeepers must treat customers, delivery agents, and platform staff professionally.
+
+10. Misconduct, abusive language, harassment, threats, or repeated customer complaints may result in account suspension.
+
+11. The platform has the right to approve, reject, suspend, or permanently terminate any shopkeeper account if suspicious activity or policy violations are detected.
+
+12. Shops must comply with local laws, food safety standards, and applicable business regulations.
+
+13. Repeated poor customer ratings, damaged product complaints, or policy violations may reduce visibility or disable the shop.
+
+14. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
 
 export default function ShopRegisterPage() {
+  const router = useRouter()
   const supabase = createClient()
-  const [step, setStep] = useState(1)
-  const [gettingGPS, setGettingGPS] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({
-    name: '', description: '', category: 'Grocery',
-    address_line1: '', address_line2: '', landmark: '', city: '', state: '', pincode: '',
-    phone: '', email: '', upi_id: '',
-    latitude: 0, longitude: 0,
-    shop_image_url: '', gender: '',
+    full_name: '',
+    phone_number: '',
+    email: '',
+    shop_name: '',
+    shop_photo_url: '',
+    terms_accepted: false,
   })
-  const [aadharUrl, setAadharUrl] = useState('')
 
-  function getGPS() {
-    setGettingGPS(true)
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude, longitude, accuracy } = pos.coords
-        setForm(f => ({ ...f, latitude, longitude }))
-        setGettingGPS(false)
-        if (accuracy > 100) {
-          alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Your shop location may be inaccurate. Move outside and try again.`)
-        }
-      },
-      err => {
-        setGettingGPS(false)
-        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied.' : err.code === 2 ? 'Position unavailable.' : 'Timed out.'))
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    )
+  async function uploadPhoto(file: File) {
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `shop_photos/${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage.from('uploads').upload(path, file)
+    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
+    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(path)
+    setUploading(false)
+    return publicUrl
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB'); return }
+    uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) })
+  }
+
+  function openCamera() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment'
+    input.onchange = (e: any) => { const file = e.target.files?.[0]; if (file) uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) }) }
+    input.click()
   }
 
   async function submit() {
+    if (!form.full_name.trim()) { alert('Please enter Full Name'); return }
+    if (!form.phone_number.trim()) { alert('Please enter Phone Number'); return }
+    if (!form.email.trim()) { alert('Please enter Email'); return }
+    if (!form.shop_name.trim()) { alert('Please enter Shop Name'); return }
+    if (!form.shop_photo_url) { alert('Please upload Shop Photo'); return }
+    if (!form.terms_accepted) { alert('Please accept Terms & Conditions'); return }
+
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: shop, error } = await supabase.from('shops').insert({ ...form, owner_id: user.id }).select().single()
+    if (!user) { alert('Please login first'); setSaving(false); return }
+
+    const { error } = await supabase.from('shops').insert({
+      owner_id: user.id,
+      full_name: form.full_name.trim(),
+      phone: form.phone_number.trim(),
+      email: form.email.trim(),
+      name: form.shop_name.trim(),
+      shop_image_url: form.shop_photo_url,
+      terms_accepted: true,
+      is_approved: false,
+      is_active: false,
+    })
+
     if (error) { alert(error.message); setSaving(false); return }
-    // Save gender to profiles
-    await supabase.from('profiles').update({ gender: form.gender }).eq('id', user.id)
-    if (aadharUrl && shop) {
-      await supabase.from('shop_documents').insert({ shop_id: shop.id, doc_type: 'aadhar_front', file_url: aadharUrl, file_name: 'Aadhaar' })
-    }
     setDone(true); setSaving(false)
   }
 
   if (done) return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
-      <h2 style={{ marginBottom: 8 }}>Registration Submitted!</h2>
-      <p style={{ marginBottom: 24 }}>Your shop is under review. Admin will approve it shortly. You&apos;ll be notified.</p>
-      <a href="/shopkeeper" className="btn btn-primary">Back to Dashboard</a>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+        <div style={{ fontSize: '4rem', marginBottom: 16 }}>📝</div>
+        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Registration Submitted!</h2>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+          Your shop account is pending admin approval.<br />You can start your business after approval.
+        </p>
+        <button onClick={() => router.push('/login/shopkeeper')} style={{ padding: '12px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+          Go to Login
+        </button>
+      </div>
     </div>
   )
 
   return (
-    <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ marginBottom: 8 }}>🏪 Register Your Shop</h2>
-      <p style={{ marginBottom: 28 }}>Fill in your shop details and upload documents for admin approval.</p>
-
-      {/* Progress */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
-        {[1, 2, 3].map(s => (
-          <div key={s} style={{ flex: 1, height: 4, borderRadius: 99, background: step >= s ? 'var(--primary)' : 'var(--bg3)', transition: 'background 0.3s' }} />
-        ))}
-      </div>
-
-      {step === 1 && (
-        <div className="card">
-          <h3 style={{ marginBottom: 20 }}>Step 1: Shop Info</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="input-group"><label className="input-label">Shop Name *</label><input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Ravi General Store" /></div>
-            <div className="input-group"><label className="input-label">Category *</label>
-              <select className="input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                {SHOP_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="input-group"><label className="input-label">Description</label><textarea className="input" rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="What do you sell?" /></div>
-            <div className="input-group"><label className="input-label">Phone Number *</label><input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
-            <div className="input-group"><label className="input-label">Email</label><input className="input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-            <div className="input-group"><label className="input-label">Shop Image URL (optional)</label><input className="input" value={form.shop_image_url} onChange={e => setForm(f => ({ ...f, shop_image_url: e.target.value }))} placeholder="https://..." /></div>
-            <div className="input-group">
-              <label className="input-label">Gender <span style={{ color: '#ef4444' }}>*</span></label>
-              <select className="input" required value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} style={{ width: '100%' }}>
-                <option value="" disabled>Select Gender</option>
-                <option value="male">👨 Male</option>
-                <option value="female">👩 Female</option>
-                <option value="other">🌈 Other</option>
-                <option value="prefer_not_to_say">🤐 Prefer not to say</option>
-              </select>
-            </div>
-            <button className="btn btn-primary" disabled={!form.name || !form.phone || !form.gender} onClick={() => setStep(2)}>Next →</button>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px 16px' }}>
+      {showTerms && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 24, maxWidth: 500, width: '100%', maxHeight: '80vh', overflow: 'auto' }}>
+            <h3 style={{ marginBottom: 16, fontSize: '1.25rem', fontWeight: 700 }}>Terms & Conditions</h3>
+            <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#374151', lineHeight: 1.6, marginBottom: 24 }}>{TERMS_TEXT}</div>
+            <button onClick={() => { setForm(f => ({ ...f, terms_accepted: true })); setShowTerms(false) }} style={{ width: '100%', padding: 14, background: '#22c55e', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+              I Agree
+            </button>
           </div>
         </div>
       )}
 
-      {step === 2 && (
-        <div className="card">
-          <h3 style={{ marginBottom: 20 }}>Step 2: Shop Address</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="input-group"><label className="input-label">Address Line 1 *</label><input className="input" value={form.address_line1} onChange={e => setForm(f => ({ ...f, address_line1: e.target.value }))} /></div>
-            <div className="input-group"><label className="input-label">Address Line 2</label><input className="input" value={form.address_line2} onChange={e => setForm(f => ({ ...f, address_line2: e.target.value }))} /></div>
-            <div className="input-group"><label className="input-label">Landmark</label><input className="input" value={form.landmark} onChange={e => setForm(f => ({ ...f, landmark: e.target.value }))} /></div>
-            <div className="grid-2" style={{ gap: 12 }}>
-              <div className="input-group"><label className="input-label">City *</label><input className="input" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
-              <div className="input-group"><label className="input-label">Pincode</label><input className="input" value={form.pincode} onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))} /></div>
-            </div>
+      <div style={{ maxWidth: 500, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏪</div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Shopkeeper Registration</h1>
+          <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Register your shop to start selling</p>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <button className="btn btn-secondary btn-sm" onClick={getGPS} disabled={gettingGPS}>{gettingGPS ? '📡 Detecting GPS...' : '📍 Capture GPS Location'}</button>
-              {form.latitude !== 0 && <p style={{ marginTop: 6, fontSize: '0.82rem', color: 'var(--success)' }}>✅ GPS: {form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}</p>}
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name (as per Aadhaar) *</label>
+              <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Enter your full name" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
-              <button className="btn btn-primary" style={{ flex: 1 }} disabled={!form.address_line1 || !form.city} onClick={() => setStep(3)}>Next →</button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {step === 3 && (
-        <div className="card">
-          <h3 style={{ marginBottom: 20 }}>Step 3: Documents & Payment</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="input-group"><label className="input-label">Aadhaar Card URL *</label><input className="input" value={aadharUrl} onChange={e => setAadharUrl(e.target.value)} placeholder="Upload to cloud and paste URL" /></div>
-            <div className="input-group"><label className="input-label">UPI ID (for payouts)</label><input className="input" value={form.upi_id} onChange={e => setForm(f => ({ ...f, upi_id: e.target.value }))} placeholder="yourname@upi" /></div>
-            <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 8, padding: 14, fontSize: '0.85rem' }}>
-              <strong>📋 What happens next?</strong><br />
-              Admin will review your documents and approve your shop. You&apos;ll receive a notification once approved.
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Phone Number *</label>
+              <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))} placeholder="10-digit mobile number" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back</button>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={submit} disabled={saving || !aadharUrl}>{saving ? 'Submitting...' : 'Submit for Approval'}</button>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
+              <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" type="email" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Name *</label>
+              <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="e.g. Ravi General Store" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Photo *</label>
+              {form.shop_photo_url ? (
+                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                  <img src={form.shop_photo_url} alt="Shop" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+                  <button onClick={() => setForm(f => ({ ...f, shop_photo_url: '' }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: 20, width: 28, height: 28, cursor: 'pointer' }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <label style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>📁</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Upload from Gallery</div>
+                  </label>
+                  <button onClick={openCamera} style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>📷</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Take Photo</div>
+                  </button>
+                </div>
+              )}
+              {uploading && <div style={{ textAlign: 'center', padding: 10, color: '#f97316' }}>⏳ Uploading...</div>}
+            </div>
+
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.terms_accepted} onChange={e => setForm(f => ({ ...f, terms_accepted: e.target.checked }))} style={{ width: 20, height: 20, marginTop: 2 }} />
+                <span style={{ fontSize: '0.85rem', color: '#374151' }}>
+                  I have read and agree to the{' '}
+                  <button type="button" onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', color: '#f97316', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>Shopkeeper Terms & Conditions</button>
+                </span>
+              </label>
+            </div>
+
+            <button onClick={submit} disabled={saving || uploading} style={{ padding: 16, background: saving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? 'Submitting...' : '📝 Submit for Approval'}
+            </button>
           </div>
         </div>
-      )}
+
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <a href="/login/shopkeeper" style={{ color: '#64748b', fontSize: '0.9rem' }}>← Back to Login</a>
+        </div>
+      </div>
     </div>
   )
 }

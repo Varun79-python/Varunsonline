@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
-interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number }
+interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string; items: OrderItem[] }
 
@@ -195,9 +195,22 @@ export default function ShopkeeperDashboard() {
 
   if (shop && !shop.is_approved) return (
     <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>⏳</div>
-      <h2 style={{ marginBottom: 8 }}>Awaiting Admin Approval</h2>
-      <p>Your shop <strong>{shop.name}</strong> is under review.</p>
+      <div style={{ fontSize: '4rem', marginBottom: 16 }}>
+        {shop.rejection_reason ? '❌' : '⏳'}
+      </div>
+      <h2 style={{ marginBottom: 8 }}>
+        {shop.rejection_reason ? 'Registration Rejected' : 'Awaiting Admin Approval'}
+      </h2>
+      <p>Your shop <strong>{shop.name}</strong> {shop.rejection_reason ? 'was rejected.' : 'is under review.'}</p>
+      {shop.rejection_reason && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 16, margin: '20px auto', maxWidth: 400, textAlign: 'left' }}>
+          <div style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600, marginBottom: 6 }}>Reason:</div>
+          <div style={{ color: '#7f1d1d', fontSize: '0.9rem' }}>{shop.rejection_reason}</div>
+        </div>
+      )}
+      <p style={{ marginTop: 20, color: '#64748b', fontSize: '0.85rem' }}>
+        Contact support if you have questions.
+      </p>
     </div>
   )
 
