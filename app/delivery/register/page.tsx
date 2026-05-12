@@ -12,6 +12,7 @@ export default function DeliveryRegisterPage() {
     full_name: '',
     email: '',
     phone: '',
+    password: '',
     vehicle_type: 'Bike',
     vehicle_number: '',
     aadhar_url: '',
@@ -58,24 +59,26 @@ export default function DeliveryRegisterPage() {
   useEffect(() => {
     async function prefill() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/login/delivery'); return }
-      setForm(f => ({ ...f, email: user.email || '' }))
-      const { data: agent } = await supabase.from('delivery_agents').select('*').eq('id', user.id).single()
-      if (agent) {
-        setAlreadyRegistered(true)
-        setForm({
-          full_name: agent.full_name || '',
-          email: agent.email || user.email || '',
-          phone: agent.phone || '',
-          vehicle_type: agent.vehicle_type || 'Bike',
-          vehicle_number: agent.vehicle_number || '',
-          aadhar_url: agent.aadhar_url || '',
-        })
-        if (agent.is_approved) {
-          router.replace('/delivery')
-        }
-        if (!agent.is_approved && agent.rejection_reason) {
-          setDone(true)
+      if (user) {
+        setForm(f => ({ ...f, email: user.email || '' }))
+        const { data: agent } = await supabase.from('delivery_agents').select('*').eq('id', user.id).single()
+        if (agent) {
+          setAlreadyRegistered(true)
+          setForm({
+            full_name: agent.full_name || '',
+            email: agent.email || user.email || '',
+            phone: agent.phone || '',
+            password: '',
+            vehicle_type: agent.vehicle_type || 'Bike',
+            vehicle_number: agent.vehicle_number || '',
+            aadhar_url: agent.aadhar_url || '',
+          })
+          if (agent.is_approved) {
+            router.replace('/delivery')
+          }
+          if (!agent.is_approved && agent.rejection_reason) {
+            setDone(true)
+          }
         }
       }
       setLoading(false)
@@ -103,6 +106,8 @@ export default function DeliveryRegisterPage() {
 
     if (!form.full_name.trim()) { setFormError('Full Name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
+    if (!form.password.trim()) { setFormError('Password is required'); return }
+    if (form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
@@ -110,8 +115,19 @@ export default function DeliveryRegisterPage() {
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
+    let { data: { user } } = await supabase.auth.getUser()
+
+    // If not logged in, create an account first
+    if (!user) {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+      })
+      if (signUpError) { setFormError(signUpError.message); setSaving(false); return }
+      if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
+      user = signUpData.user
+    }
 
     const { error } = await supabase.from('delivery_agents').upsert({
       id: user.id,
@@ -180,6 +196,11 @@ export default function DeliveryRegisterPage() {
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
             <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
+            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
           </div>
 
           <div style={{ marginBottom: 14 }}>
