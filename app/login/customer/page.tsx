@@ -32,9 +32,21 @@ export default function CustomerLoginPage() {
     setLoading(true)
     setError('')
 
+    const input = form.email.trim()
+    
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-      if (error) { setError(error.message); setLoading(false); return }
+      // Check if input is phone number or email
+      const isPhone = /^\d{10,}$/.test(input)
+      
+      if (isPhone) {
+        // Login with phone
+        const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
+        if (error) { setError(error.message); setLoading(false); return }
+      } else {
+        // Login with email
+        const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
+        if (error) { setError(error.message); setLoading(false); return }
+      }
       router.push('/customer')
     } else {
       const { data, error: signUpError } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { full_name: form.full_name, phone: form.phone, role: 'customer' } } })
@@ -65,7 +77,7 @@ export default function CustomerLoginPage() {
               <input type="tel" placeholder="Phone Number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
             </>
           )}
-          <input type="email" placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
+          <input type="text" placeholder="Email or Phone Number" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
           <div style={{ position: 'relative' }}>
               <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>

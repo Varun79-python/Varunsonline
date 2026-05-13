@@ -31,8 +31,16 @@ export default function DeliveryLoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-    if (error) { setError(error.message); setLoading(false); return }
+    const input = form.email.trim()
+    const isPhone = /^\d{10,}$/.test(input)
+
+    if (isPhone) {
+      const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
+      if (error) { setError(error.message); setLoading(false); return }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
+      if (error) { setError(error.message); setLoading(false); return }
+    }
     router.push('/delivery')
   }
 
@@ -51,7 +59,7 @@ export default function DeliveryLoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <input type="email" placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
+          <input type="text" placeholder="Email or Phone Number" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
           <div style={{ position: 'relative' }}>
               <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
