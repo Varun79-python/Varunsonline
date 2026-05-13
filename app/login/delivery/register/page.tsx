@@ -73,6 +73,26 @@ export default function DeliveryRegisterPage() {
       password: form.password,
       options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
     })
+    
+    // Check if user already exists - redirect to step 2
+    if (signUpError && (signUpError.message.includes('already registered') || signUpError.message.includes('already exists') || signUpError.message.includes('User already exists'))) {
+      const { data: existingUser } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password
+      })
+      if (existingUser?.user) {
+        const { data: agent } = await supabase.from('delivery_agents').select('id').eq('id', existingUser.user.id).single()
+        if (agent) {
+          localStorage.setItem('delivery_reg_user_id', existingUser.user.id)
+          router.push('/login/delivery/register/documents')
+          return
+        }
+      }
+      setFormError('Account exists but profile not found. Please contact support.')
+      setSaving(false)
+      return
+    }
+    
     if (signUpError) { setFormError(signUpError.message); setSaving(false); return }
     if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
 
@@ -82,7 +102,7 @@ export default function DeliveryRegisterPage() {
       email: form.email.trim(),
       phone: form.phone.trim(),
       vehicle_type: form.vehicle_type,
-      vehicle_number: form.vehicle_number.trim().toUpperCase(),
+      vehicle_number: form.vehicle_type === 'Bicycle' ? '' : form.vehicle_number.trim().toUpperCase(),
       is_approved: false,
       rejection_reason: null,
       terms_agreed: true,

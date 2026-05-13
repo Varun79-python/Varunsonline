@@ -94,6 +94,26 @@ export default function ShopRegisterPage() {
       password: form.password,
       options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
     })
+    
+    // Check if user already exists - redirect to step 2
+    if (signUpError && (signUpError.message.includes('already registered') || signUpError.message.includes('already exists') || signUpError.message.includes('User already exists'))) {
+      const { data: existingUser } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password
+      })
+      if (existingUser?.user) {
+        const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', existingUser.user.id).single()
+        if (shop) {
+          localStorage.setItem('shopkeeper_reg_user_id', existingUser.user.id)
+          router.push('/login/shopkeeper/register/documents')
+          return
+        }
+      }
+      alert('Account exists but shop not found. Please contact support.')
+      setSaving(false)
+      return
+    }
+    
     if (signUpError) { alert('Registration failed: ' + signUpError.message); setSaving(false); return }
     if (!signUpData.user) { alert('Failed to create account'); setSaving(false); return }
 
