@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -24,6 +24,90 @@ export default function DeliveryRegisterPage() {
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingUserMessage, setExistingUserMessage] = useState('')
+
+  // Debounce search for existing user
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const checkExistingUser = useCallback(async (phone: string, email: string) => {
+    if (!phone.trim() && !email.trim()) return
+    
+    setCheckingExisting(true)
+    setExistingUserMessage('')
+    
+    try {
+      // Check by phone in delivery_agents table
+      const { data: existingAgent } = await supabase
+        .from('delivery_agents')
+        .select('*')
+        .eq('phone', phone.trim())
+        .maybeSingle()
+
+      if (existingAgent) {
+        // Check if fully registered and approved
+        if (existingAgent.is_approved) {
+          setExistingUserMessage('Account already exists and approved. Redirecting to delivery agent dashboard...')
+          setTimeout(() => router.push('/delivery'), 1500)
+          return
+        }
+        
+        // Partial registration - restore data
+        setForm(f => ({
+          ...f,
+          full_name: existingAgent.full_name || f.full_name,
+          email: existingAgent.email || f.email,
+          phone: existingAgent.phone || f.phone,
+          vehicle_type: existingAgent.vehicle_type || f.vehicle_type,
+          vehicle_number: existingAgent.vehicle_number || f.vehicle_number,
+          aadhar_url: existingAgent.aadhar_url || f.aadhar_url,
+        }))
+        setExistingUserMessage('Existing registration found. Continuing from saved progress.')
+        setCheckingExisting(false)
+        return
+      }
+
+      // Check by email in auth
+      if (email.trim()) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user && user.email?.toLowerCase() === email.trim().toLowerCase()) {
+          setExistingUserMessage('Account found. Please complete your registration.')
+          setCheckingExisting(false)
+          return
+        }
+      }
+
+      // Check profiles table
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone', phone.trim())
+        .maybeSingle()
+
+      if (existingProfile && existingProfile.role === 'delivery_agent') {
+        if (!existingAgent) {
+          setExistingUserMessage('Profile found. Please complete your registration.')
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      setCheckingExisting(false)
+    }
+  }, [supabase, router])
+
+  // Watch phone/email for existing user
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    debounceTimeout.current = setTimeout(() => {
+      checkExistingUser(form.phone, form.email)
+    }, 500)
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone, form.email, checkExistingUser])
 
   const TERMS = `DELIVERY AGENT TERMS & CONDITIONS
 
@@ -115,16 +199,77 @@ export default function DeliveryRegisterPage() {
     setSaving(true)
     let { data: { user } } = await supabase.auth.getUser()
 
-    // If not logged in, create an account first
+    // If not logged in, try sign in first
     if (!user) {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      const { data: signInData } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+        password: form.password
       })
-      if (signUpError) { setFormError(signUpError.message); setSaving(false); return }
-      if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
-      user = signUpData.user
+      
+      if (signInData?.user) {
+        user = signInData.user
+      } else {
+        // Try sign up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+        })
+        
+        // Handle existing user gracefully
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            // Try sign in
+            const { data: retrySignIn } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password
+            })
+            if (retrySignIn?.user) {
+              user = retrySignIn.user
+            } else {
+              setFormError('An account with this email already exists. Please login.')
+              setSaving(false); return
+            }
+          } else {
+            setFormError(signUpError.message); setSaving(false); return
+          }
+        } else if (signUpData?.user) {
+          user = signUpData.user
+        } else {
+          setFormError('Failed to create account'); setSaving(false); return
+        }
+      }
+    }
+
+    // Check if agent already exists
+    const { data: existingAgent } = await supabase
+      .from('delivery_agents')
+      .select('id, is_approved')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (existingAgent) {
+      if (existingAgent.is_approved) {
+        setFormError('Your account is already approved. Redirecting to login...')
+        setTimeout(() => router.push('/login/delivery'), 1500)
+        setSaving(false); return
+      }
+      
+      // Update existing instead of creating new
+      const { error: updateError } = await supabase.from('delivery_agents').update({
+        full_name: form.full_name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        vehicle_type: form.vehicle_type,
+        vehicle_number: form.vehicle_number.trim().toUpperCase(),
+        aadhar_url: form.aadhar_url,
+        is_approved: false,
+        rejection_reason: null,
+        terms_agreed: true,
+      }).eq('id', existingAgent.id)
+
+      if (updateError) { setFormError('Update failed: ' + updateError.message); setSaving(false); return }
+      setDone(true); setSaving(false); return
     }
 
     const { error } = await supabase.from('delivery_agents').upsert({
@@ -170,6 +315,29 @@ export default function DeliveryRegisterPage() {
         <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Delivery Partner Registration</h2>
       </div>
+
+      {(checkingExisting || existingUserMessage) && (
+        <div style={{ 
+          padding: 14, 
+          borderRadius: 12, 
+          marginBottom: 16,
+          background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
+          color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          maxWidth: 500,
+          margin: '0 auto 16px'
+        }}>
+          {checkingExisting ? (
+            <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking existing account...</>
+          ) : (
+            <>✅ {existingUserMessage}</>
+          )}
+        </div>
+      )}
 
       <form onSubmit={submit} style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>

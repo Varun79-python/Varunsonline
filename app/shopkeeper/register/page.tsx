@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -41,6 +41,8 @@ export default function ShopRegisterPage() {
   const [showTerms, setShowTerms] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingUserMessage, setExistingUserMessage] = useState('')
   const [form, setForm] = useState({
     full_name: '',
     phone_number: '',
@@ -53,6 +55,91 @@ export default function ShopRegisterPage() {
     terms_accepted: false,
   })
 
+  // Debounce search for existing user
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const checkExistingUser = useCallback(async (phone: string, email: string) => {
+    if (!phone.trim() && !email.trim()) return
+    
+    setCheckingExisting(true)
+    setExistingUserMessage('')
+    
+    try {
+      // Check by phone number in shops table
+      const { data: existingShop } = await supabase
+        .from('shops')
+        .select('*, shop_documents(*)')
+        .eq('phone', phone.trim())
+        .maybeSingle()
+
+      if (existingShop) {
+        // Check if fully registered and approved
+        if (existingShop.is_approved) {
+          setExistingUserMessage('Account already exists and approved. Redirecting to shopkeeper dashboard...')
+          setTimeout(() => router.push('/shopkeeper'), 1500)
+          return
+        }
+        
+        // Partial registration - restore data
+        setForm(f => ({
+          ...f,
+          full_name: existingShop.full_name || f.full_name,
+          phone_number: existingShop.phone || f.phone_number,
+          email: existingShop.email || f.email,
+          shop_name: existingShop.name || f.shop_name,
+          shop_photo_url: existingShop.shop_image_url || f.shop_photo_url,
+          adhaar_front_url: existingShop.shop_documents?.find(d => d.doc_type === 'aadhar_front')?.file_url || f.adhaar_front_url,
+          adhaar_back_url: existingShop.shop_documents?.find(d => d.doc_type === 'aadhar_back')?.file_url || f.adhaar_back_url,
+        }))
+        setExistingUserMessage('Existing registration found. Continuing from saved progress.')
+        setCheckingExisting(false)
+        return
+      }
+
+      // Check by email in auth (if already signed up but no shop)
+      if (email.trim()) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user && user.email?.toLowerCase() === email.trim().toLowerCase()) {
+          // User exists in auth but no shop - can continue
+          setExistingUserMessage('Account found. Please complete your shop registration.')
+          setCheckingExisting(false)
+          return
+        }
+      }
+
+      // Also check profiles table
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone', phone.trim())
+        .maybeSingle()
+
+      if (existingProfile && existingProfile.role === 'shopkeeper') {
+        // Check if shop exists
+        if (!existingShop) {
+          setExistingUserMessage('Profile found. Please complete your shop registration.')
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      setCheckingExisting(false)
+    }
+  }, [supabase, router])
+
+  // Watch phone/email for existing user
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    debounceTimeout.current = setTimeout(() => {
+      checkExistingUser(form.phone_number, form.email)
+    }, 500)
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone_number, form.email, checkExistingUser])
+
   const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
   async function getUserId(): Promise<string | null> {
@@ -62,14 +149,46 @@ export default function ShopRegisterPage() {
         alert('Please fill all required fields first')
         return null
       }
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      
+      // Try to sign in if user already exists (passwordless or already registered)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+        password: form.password
       })
-      if (signUpError) { alert('Account creation failed: ' + signUpError.message); return null }
-      if (!signUpData.user) { alert('Failed to create account'); return null }
-      user = signUpData.user
+      
+      if (signInData?.user) {
+        user = signInData.user
+      } else if (signInError && signInError.message.includes('Invalid login')) {
+        // User doesn't exist, try to sign up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+        })
+        
+        // Handle "User already registered" error gracefully
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            // User exists - try to sign in
+            const { data: retrySignIn } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password
+            })
+            if (retrySignIn?.user) {
+              user = retrySignIn.user
+            } else {
+              alert('An account with this email already exists. Please login or use a different email.')
+              return null
+            }
+          } else {
+            alert('Account creation failed: ' + signUpError.message); return null
+          }
+        } else if (signUpData?.user) {
+          user = signUpData.user
+        }
+      } else if (signInError) {
+        alert('Authentication failed: ' + signInError.message); return null
+      }
     }
     return user?.id || null
   }
@@ -163,14 +282,81 @@ export default function ShopRegisterPage() {
     let { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // Try sign in first (in case user exists but not logged in)
+      const { data: signInData } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+        password: form.password
       })
-      if (signUpError) { alert('Registration failed: ' + signUpError.message); setSaving(false); return }
-      if (!signUpData.user) { alert('Failed to create account'); setSaving(false); return }
-      user = signUpData.user
+      
+      if (signInData?.user) {
+        user = signInData.user
+      } else {
+        // Try sign up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+        })
+        
+        // Handle existing user case gracefully
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            // Try sign in
+            const { data: retrySignIn } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password
+            })
+            if (retrySignIn?.user) {
+              user = retrySignIn.user
+            } else {
+              alert('An account with this email already exists. Please login.')
+              setSaving(false); return
+            }
+          } else {
+            alert('Registration failed: ' + signUpError.message); setSaving(false); return
+          }
+        } else if (signUpData?.user) {
+          user = signUpData.user
+        } else {
+          alert('Failed to create account'); setSaving(false); return
+        }
+      }
+    }
+
+    // Check if shop already exists for this user
+    const { data: existingShop } = await supabase
+      .from('shops')
+      .select('id, is_approved')
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    if (existingShop) {
+      if (existingShop.is_approved) {
+        alert('Your shop is already approved. Redirecting to login...')
+        router.push('/login/shopkeeper')
+        setSaving(false); return
+      }
+      // Update existing shop instead of creating new
+      const { error: updateError } = await supabase.from('shops').update({
+        full_name: form.full_name.trim(),
+        phone: form.phone_number.trim(),
+        email: form.email.trim(),
+        name: form.shop_name.trim(),
+        shop_image_url: form.shop_photo_url,
+        terms_accepted: true,
+        is_approved: false,
+      }).eq('id', existingShop.id)
+
+      if (updateError) { alert('Update failed: ' + updateError.message); setSaving(false); return }
+      
+      // Update documents
+      await supabase.from('shop_documents').delete().eq('shop_id', existingShop.id)
+      await supabase.from('shop_documents').insert([
+        { shop_id: existingShop.id, doc_type: 'aadhar_front', file_url: form.adhaar_front_url, file_name: 'Aadhaar Front' },
+        { shop_id: existingShop.id, doc_type: 'aadhar_back', file_url: form.adhaar_back_url, file_name: 'Aadhaar Back' }
+      ])
+
+      setDone(true); setSaving(false); return
     }
 
     const { data: shopData, error: shopError } = await supabase.from('shops').insert({
@@ -231,6 +417,27 @@ export default function ShopRegisterPage() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Shopkeeper Registration</h1>
           <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Register your shop to start selling</p>
         </div>
+
+        {(checkingExisting || existingUserMessage) && (
+          <div style={{ 
+            padding: 14, 
+            borderRadius: 12, 
+            marginBottom: 16,
+            background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
+            color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            {checkingExisting ? (
+              <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking existing account...</>
+            ) : (
+              <>✅ {existingUserMessage}</>
+            )}
+          </div>
+        )}
 
         <div style={{ background: 'white', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -349,6 +556,9 @@ export default function ShopRegisterPage() {
           <a href="/login/shopkeeper" style={{ color: '#64748b', fontSize: '0.9rem' }}>← Back to Login</a>
         </div>
       </div>
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }
