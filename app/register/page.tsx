@@ -5,10 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 
 const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
 
-function RegisterContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
 function generateCaptcha(length = 5): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let result = ''
@@ -43,41 +39,11 @@ function CaptchaDisplay({ code }: { code: string }) {
   )
 }
 
-const TERMS_AGENT = `DELIVERY AGENT TERMS & CONDITIONS
+const TERMS_AGENT = "DELIVERY AGENT TERMS & CONDITIONS\n\n1. The delivery agent must provide genuine and accurate information during registration.\n\n2. Uploading fake Aadhaar details, fake vehicle details, or false identity information may lead to permanent account suspension.\n\n3. The delivery agent is fully responsible for the safety and timely delivery of customer orders.\n\n4. Any theft, fraud, intentional order cancellation, fake delivery completion, or misuse of platform funds may result in permanent banning and legal action.\n\n5. Delivery agents must behave professionally with customers, shopkeepers, and platform staff.\n\n6. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval."
 
-1. The delivery agent must provide genuine and accurate information during registration.
+const TERMS_SHOPKEEPER = "SHOPKEEPER TERMS & CONDITIONS\n\n1. The shopkeeper must provide genuine and accurate information during registration.\n\n2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.\n\n3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken.\n\n4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.\n\n5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition.\n\n6. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning.\n\n7. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval."
 
-2. Uploading fake Aadhaar details, fake vehicle details, or false identity information may lead to permanent account suspension.
-
-3. The delivery agent is fully responsible for the safety and timely delivery of customer orders.
-
-4. Any theft, fraud, intentional order cancellation, fake delivery completion, or misuse of platform funds may result in permanent banning and legal action.
-
-5. Delivery agents must behave professionally with customers, shopkeepers, and platform staff.
-
-6. Misconduct, abusive behavior, threats, harassment, intoxicated driving, or unsafe behavior may result in immediate account suspension.
-
-7. Cash collected from Cash on Delivery (COD) orders must be settled correctly to the platform without delay.
-
-8. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval.`
-
-const TERMS_SHOPKEEPER = `SHOPKEEPER TERMS & CONDITIONS
-
-1. The shopkeeper must provide genuine and accurate information during registration.
-
-2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
-
-3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken.
-
-4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.
-
-5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition.
-
-6. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning.
-
-7. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
-
-function RegisterContent() {
+function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -88,6 +54,7 @@ function RegisterContent() {
     if (type === 'shopkeeper') setUserType('shopkeeper')
     else if (type === 'agent') setUserType('agent')
   }, [searchParams])
+
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
@@ -189,10 +156,42 @@ function RegisterContent() {
 
       setSaving(false)
       setShowSuccessPopup(true)
-    } catch (err: any) {
-      setError('Error: ' + err.message)
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError('Error: ' + errorMessage)
       setSaving(false)
     }
+  }
+
+  if (showSuccessPopup) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Step 1 Complete!</h2>
+          <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+            Your basic details have been saved.<br/><br/>
+            <strong>Please add your documents now</strong> to complete registration.
+          </p>
+          <button 
+            onClick={() => { setShowSuccessPopup(false); router.push('/register-documents') }} 
+            style={{ 
+              width: '100%', 
+              padding: '14px', 
+              background: userType === 'shopkeeper' ? '#f97316' : '#22c55e', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: 12, 
+              fontWeight: 700, 
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            📄 Add Documents
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -204,7 +203,6 @@ function RegisterContent() {
         </h2>
       </div>
 
-      {/* 2 Steps Indicator */}
       <div style={{ maxWidth: 500, margin: '0 auto 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'white', padding: '12px 20px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -220,50 +218,9 @@ function RegisterContent() {
         <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>2 Steps to Complete Registration</div>
       </div>
 
-      {/* User Type Selection */}
-      {!userType && (
-        <div style={{ maxWidth: 500, margin: '0 auto 24px' }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              onClick={() => setUserType('shopkeeper')}
-              style={{ 
-                flex: 1, 
-                padding: 20, 
-                border: '2px solid #e2e8f0', 
-                borderRadius: 16, 
-                background: 'white',
-                cursor: 'pointer',
-                textAlign: 'center'
-              }}
-            >
-              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏪</div>
-              <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1.1rem' }}>Shopkeeper</div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Start selling online</div>
-            </button>
-            <button
-              onClick={() => setUserType('agent')}
-              style={{ 
-                flex: 1, 
-                padding: 20, 
-                border: '2px solid #e2e8f0', 
-                borderRadius: 16, 
-                background: 'white',
-                cursor: 'pointer',
-                textAlign: 'center'
-              }}
-            >
-              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🚚</div>
-              <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1.1rem' }}>Delivery Agent</div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Deliver & earn</div>
-            </button>
-          </div>
-        </div>
-      )}
-
       {userType && (
         <div style={{ maxWidth: 500, margin: '0 auto' }}>
           <form onSubmit={(e) => { e.preventDefault(); handleSubmit() }}>
-            {/* Personal Details */}
             <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Personal Details</h3>
               
@@ -320,7 +277,6 @@ function RegisterContent() {
               </div>
             </div>
 
-            {/* Shop/Vehicle Details */}
             {userType === 'shopkeeper' ? (
               <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Shop Details</h3>
@@ -361,7 +317,6 @@ function RegisterContent() {
               </div>
             )}
 
-            {/* CAPTCHA */}
             <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
               <CaptchaDisplay code={captcha} />
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -377,7 +332,6 @@ function RegisterContent() {
               </div>
             </div>
 
-            {/* Terms & Conditions */}
             <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions *</h3>
               
@@ -436,7 +390,7 @@ function RegisterContent() {
 
             <button 
               type="button"
-              onClick={() => setUserType(null)} 
+              onClick={() => { setUserType(null); router.push('/login') }} 
               style={{ width: '100%', padding: 12, background: 'none', border: 'none', color: '#64748b', fontSize: '0.9rem', cursor: 'pointer', marginTop: 8 }}
             >
               ← Change Registration Type
@@ -445,7 +399,6 @@ function RegisterContent() {
         </div>
       )}
 
-      {/* Terms Modal */}
       {showTerms && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowTerms(false)}>
           <div style={{ background: 'white', width: '100%', maxWidth: 500, margin: '0 auto', borderRadius: '20px 20px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
@@ -467,36 +420,6 @@ function RegisterContent() {
           </div>
         </div>
       )}
-
-      {/* Success Popup - Add Documents */}
-      {showSuccessPopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Step 1 Complete!</h2>
-            <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
-              Your basic details have been saved.<br/><br/>
-              <strong>Please add your documents now</strong> to complete registration.
-            </p>
-            <button 
-              onClick={() => { setShowSuccessPopup(false); router.push('/register-documents') }} 
-              style={{ 
-                width: '100%', 
-                padding: '14px', 
-                background: userType === 'shopkeeper' ? '#f97316' : '#22c55e', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: 12, 
-                fontWeight: 700, 
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              📄 Add Documents
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -504,7 +427,7 @@ function RegisterContent() {
 export default function RegisterPage() {
   return (
     <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>}>
-      <RegisterContent />
+      <RegisterForm />
     </Suspense>
   )
 }
