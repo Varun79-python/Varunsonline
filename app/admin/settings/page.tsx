@@ -14,13 +14,14 @@ const SETTING_LABELS: Record<string, string> = {
 }
 
 export default function AdminSettings() {
-  const supabase = createClient()
+  const supabase = createClient() as any
   const [settings, setSettings] = useState<Setting[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    supabase.from('platform_settings').select('*').then(({ data }) => setSettings(data || []))
+    if (!supabase) return
+    supabase.from('platform_settings').select('*').then(({ data }: { data: Setting[] | null }) => setSettings(data || []))
   }, [])
 
   function update(key: string, value: string) {
