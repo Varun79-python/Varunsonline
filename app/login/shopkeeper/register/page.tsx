@@ -47,9 +47,9 @@ export default function ShopRegisterPage() {
     email: '',
     password: '',
     shop_name: '',
-    shop_photo_url: '',
     terms_accepted: false,
   })
+  const [userId, setUserId] = useState<string | null>(null)
 
   async function uploadPhoto(file: File) {
     setUploading(true)
@@ -86,7 +86,6 @@ export default function ShopRegisterPage() {
     if (!form.password.trim()) { alert('Please enter Password'); return }
     if (form.password.length < 6) { alert('Password must be at least 6 characters'); return }
     if (!form.shop_name.trim()) { alert('Please enter Shop Name'); return }
-    if (!form.shop_photo_url) { alert('Please upload Shop Photo'); return }
     if (!form.terms_accepted) { alert('Please accept Terms & Conditions'); return }
 
     setSaving(true)
@@ -104,27 +103,40 @@ export default function ShopRegisterPage() {
       phone: form.phone_number.trim(),
       email: form.email.trim(),
       name: form.shop_name.trim(),
-      shop_image_url: form.shop_photo_url,
       terms_accepted: true,
       is_approved: false,
       is_active: false,
     })
 
     if (error) { alert(error.message); setSaving(false); return }
+    
+    // Store user ID for next step (document upload)
+    localStorage.setItem('shopkeeper_reg_user_id', signUpData.user.id)
+    setUserId(signUpData.user.id)
     setDone(true); setSaving(false)
   }
 
   if (done) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-        <div style={{ fontSize: '4rem', marginBottom: 16 }}>📝</div>
-        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Registration Submitted!</h2>
+        <div style={{ fontSize: '4rem', marginBottom: 16 }}>✅</div>
+        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Step 1 Complete!</h2>
         <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
-          Your shop account is pending admin approval.<br />You can start your business after approval.
+          Your basic details have been saved.<br /><br />Now please upload your shop photo and documents to complete registration.
         </p>
-        <button onClick={() => router.push('/login/shopkeeper')} style={{ padding: '12px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-          Go to Login
+        
+        <button 
+          onClick={() => router.push('/login/shopkeeper/register/documents')} 
+          style={{ padding: '14px 28px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: '1rem', marginBottom: 12, boxShadow: '0 4px 16px rgba(249,115,22,0.3)' }}
+        >
+          📄 Add Documents
         </button>
+        
+        <div style={{ marginTop: 16 }}>
+          <button onClick={() => { localStorage.removeItem('shopkeeper_reg_user_id'); router.push('/login/shopkeeper') }} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.9rem', cursor: 'pointer', textDecoration: 'underline' }}>
+            Do this later - Go to Login
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -181,29 +193,6 @@ export default function ShopRegisterPage() {
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Name *</label>
               <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="e.g. Ravi General Store" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Photo *</label>
-              {form.shop_photo_url ? (
-                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
-                  <img src={form.shop_photo_url} alt="Shop" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
-                  <button onClick={() => setForm(f => ({ ...f, shop_photo_url: '' }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: 20, width: 28, height: 28, cursor: 'pointer' }}>✕</button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <label style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
-                    <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>📁</div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Upload from Gallery</div>
-                  </label>
-                  <button onClick={openCamera} style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>📷</div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Take Photo</div>
-                  </button>
-                </div>
-              )}
-              {uploading && <div style={{ textAlign: 'center', padding: 10, color: '#f97316' }}>⏳ Uploading...</div>}
             </div>
 
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>

@@ -15,12 +15,11 @@ export default function DeliveryRegisterPage() {
     password: '',
     vehicle_type: 'Bike',
     vehicle_number: '',
-    aadhar_url: '',
   })
+  const [userId, setUserId] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
@@ -55,20 +54,6 @@ export default function DeliveryRegisterPage() {
 
 14. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval.`
 
-  async function handleAadhaarUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const tempId = 'temp-' + Date.now()
-    const ext = file.name.split('.').pop()
-    const path = `aadhar/${tempId}/aadhar-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('agent-documents').upload(path, file, { upsert: true })
-    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
-    setForm(f => ({ ...f, aadhar_url: publicUrl }))
-    setUploading(false)
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
@@ -80,7 +65,6 @@ export default function DeliveryRegisterPage() {
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
-    if (!form.aadhar_url) { setFormError('Aadhaar Card photo is required'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
@@ -99,7 +83,6 @@ export default function DeliveryRegisterPage() {
       phone: form.phone.trim(),
       vehicle_type: form.vehicle_type,
       vehicle_number: form.vehicle_number.trim().toUpperCase(),
-      aadhar_url: form.aadhar_url,
       is_approved: false,
       rejection_reason: null,
       terms_agreed: true,
@@ -107,6 +90,10 @@ export default function DeliveryRegisterPage() {
     })
 
     if (error) { setFormError('Failed to submit: ' + error.message); setSaving(false); return }
+    
+    // Store user ID for next step (document upload)
+    localStorage.setItem('delivery_reg_user_id', signUpData.user.id)
+    setUserId(signUpData.user.id)
     setDone(true)
     setSaving(false)
   }
@@ -115,9 +102,21 @@ export default function DeliveryRegisterPage() {
     <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Submitted!</h2>
-        <p style={{ color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>Your registration has been submitted successfully.<br/><br/>Admin will review your application and approve it.<br/>You'll be notified once approved.</p>
-        <button onClick={() => router.push('/login/delivery')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Back to Login</button>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Step 1 Complete!</h2>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your basic details have been saved.<br/><br/>Now please upload your documents to complete registration.</p>
+        
+        <button 
+          onClick={() => router.push('/login/delivery/register/documents')} 
+          style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', padding: '14px 28px', borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: '1rem', marginBottom: 12, boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}
+        >
+          📄 Add Documents
+        </button>
+        
+        <div style={{ marginTop: 16 }}>
+          <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.9rem', cursor: 'pointer', textDecoration: 'underline' }}>
+            Do this later - Go to Login
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -173,37 +172,6 @@ export default function DeliveryRegisterPage() {
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vehicle Number *</label>
             <input value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="e.g. TS 01 AB 1234" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', textTransform: 'uppercase' }} />
           </div>
-        </div>
-
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card *</h3>
-          
-          <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept="image/*" capture="environment" onChange={handleAadhaarUpload} style={{ display: 'none' }} />
-            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: form.aadhar_url ? '#f0fdf4' : '#f8fafc' }}>
-              {uploading ? (
-                <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
-              ) : form.aadhar_url ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Aadhaar Uploaded</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Aadhaar Photo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
-                </div>
-              )}
-            </div>
-          </label>
-
-          {form.aadhar_url && (
-            <div style={{ marginTop: 12 }}>
-              <img src={form.aadhar_url} alt="Aadhaar" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
-            </div>
-          )}
         </div>
 
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
