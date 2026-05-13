@@ -56,7 +56,7 @@ export default function OrderDetailPage() {
     load()
     const ch = supabase.channel('order_' + id)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-        payload => setOrder(prev => ({ ...prev, ...payload.new }))
+        (payload: any) => setOrder(prev => ({ ...prev, ...payload.new }))
       ).subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [id])

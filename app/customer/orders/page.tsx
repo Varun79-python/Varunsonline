@@ -81,7 +81,7 @@ export default function OrdersPage() {
 
       if (data) {
         setOrders(data)
-        const orderIds = data.map(o => o.id)
+        const orderIds = data.map((o: any) => o.id)
         const { data: items } = await supabase
           .from('order_items')
           .select('*')
@@ -89,7 +89,7 @@ export default function OrdersPage() {
 
         if (items && mounted) {
           const grouped: Record<string, OrderItem[]> = {}
-          items.forEach(item => {
+          items.forEach((item: any) => {
             if (!grouped[item.order_id]) grouped[item.order_id] = []
             grouped[item.order_id].push(item)
           })
@@ -103,7 +103,7 @@ export default function OrdersPage() {
         .on('postgres_changes', {
           event: 'UPDATE', schema: 'public', table: 'orders',
           filter: `customer_id=eq.${user.id}`
-        }, payload => {
+        }, (payload: any) => {
           setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o))
         })
         .subscribe()

@@ -168,7 +168,7 @@ export default function DeliveryDashboard() {
       if (active) refreshGPS(active)
 
       channel = supabase.channel(`delivery-live-${user.id}`)
-      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload) => {
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload: any) => {
         if (!mounted) return
         const act = await fetchActive(user.id)
         setActiveOrder(act)

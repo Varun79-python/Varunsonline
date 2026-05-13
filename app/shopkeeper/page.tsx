@@ -105,7 +105,7 @@ export default function ShopkeeperDashboard() {
       channel.on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'orders',
         filter: `shop_id=eq.${shopData.id}`
-      }, async (payload) => {
+      }, async (payload: any) => {
         if (!mounted || !shopIdRef.current) return
         await fetchPending(shopIdRef.current)
         // Start looping alert — track by order id to prevent duplicate sounds
