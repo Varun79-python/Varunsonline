@@ -200,7 +200,7 @@ export default function ShopRegisterPage() {
       if (!userId) { setUploading(false); return null }
       
       const ext = file.name.split('.').pop()
-      const fileName = `${userId}/shop_${Date.now()}.${ext}`
+      const fileName = `temp/${userId}/shop_${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('shop-images').upload(fileName, file)
       if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
       const { data: { publicUrl } } = supabase.storage.from('shop-images').getPublicUrl(fileName)
@@ -217,7 +217,7 @@ export default function ShopRegisterPage() {
       
       const ext = file.name.split('.').pop()
       const docType = frontOrBack === 'front' ? 'aadhar_front' : 'aadhar_back'
-      const fileName = `${userId}/${docType}_${Date.now()}.${ext}`
+      const fileName = `temp/${userId}/${docType}_${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('shop-documents').upload(fileName, file)
       if (error) { alert('Upload failed: ' + error.message); setUploadingDoc(false); return null }
       const { data: { publicUrl } } = supabase.storage.from('shop-documents').getPublicUrl(fileName)

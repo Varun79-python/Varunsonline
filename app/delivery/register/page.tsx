@@ -174,7 +174,7 @@ export default function DeliveryRegisterPage() {
     
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `${user.id}/aadhar_${Date.now()}.${ext}`
+    const fileName = `temp/${user.id}/aadhar_${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('agent-documents').upload(fileName, file)
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(fileName)

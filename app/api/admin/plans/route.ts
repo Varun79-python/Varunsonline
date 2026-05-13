@@ -4,8 +4,11 @@ import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
 export const dynamic = 'force-dynamic'
 
 // GET /api/admin/plans — list ALL plans (active or not)
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyAdmin(req)
+    if (auth.error) return NextResponse.json({ error: auth.error }, { status: 401 })
+    
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('subscription_plans')

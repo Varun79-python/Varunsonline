@@ -31,9 +31,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { agentId, razorpay_order_id, razorpay_payment_id, razorpay_signature, settleAmount } = await req.json()
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, settleAmount } = await req.json()
+    const agentId = auth.agentId
 
-    if (!agentId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !settleAmount) {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !settleAmount) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     const { data: agent } = await supabase
       .from('delivery_agents')
       .select('wallet_balance, full_name')
-      .eq('id', agentId)
+      .eq('id', auth.agentId)
       .single()
 
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -87,12 +88,12 @@ export async function POST(req: NextRequest) {
     await supabase
       .from('delivery_agents')
       .update({ wallet_balance: newBalance })
-      .eq('id', agentId)
+      .eq('id', auth.agentId)
 
     // ── 5. Log settlement transaction ────────────────────────────────────────
     try {
       await supabase.from('wallet_transactions').insert({
-        user_id: agentId,
+        user_id: auth.agentId,
         user_type: 'delivery_agent',
         type: 'settlement',
         amount,
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
       // Fallback: insert without razorpay columns if they don't exist yet
       try {
         await supabase.from('wallet_transactions').insert({
-          user_id: agentId,
+          user_id: auth.agentId,
           user_type: 'delivery_agent',
           type: 'settlement',
           amount,
