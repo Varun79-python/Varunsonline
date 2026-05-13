@@ -19,21 +19,32 @@ export default function ShopkeeperDocumentsPage() {
   const MAX_FILE_SIZE = 5 * 1024 * 1024
 
   useEffect(() => {
-    const storedId = localStorage.getItem('shopkeeper_reg_user_id')
-    if (!storedId) {
-      alert('Please complete registration first')
-      router.push('/login/shopkeeper/register')
-      return
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Session expired. Please login again.')
+        router.push('/login/shopkeeper')
+        return
+      }
+      const storedId = localStorage.getItem('shopkeeper_reg_user_id')
+      if (!storedId) {
+        alert('Please complete registration first')
+        router.push('/login/shopkeeper/register')
+        return
+      }
+      setUserId(storedId)
     }
-    setUserId(storedId)
-  }, [router])
+    checkAuth()
+  }, [router, supabase])
 
   async function uploadFile(file: File, docType: string): Promise<string | null> {
-    if (!userId) return null
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { alert('Session expired. Please login again.'); return null }
+    const uploadUserId = session.user.id
     setUploading(true)
     try {
       const ext = file.name.split('.').pop()
-      const path = `${userId}/${docType}_${Date.now()}.${ext}`
+      const path = `${uploadUserId}/${docType}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('shop-images').upload(path, file)
       if (uploadError) { 
         alert('Upload failed: ' + uploadError.message)
