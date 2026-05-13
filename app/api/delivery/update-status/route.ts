@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status,
-      changed_by: agentId
+      changed_by: auth.agentId
     })
 
     // If delivered, credit agent and shopkeeper wallets

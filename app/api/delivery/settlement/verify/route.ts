@@ -46,10 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ verified: false, error: 'Invalid payment signature' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     // ── 2. Idempotency check — prevent duplicate credits ──────────────────────
     try {

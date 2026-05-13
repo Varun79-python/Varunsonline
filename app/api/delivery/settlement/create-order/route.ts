@@ -49,16 +49,18 @@ export async function POST(req: NextRequest) {
     // Clamp to actual owed amount
     const settleAmount = Math.min(amount, pendingBalance)
 
+    if (!auth.agentId) return NextResponse.json({ error: 'Agent ID not found' }, { status: 400 })
+
     const Razorpay = (await import('razorpay')).default
     const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret })
 
-    const receipt = `settle_${agentId.slice(0, 8)}_${Date.now()}`
+    const receipt = `settle_${auth.agentId.slice(0, 8)}_${Date.now()}`
     const order = await razorpay.orders.create({
       amount: Math.round(settleAmount * 100), // paise
       currency: 'INR',
       receipt,
       notes: {
-        agentId,
+        agentId: auth.agentId,
         agentName: agent.full_name,
         type: 'cod_settlement',
         pendingBalance: pendingBalance.toString()

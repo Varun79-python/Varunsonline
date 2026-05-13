@@ -82,9 +82,11 @@ export default function DeliveryWallet() {
 
       const authHeader = await getAuthHeader()
       // Create Razorpay order via server
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (authHeader.Authorization) headers.Authorization = authHeader.Authorization
       const res = await fetch('/api/delivery/settlement/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers,
         body: JSON.stringify({ amount: pendingBalance })
       })
       const orderData = await res.json()
@@ -107,9 +109,11 @@ export default function DeliveryWallet() {
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           // Verify payment server-side
           const authHeader = await getAuthHeader()
+          const verifyHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (authHeader.Authorization) verifyHeaders.Authorization = authHeader.Authorization
           const verifyRes = await fetch('/api/delivery/settlement/verify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeader },
+            headers: verifyHeaders,
             body: JSON.stringify({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -160,9 +164,11 @@ export default function DeliveryWallet() {
       if (!userId) { setFormError('Session expired. Please refresh.'); return }
 
       const authHeader = await getAuthHeader()
+      const withdrawHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (authHeader.Authorization) withdrawHeaders.Authorization = authHeader.Authorization
       const res = await fetch('/api/withdraw/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: withdrawHeaders,
         body: JSON.stringify({
           user_id: userId,
           user_type: 'delivery_agent',
