@@ -299,7 +299,7 @@ function RegisterForm() {
                   <select 
                     value={form.vehicle_type} 
                     onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))} 
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', appearance: 'none', background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center, white` }}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', appearance: 'none', backgroundColor: 'white' }}
                   >
                     {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
