@@ -88,8 +88,8 @@ export default function ShopRegisterPage() {
           email: existingShop.email || f.email,
           shop_name: existingShop.name || f.shop_name,
           shop_photo_url: existingShop.shop_image_url || f.shop_photo_url,
-          adhaar_front_url: existingShop.shop_documents?.find(d => d.doc_type === 'aadhar_front')?.file_url || f.adhaar_front_url,
-          adhaar_back_url: existingShop.shop_documents?.find(d => d.doc_type === 'aadhar_back')?.file_url || f.adhaar_back_url,
+          adhaar_front_url: existingShop.shop_documents?.find((d: { doc_type: string; file_url: string }) => d.doc_type === 'aadhar_front')?.file_url || f.adhaar_front_url,
+          adhaar_back_url: existingShop.shop_documents?.find((d: { doc_type: string; file_url: string }) => d.doc_type === 'aadhar_back')?.file_url || f.adhaar_back_url,
         }))
         setExistingUserMessage('Existing registration found. Continuing from saved progress.')
         setCheckingExisting(false)
