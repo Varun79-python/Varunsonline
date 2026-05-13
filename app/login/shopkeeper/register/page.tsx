@@ -59,7 +59,7 @@ export default function ShopRegisterPage() {
 
   useEffect(() => { mountedRef.current = true }, [])
 
-  // Check for existing user before signUp - Real-time detection
+  // Check for existing user before signUp - Real-time detection with auto-fill
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
     if (!phone.trim() && !email.trim()) return
     
@@ -69,26 +69,30 @@ export default function ShopRegisterPage() {
     try {
       // 1. Check if email exists in auth (most reliable)
       if (email.trim()) {
-        // Try to get user by email - this won't work directly in client, so we check via sign in attempt
-        // Instead, we check if user is already logged in
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session?.user) {
-          // User is already logged in - check their profile
           if (session.user.email?.toLowerCase() === email.trim().toLowerCase()) {
-            // Check if shop exists
             const { data: shop } = await supabase
               .from('shops')
-              .select('id, is_approved, is_active, name')
+              .select('id, is_approved, is_active, name, full_name, phone, email')
               .eq('owner_id', session.user.id)
               .maybeSingle()
             
             if (shop) {
+              // Auto-fill form with existing data
+              setForm(prev => ({
+                ...prev,
+                full_name: shop.full_name || prev.full_name,
+                phone_number: shop.phone || prev.phone_number,
+                email: shop.email || prev.email,
+                shop_name: shop.name || prev.shop_name,
+              }))
+              
               if (shop.is_approved && shop.is_active) {
                 setExistingUserMessage('Your shop is already approved! Redirecting to login...')
                 setTimeout(() => router.push('/login/shopkeeper'), 1500)
               } else {
-                // Shop exists but not fully approved - go to documents
                 localStorage.setItem('shopkeeper_reg_user_id', session.user.id)
                 setExistingUserMessage('Existing registration found. Continuing to document upload...')
                 setTimeout(() => router.push('/login/shopkeeper/register/documents'), 1000)
@@ -99,7 +103,6 @@ export default function ShopRegisterPage() {
           }
         }
         
-        // Check if there's an existing user with this email in profiles
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, role')
@@ -107,7 +110,6 @@ export default function ShopRegisterPage() {
           .maybeSingle()
         
         if (profile && profile.role === 'shopkeeper') {
-          // Profile exists - user needs to login instead
           setExistingUserMessage('An account with this email already exists. Please login to continue.')
           setCheckingExisting(false)
           return
@@ -123,17 +125,23 @@ export default function ShopRegisterPage() {
           .maybeSingle()
         
         if (shop) {
-          // Check if the shop owner is logged in or try to recover
+          // Auto-fill form with existing data
+          setForm(prev => ({
+            ...prev,
+            full_name: shop.full_name || prev.full_name,
+            phone_number: shop.phone || prev.phone_number,
+            email: shop.email || prev.email,
+            shop_name: shop.name || prev.shop_name,
+          }))
+          
           const { data: { session } } = await supabase.auth.getSession()
           
           if (session?.user && session.user.id === shop.owner_id) {
-            // Same user is logged in
             if (shop.is_approved && shop.is_active) {
               setExistingUserMessage('Your shop is already approved!')
               setTimeout(() => router.push('/login/shopkeeper'), 1500)
             } else {
               localStorage.setItem('shopkeeper_reg_user_id', shop.owner_id)
-              // Check if documents are uploaded
               const { data: docs } = await supabase
                 .from('shop_documents')
                 .select('id')
@@ -150,7 +158,6 @@ export default function ShopRegisterPage() {
             setCheckingExisting(false)
             return
           } else {
-            // Different user - suggest login
             setExistingUserMessage('This phone number is already registered. Please login.')
             setCheckingExisting(false)
             return

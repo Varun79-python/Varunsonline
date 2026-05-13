@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -8,6 +8,11 @@ const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike']
 export default function DeliveryRegisterPage() {
   const supabase = createClient()
   const router = useRouter()
+  const mountedRef = useRef(false)
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => { mountedRef.current = true }, [])
+  
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -23,6 +28,72 @@ export default function DeliveryRegisterPage() {
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingMessage, setExistingMessage] = useState('')
+
+  // Real-time existing user detection with auto-fill
+  const checkExistingUser = useCallback(async (phone: string, email: string) => {
+    if (!phone.trim() && !email.trim()) return
+    
+    setCheckingExisting(true)
+    setExistingMessage('')
+    
+    try {
+      const searchValue = phone.trim() || email.trim()
+      const isPhone = /^\d{10,}$/.test(searchValue)
+      
+      const { data: agent, error } = await supabase
+        .from('delivery_agents')
+        .select('id, full_name, email, phone, vehicle_type, vehicle_number, is_approved, aadhaar_image_url, license_image_url')
+        .eq(isPhone ? 'phone' : 'email', searchValue)
+        .maybeSingle()
+      
+      if (!mountedRef.current) return
+      
+      if (agent) {
+        // Auto-fill form with existing data
+        setForm(prev => ({
+          ...prev,
+          full_name: agent.full_name || prev.full_name,
+          email: agent.email || prev.email,
+          phone: agent.phone || prev.phone,
+          vehicle_type: agent.vehicle_type || prev.vehicle_type,
+          vehicle_number: agent.vehicle_number || prev.vehicle_number,
+        }))
+        
+        const step2Completed = !!agent.aadhaar_image_url && !!agent.license_image_url
+        
+        if (agent.is_approved) {
+          setExistingMessage('Your account is already approved! Redirecting to login...')
+          setTimeout(() => router.push('/login/delivery'), 1500)
+        } else if (step2Completed) {
+          setExistingMessage('Documents uploaded. Waiting for approval.')
+        } else {
+          setExistingMessage('Existing registration found. Continuing to document upload...')
+          localStorage.setItem('delivery_reg_user_id', agent.id)
+          setTimeout(() => router.push('/login/delivery/register/documents'), 1000)
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      if (mountedRef.current) {
+        setCheckingExisting(false)
+      }
+    }
+  }, [supabase, router])
+
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    debounceTimeout.current = setTimeout(() => {
+      checkExistingUser(form.phone, form.email)
+    }, 500)
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone, form.email, checkExistingUser])
 
   const TERMS = `DELIVERY AGENT TERMS & CONDITIONS
 
@@ -57,6 +128,26 @@ export default function DeliveryRegisterPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
+
+    // Check if existing user is partially registered - redirect to step 2
+    const searchValue = form.phone.trim() || form.email.trim()
+    if (searchValue) {
+      const isPhone = /^\d{10,}$/.test(searchValue)
+      const { data: existingAgent } = await supabase
+        .from('delivery_agents')
+        .select('id, aadhaar_image_url, license_image_url')
+        .eq(isPhone ? 'phone' : 'email', searchValue)
+        .maybeSingle()
+      
+      if (existingAgent) {
+        const step2Completed = !!existingAgent.aadhaar_image_url && !!existingAgent.license_image_url
+        if (!step2Completed) {
+          localStorage.setItem('delivery_reg_user_id', existingAgent.id)
+          router.push('/login/delivery/register/documents')
+          return
+        }
+      }
+    }
 
     if (!form.full_name.trim()) { setFormError('Full Name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
@@ -147,6 +238,28 @@ export default function DeliveryRegisterPage() {
         <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Delivery Partner Registration</h2>
       </div>
+
+      {(checkingExisting || existingMessage) && (
+        <div style={{ 
+          maxWidth: 500, 
+          margin: '0 auto 16px',
+          padding: 14, 
+          borderRadius: 12, 
+          background: existingMessage.includes('Redirecting') || existingMessage.includes('approved') ? '#dcfce7' : '#f0f9ff',
+          color: existingMessage.includes('Redirecting') || existingMessage.includes('approved') ? '#16a34a' : '#0369a1',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          {checkingExisting ? (
+            <><span>⏳</span> Checking for existing account...</>
+          ) : (
+            <>✅ {existingMessage}</>
+          )}
+        </div>
+      )}
 
       <form onSubmit={submit} style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>

@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { checkExistingUser, handleExistingUserAuth, ExistingUserResult } from '@/lib/existingUserDetection'
 
 const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
 
@@ -48,6 +49,10 @@ function RegisterForm() {
   const searchParams = useSearchParams()
   const supabase = createClient()
   const [userType, setUserType] = useState<'shopkeeper' | 'agent' | null>(null)
+  const mountedRef = useRef(false)
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => { mountedRef.current = true }, [])
 
   useEffect(() => {
     const type = searchParams.get('type')
@@ -63,6 +68,10 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [captcha, setCaptcha] = useState(() => generateCaptcha())
   const [captchaInput, setCaptchaInput] = useState('')
+  
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingUser, setExistingUser] = useState<ExistingUserResult | null>(null)
+  const [existingMessage, setExistingMessage] = useState('')
 
   const [form, setForm] = useState({
     full_name: '',
@@ -74,6 +83,79 @@ function RegisterForm() {
     vehicle_number: '',
   })
 
+  const role = userType === 'agent' ? 'delivery_agent' : 'shopkeeper'
+
+  const checkExisting = useCallback(async (phone: string, email: string) => {
+    if (!phone.trim() && !email.trim()) return
+    
+    setCheckingExisting(true)
+    setExistingMessage('')
+    
+    try {
+      const searchInput = phone.trim() || email.trim()
+      const result = await checkExistingUser(searchInput, role === 'delivery_agent' ? 'delivery_agent' : 'shopkeeper')
+      
+      if (!mountedRef.current) return
+      
+      if (result.exists && result.userId) {
+        setExistingUser(result)
+        
+        if (result.profileData) {
+          setForm(prev => ({
+            ...prev,
+            full_name: result.profileData?.full_name || prev.full_name,
+            phone_number: result.profileData?.phone || prev.phone_number,
+            email: result.profileData?.email || prev.email,
+            shop_name: result.profileData?.shop_name || prev.shop_name,
+            vehicle_type: result.profileData?.vehicle_type || prev.vehicle_type,
+            vehicle_number: result.profileData?.vehicle_number || prev.vehicle_number,
+          }))
+        }
+        
+        if (result.redirectTo) {
+          setExistingMessage(result.message || 'Existing account found!')
+          
+          setTimeout(() => {
+            if (result.redirectTo === '/shopkeeper' || result.redirectTo === '/delivery' || result.redirectTo === '/customer') {
+              localStorage.setItem('existing_user_id', result.userId!)
+              router.push('/login' + (role === 'delivery_agent' ? '/delivery' : '/shopkeeper'))
+            } else if (result.step1Completed && !result.step2Completed) {
+              if (role === 'delivery_agent') {
+                localStorage.setItem('delivery_reg_user_id', result.userId!)
+              } else {
+                localStorage.setItem('shopkeeper_reg_user_id', result.userId!)
+              }
+              router.push(result.redirectTo)
+            } else {
+              localStorage.setItem('shopkeeper_reg_user_id', result.userId!)
+              router.push(result.redirectTo)
+            }
+          }, 1500)
+        }
+      } else {
+        setExistingUser(null)
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      if (mountedRef.current) {
+        setCheckingExisting(false)
+      }
+    }
+  }, [role, router])
+
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    debounceTimeout.current = setTimeout(() => {
+      checkExisting(form.phone_number, form.email)
+    }, 500)
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone_number, form.email, checkExisting])
+
   function refreshCaptcha() {
     setCaptcha(generateCaptcha())
     setCaptchaInput('')
@@ -81,6 +163,23 @@ function RegisterForm() {
 
   async function handleSubmit() {
     setError('')
+    
+    if (existingUser?.exists && existingUser.step1Completed && !existingUser.step2Completed) {
+      if (role === 'delivery_agent') {
+        localStorage.setItem('delivery_reg_user_id', existingUser.userId!)
+        router.push('/login/delivery/register/documents')
+      } else {
+        localStorage.setItem('shopkeeper_reg_user_id', existingUser.userId!)
+        router.push('/login/shopkeeper/register/documents')
+      }
+      return
+    }
+    
+    if (existingUser?.exists && existingUser.step1Completed && existingUser.step2Completed) {
+      router.push('/login' + (role === 'delivery_agent' ? '/delivery' : '/shopkeeper'))
+      return
+    }
+
     if (!userType) { setError('Please select Register as Shopkeeper or Agent'); return }
     if (!form.full_name.trim()) { setError('Full Name is required'); return }
     if (!form.email.trim()) { setError('Email is required'); return }
@@ -118,10 +217,31 @@ function RegisterForm() {
         }
       })
 
-      if (signUpError) { 
-        setError('Registration failed: ' + signUpError.message); 
-        setSaving(false); 
-        return 
+      if (signUpError) {
+        const errorMsg = signUpError.message.toLowerCase()
+        if (errorMsg.includes('already registered') || errorMsg.includes('already exists') || errorMsg.includes('user already exists')) {
+          const authResult = await handleExistingUserAuth(supabase, form.email, form.password)
+          
+          if (authResult.success && authResult.userId) {
+            if (role === 'delivery_agent') {
+              localStorage.setItem('delivery_reg_user_id', authResult.userId)
+              router.push('/login/delivery/register/documents')
+            } else {
+              localStorage.setItem('shopkeeper_reg_user_id', authResult.userId)
+              router.push('/login/shopkeeper/register/documents')
+            }
+            setSaving(false)
+            return
+          }
+          
+          setError(authResult.error || 'Account exists. Please login or reset your password.')
+          setSaving(false)
+          return
+        }
+        
+        setError('Registration failed: ' + signUpError.message)
+        setSaving(false)
+        return
       }
 
       if (!signUpData.user) { 
@@ -136,6 +256,7 @@ function RegisterForm() {
           phone: form.phone_number.trim(),
           email: form.email.trim(),
           name: form.shop_name.trim(),
+          full_name: form.full_name.trim(),
           is_approved: false,
           is_active: false,
         })
@@ -217,6 +338,28 @@ function RegisterForm() {
         </div>
         <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>2 Steps to Complete Registration</div>
       </div>
+
+      {(checkingExisting || existingMessage) && (
+        <div style={{ 
+          maxWidth: 500, 
+          margin: '0 auto 16px',
+          padding: 14, 
+          borderRadius: 12, 
+          background: existingMessage.includes('Redirecting') || existingMessage.includes('approved') ? '#dcfce7' : '#f0f9ff',
+          color: existingMessage.includes('Redirecting') || existingMessage.includes('approved') ? '#16a34a' : '#0369a1',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          {checkingExisting ? (
+            <><span>⏳</span> Checking for existing account...</>
+          ) : (
+            <>✅ {existingMessage}</>
+          )}
+        </div>
+      )}
 
       {userType && (
         <div style={{ maxWidth: 500, margin: '0 auto' }}>

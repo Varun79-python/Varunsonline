@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -40,6 +40,11 @@ function CaptchaDisplay({ code }: { code: string }) {
 export default function CustomerLoginPage() {
   const router = useRouter()
   const supabase = createClient()
+  const mountedRef = useRef(false)
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => { mountedRef.current = true }, [])
+  
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '' })
@@ -51,6 +56,68 @@ export default function CustomerLoginPage() {
   const [resetMessage, setResetMessage] = useState('')
   const [captcha, setCaptcha] = useState(() => generateCaptcha())
   const [captchaInput, setCaptchaInput] = useState('')
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingMessage, setExistingMessage] = useState('')
+
+  // Real-time existing user detection during registration
+  const checkExistingUser = useCallback(async (phone: string, email: string) => {
+    if (!isLogin || (!phone.trim() && !email.trim())) {
+      setExistingMessage('')
+      return
+    }
+    
+    setCheckingExisting(true)
+    setExistingMessage('')
+    
+    try {
+      const searchValue = phone.trim() || email.trim()
+      if (!searchValue) {
+        setCheckingExisting(false)
+        return
+      }
+      
+      const isPhone = /^\d{10,}$/.test(searchValue)
+      
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .select('id, full_name, phone, email')
+        .eq(isPhone ? 'phone' : 'email', searchValue)
+        .maybeSingle()
+      
+      if (!mountedRef.current) return
+      
+      if (customer) {
+        setForm(prev => ({
+          ...prev,
+          full_name: customer.full_name || prev.full_name,
+          phone: customer.phone || prev.phone,
+        }))
+        setExistingMessage('Account already exists. Please login to continue.')
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      if (mountedRef.current) {
+        setCheckingExisting(false)
+      }
+    }
+  }, [supabase, isLogin])
+
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    if (!isLogin) {
+      debounceTimeout.current = setTimeout(() => {
+        checkExistingUser(form.phone, form.email)
+      }, 500)
+    } else {
+      setExistingMessage('')
+    }
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone, form.email, isLogin, checkExistingUser])
 
   async function refreshCaptcha() {
     setCaptcha(generateCaptcha())
@@ -95,9 +162,74 @@ export default function CustomerLoginPage() {
       }
       router.push('/customer')
     } else {
-      const { data, error: signUpError } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { full_name: form.full_name, phone: form.phone, role: 'customer' } } })
-      if (signUpError) { setError(signUpError.message); setLoading(false); refreshCaptcha(); return }
-      if (data.user) { alert('Account created! Please login.'); setIsLogin(true) }
+      // Check if user already exists in customers table before signup
+      const isPhone = /^\d{10,}$/.test(input)
+      const searchValue = isPhone ? form.phone.trim() : input
+      
+      if (searchValue) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq(isPhone ? 'phone' : 'email', searchValue)
+          .maybeSingle()
+        
+        if (existingCustomer) {
+          setError('An account with this information already exists. Please login to continue.')
+          setLoading(false)
+          setIsLogin(true)
+          return
+        }
+      }
+      
+      const { data, error: signUpError } = await supabase.auth.signUp({ 
+        email: form.email, 
+        password: form.password, 
+        options: { data: { full_name: form.full_name, phone: form.phone, role: 'customer' } } 
+      })
+      
+      // Handle "user already registered" error gracefully
+      if (signUpError) {
+        const errorMsg = signUpError.message.toLowerCase()
+        if (errorMsg.includes('already registered') || errorMsg.includes('already exists') || errorMsg.includes('user already exists')) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password
+          })
+          
+          if (signInData?.user) {
+            const { data: customer } = await supabase.from('customers').select('id').eq('id', signInData.user.id).single()
+            if (customer) {
+              router.push('/customer')
+              setLoading(false)
+              return
+            }
+          }
+          
+          if (signInError) {
+            setError('Account exists. Please login with your existing credentials.')
+            setLoading(false)
+            setIsLogin(true)
+            return
+          }
+        }
+        
+        setError(signUpError.message)
+        setLoading(false)
+        refreshCaptcha()
+        return
+      }
+      
+      if (data.user) { 
+        // Create customer record
+        await supabase.from('customers').insert({
+          id: data.user.id,
+          full_name: form.full_name,
+          phone: form.phone,
+          email: form.email,
+        })
+        alert('Account created! Please login.')
+        setIsLogin(true)
+      }
     }
     setLoading(false)
   }
@@ -115,6 +247,20 @@ export default function CustomerLoginPage() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{isLogin ? 'Customer Login' : 'Customer Register'}</h1>
           <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{isLogin ? 'Sign in to continue shopping' : 'Create an account to start shopping'}</p>
         </div>
+
+        {existingMessage && (
+          <div style={{ 
+            padding: 12, 
+            borderRadius: 10, 
+            background: '#fef3c7',
+            color: '#92400e',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            marginBottom: 8
+          }}>
+            {existingMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {!isLogin && (
