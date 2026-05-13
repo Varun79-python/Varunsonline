@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
@@ -15,12 +15,14 @@ export const dynamic = 'force-dynamic'
  *   1. Nearest agent (if order has shop GPS and agent has last_lat/last_lon)
  *   2. Round-robin (lowest total_deliveries — gives new agents a fair start)
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    // Auth check - using empty request since we can't easily get headers from Request
-    // This endpoint is called internally by shopkeeper-order-action
-    // Adding auth would require refactoring to use NextRequest
-    
+    // Auth check - verify shopkeeper is authenticated
+    const auth = await verifyShopkeeper(req)
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: 401 })
+    }
+
     const { orderId, excludeAgentIds = [] } = await req.json()
     if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 })
 

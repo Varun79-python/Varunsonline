@@ -499,13 +499,47 @@ CREATE TRIGGER on_review_insert
   FOR EACH ROW EXECUTE FUNCTION update_shop_rating();
 
 -- ============================================================
--- STORAGE BUCKETS (run separately if SQL doesn't support)
+-- STORAGE BUCKETS
 -- ============================================================
--- INSERT INTO storage.buckets (id, name, public) VALUES
---   ('shop-images', 'shop-images', true),
---   ('product-images', 'product-images', true),
---   ('shop-documents', 'shop-documents', false),
---   ('agent-documents', 'agent-documents', false);
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('shop-images', 'shop-images', true),
+  ('product-images', 'product-images', true),
+  ('shop-documents', 'shop-documents', false),
+  ('agent-documents', 'agent-documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage bucket policies
+-- Shop images (public read, authenticated write for shop owners)
+CREATE POLICY "Public can view shop images" ON storage.objects FOR SELECT USING (bucket_id = 'shop-images');
+CREATE POLICY "Shop owners can upload shop images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'shop-images' AND auth.uid() IN (SELECT owner_id FROM shops));
+
+-- Product images (public read, authenticated write for shop owners)
+CREATE POLICY "Public can view product images" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
+CREATE POLICY "Shop owners can upload product images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images' AND auth.uid() IN (SELECT owner_id FROM shops WHERE id IN (SELECT shop_id FROM products WHERE true)));
+
+-- Shop documents (admin only + shop owner)
+CREATE POLICY "Shop owners can view own documents" ON storage.objects FOR SELECT USING (
+  bucket_id = 'shop-documents' AND 
+  (auth.uid() IN (SELECT owner_id FROM shops) OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+);
+CREATE POLICY "Shop owners can upload own documents" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'shop-documents' AND auth.uid() IN (SELECT owner_id FROM shops)
+);
+CREATE POLICY "Admins can manage all documents" ON storage.objects FOR ALL USING (
+  bucket_id = 'shop-documents' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- Agent documents (admin only + agent)
+CREATE POLICY "Agents can view own documents" ON storage.objects FOR SELECT USING (
+  bucket_id = 'agent-documents' AND 
+  (id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+);
+CREATE POLICY "Agents can upload own documents" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'agent-documents' AND auth.uid() IN (SELECT id FROM delivery_agents)
+);
+CREATE POLICY "Admins can manage agent documents" ON storage.objects FOR ALL USING (
+  bucket_id = 'agent-documents' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
 
 -- ============================================================
 -- ENABLE REALTIME
