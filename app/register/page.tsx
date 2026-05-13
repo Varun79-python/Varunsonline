@@ -77,7 +77,7 @@ const TERMS_SHOPKEEPER = `SHOPKEEPER TERMS & CONDITIONS
 
 7. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
