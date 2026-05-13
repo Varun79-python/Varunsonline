@@ -32,7 +32,7 @@ export default function OrderDetailPage() {
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
-  async function getAuthHeader(): Promise<HeadersInit> {
+  async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }

@@ -31,7 +31,7 @@ export default function ShopkeeperDashboard() {
     setTimeout(() => setToast(null), 3500)
   }
 
-  async function getAuthHeader(): Promise<HeadersInit> {
+  async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }

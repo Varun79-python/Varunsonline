@@ -43,7 +43,7 @@ export default function AdminAgentSettlements() {
   const [totalSettled, setTotalSettled] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
 
-  async function getAuthHeader(): Promise<HeadersInit> {
+  async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }

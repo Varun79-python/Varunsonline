@@ -34,7 +34,7 @@ export default function DeliveryWallet() {
   const pendingBalance = balance < 0 ? Math.abs(balance) : 0
   const availableBalance = balance > 0 ? balance : 0
 
-  async function getAuthHeader(): Promise<HeadersInit> {
+  async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }
