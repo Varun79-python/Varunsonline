@@ -52,42 +52,36 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Get the auth token from cookies or Authorization header
-  const authCookie = request.cookies.get('sb-access-token')?.value
-  const authHeader = request.headers.get('authorization')
-  const token = authCookie || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null)
+  // Get session from supabase server client - it handles cookie names correctly
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-  if (!token) {
+  if (sessionError) {
+    console.error('Session error in middleware:', sessionError)
+  }
+
+  // If no session, redirect to login
+  if (!session?.user) {
     return NextResponse.redirect(new URL('/admin/login', request.url))
   }
 
+  const user = session.user
+
+  // Check if admin via email or profile role
+  const isAdminEmail = user.email === ADMIN_EMAIL
+  const metaRole = user.user_metadata?.role || user.app_metadata?.role
+
+  if (isAdminEmail || metaRole === 'admin') {
+    return supabaseResponse
+  }
+
+  // Check profile table for admin role (using service role to bypass RLS)
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-    // Use service role key to verify token (skip RLS)
     const adminSupabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
+      auth: { persistSession: false, autoRefreshToken: false }
     })
 
-    const { data: { user }, error } = await adminSupabase.auth.getUser(token)
-
-    if (error || !user) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
-    }
-
-    // Check if admin via email or profile role
-    const isAdminEmail = user.email === ADMIN_EMAIL
-    const metaRole = user.user_metadata?.role || user.app_metadata?.role
-
-    if (isAdminEmail || metaRole === 'admin') {
-      return supabaseResponse
-    }
-
-    // Check profile table for admin role
     const { data: profile } = await adminSupabase
       .from('profiles')
       .select('role')
@@ -97,12 +91,15 @@ export async function middleware(request: NextRequest) {
     if (!profile || profile.role !== 'admin') {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
-
-    return supabaseResponse
-  } catch (error) {
-    console.error('Admin middleware error:', error)
-    return NextResponse.redirect(new URL('/admin/login', request.url))
+  } catch (profileError) {
+    console.error('Profile check error:', profileError)
+    // If profile table check fails due to RLS or other issues, allow if email matches
+    if (!isAdminEmail) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
   }
+
+  return supabaseResponse
 }
 
 export const config = {

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,64 +10,123 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [initializing, setInitializing] = useState(true)
+
+  const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+
+  // Check if already authenticated on page load
+  useEffect(() => {
+    async function checkExistingSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session?.user) {
+          const user = session.user
+          const metaRole = user.user_metadata?.role || user.app_metadata?.role
+          
+          // Already logged in as admin, redirect to dashboard
+          if (user.email === ADMIN_EMAIL || metaRole === 'admin') {
+            window.location.href = '/admin'
+            return
+          }
+          
+          // Check profile for admin role
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+          
+          if (profile?.role === 'admin') {
+            window.location.href = '/admin'
+            return
+          }
+          
+          // User is logged in but not admin, sign them out
+          await supabase.auth.signOut()
+        }
+      } catch (err) {
+        console.error('Session check error:', err)
+      } finally {
+        setInitializing(false)
+        setLoading(false)
+      }
+    }
+    
+    checkExistingSession()
+  }, [supabase])
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setLoading(true)
 
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) { setError(err.message); setLoading(false); return }
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
+      if (err) { setError(err.message); setLoading(false); return }
 
-    const user = data.user
-    if (!user) { setError('Login failed'); setLoading(false); return }
+      const user = data.user
+      if (!user) { setError('Login failed'); setLoading(false); return }
 
-    const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
-    
-    // Check 1: user_metadata.role (set during account creation — no DB needed)
-    const metaRole = user.user_metadata?.role
-    if (metaRole === 'admin') {
-      router.push('/admin')
-      return
+      // Check 1: user_metadata.role
+      const metaRole = user.user_metadata?.role
+      if (metaRole === 'admin') {
+        window.location.href = '/admin'
+        return
+      }
+
+      // Check 2: app_metadata.role
+      const appRole = user.app_metadata?.role
+      if (appRole === 'admin') {
+        window.location.href = '/admin'
+        return
+      }
+
+      // Check 3: profiles table
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (!profileErr && profile?.role === 'admin') {
+        window.location.href = '/admin'
+        return
+      }
+
+      // Check 4: hardcoded admin email
+      if (user.email === ADMIN_EMAIL) {
+        await supabase.from('profiles').upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || 'Varun Admin',
+          role: 'admin',
+          is_active: true,
+        }).then(() => {})
+        window.location.href = '/admin'
+        return
+      }
+
+      // Access denied
+      setError('Access denied. This account is not an admin.')
+      await supabase.auth.signOut()
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    // Check 2: app_metadata.role (set via Supabase admin API)
-    const appRole = user.app_metadata?.role
-    if (appRole === 'admin') {
-      router.push('/admin')
-      return
-    }
-
-    // Check 3: profiles table (if schema has been run)
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profileErr && profile?.role === 'admin') {
-      router.push('/admin')
-      return
-    }
-
-    // Check 4: hardcoded admin email as final fallback (owner's email)
-    if (user.email === ADMIN_EMAIL) {
-      // Also try to upsert the profile so future logins use Check 3
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || 'Varun Admin',
-        role: 'admin',
-        is_active: true,
-      }).then(() => {})
-      router.push('/admin')
-      return
-    }
-
-    // None of the checks passed
-    setError('Access denied. This account is not an admin.')
-    await supabase.auth.signOut()
-    setLoading(false)
+  if (initializing) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 40, height: 40, border: '3px solid #334155', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+          <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
+        </div>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
   }
 
   return (
