@@ -508,36 +508,96 @@ INSERT INTO storage.buckets (id, name, public) VALUES
   ('agent-documents', 'agent-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage bucket policies
--- Shop images (public read, authenticated write for shop owners)
+-- ============================================================
+-- STORAGE POLICIES WITH FOLDER-BASED OWNERSHIP
+-- ============================================================
+
+-- SHOP IMAGES: Only shop owner can upload to their own folder {shopId}/
+-- Public can view all
+DROP POLICY IF EXISTS "Public can view shop images" ON storage.objects;
+DROP POLICY IF EXISTS "Shop owners can upload shop images" ON storage.objects;
 CREATE POLICY "Public can view shop images" ON storage.objects FOR SELECT USING (bucket_id = 'shop-images');
-CREATE POLICY "Shop owners can upload shop images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'shop-images' AND auth.uid() IN (SELECT owner_id FROM shops));
+CREATE POLICY "Shop owners can upload to own folder" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'shop-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Shop owners can update own folder" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'shop-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Shop owners can delete own folder" ON storage.objects FOR DELETE USING (
+  bucket_id = 'shop-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Admins can manage all shop images" ON storage.objects FOR ALL USING (
+  bucket_id = 'shop-images' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
 
--- Product images (public read, authenticated write for shop owners)
+-- PRODUCT IMAGES: Only shop owner can upload to their own folder {shopId}/
+DROP POLICY IF EXISTS "Public can view product images" ON storage.objects;
+DROP POLICY IF EXISTS "Shop owners can upload product images" ON storage.objects;
 CREATE POLICY "Public can view product images" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
-CREATE POLICY "Shop owners can upload product images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images' AND auth.uid() IN (SELECT owner_id FROM shops WHERE id IN (SELECT shop_id FROM products WHERE true)));
+CREATE POLICY "Shop owners can upload to own product folder" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'product-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Shop owners can update own product folder" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'product-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Shop owners can delete own product folder" ON storage.objects FOR DELETE USING (
+  bucket_id = 'product-images' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Admins can manage all product images" ON storage.objects FOR ALL USING (
+  bucket_id = 'product-images' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
 
--- Shop documents (admin only + shop owner)
+-- SHOP DOCUMENTS: Only shop owner can access their own folder {shopId}/
+DROP POLICY IF EXISTS "Shop owners can view own documents" ON storage.objects;
+DROP POLICY IF EXISTS "Shop owners can upload own documents" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can manage all documents" ON storage.objects;
 CREATE POLICY "Shop owners can view own documents" ON storage.objects FOR SELECT USING (
   bucket_id = 'shop-documents' AND 
-  (auth.uid() IN (SELECT owner_id FROM shops) OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
 );
 CREATE POLICY "Shop owners can upload own documents" ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id = 'shop-documents' AND auth.uid() IN (SELECT owner_id FROM shops)
+  bucket_id = 'shop-documents' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
 );
-CREATE POLICY "Admins can manage all documents" ON storage.objects FOR ALL USING (
+CREATE POLICY "Shop owners can update own documents" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'shop-documents' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Shop owners can delete own documents" ON storage.objects FOR DELETE USING (
+  bucket_id = 'shop-documents' AND 
+  auth.uid() IN (SELECT owner_id FROM shops WHERE id = (storage.foldername(name))[1])
+);
+CREATE POLICY "Admins can manage all shop documents" ON storage.objects FOR ALL USING (
   bucket_id = 'shop-documents' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
--- Agent documents (admin only + agent)
+-- AGENT DOCUMENTS: Only agent can access their own folder {agentId}/
+DROP POLICY IF EXISTS "Agents can view own documents" ON storage.objects;
+DROP POLICY IF EXISTS "Agents can upload own documents" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can manage agent documents" ON storage.objects;
 CREATE POLICY "Agents can view own documents" ON storage.objects FOR SELECT USING (
   bucket_id = 'agent-documents' AND 
-  (id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+  auth.uid()::text = (storage.foldername(name))[1]
 );
 CREATE POLICY "Agents can upload own documents" ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id = 'agent-documents' AND auth.uid() IN (SELECT id FROM delivery_agents)
+  bucket_id = 'agent-documents' AND 
+  auth.uid()::text = (storage.foldername(name))[1]
 );
-CREATE POLICY "Admins can manage agent documents" ON storage.objects FOR ALL USING (
+CREATE POLICY "Agents can update own documents" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'agent-documents' AND 
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+CREATE POLICY "Agents can delete own documents" ON storage.objects FOR DELETE USING (
+  bucket_id = 'agent-documents' AND 
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+CREATE POLICY "Admins can manage all agent documents" ON storage.objects FOR ALL USING (
   bucket_id = 'agent-documents' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 

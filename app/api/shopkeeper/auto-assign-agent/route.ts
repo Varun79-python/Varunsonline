@@ -28,14 +28,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    // ── 1. Fetch order's shop location ──────────────────────────────────────
+    // ── 1. Fetch order with shop ownership verification ──────────────────────────────────────
     const { data: order } = await supabase
       .from('orders')
-      .select('id, status, agent_id, shops:shop_id(latitude, longitude)')
+      .select('id, status, agent_id, shop_id, shops:shop_id(latitude, longitude)')
       .eq('id', orderId)
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+    // CRITICAL: Verify the order belongs to this shopkeeper
+    if (order.shop_id !== auth.shopId) {
+      return NextResponse.json({ error: 'Not authorized to assign agent to this order' }, { status: 403 })
+    }
+
     if (order.agent_id) return NextResponse.json({ error: 'Order already has an agent', agentId: order.agent_id }, { status: 409 })
     if (!['shop_accepted', 'order_packed'].includes(order.status)) {
       return NextResponse.json({ error: 'Order not in assignable state', status: order.status }, { status: 409 })
