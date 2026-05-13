@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
+import { createServiceClient } from '@/lib/authMiddleware'
+import { verifyAdmin } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
 // GET — fetch all withdrawal requests for admin
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const auth = await verifyAdmin(new NextRequest('http://localhost'))
-    if (auth.error) {
-      // Allow GET for now - will add proper auth header handling
+    const auth = await verifyAdmin(req)
+    if (auth.error || !auth.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 })
     }
-    
+
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from('withdraw_requests')

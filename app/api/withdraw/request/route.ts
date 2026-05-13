@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 3 withdrawal requests per hour
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = checkRateLimit(identifier, {
+      windowMs: 60 * 60 * 1000,
+      maxRequests: 3,
+      message: 'Too many withdrawal requests. Please try again later.',
+    })
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

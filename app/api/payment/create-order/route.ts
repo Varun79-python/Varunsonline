@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/authMiddleware'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 // Force dynamic — never statically evaluated at build time
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 payment requests per minute
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+      message: 'Too many payment requests. Please wait a moment.',
+    })
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const authHeader = req.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized - no token' }, { status: 401 })
