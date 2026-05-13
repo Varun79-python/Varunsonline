@@ -22,12 +22,12 @@ export async function POST(req: NextRequest) {
       .from('orders')
       .select('id, agent_id, total_amount, payment_status, payment_method, order_number, status, otp_verified, agent_earning')
       .eq('id', orderId)
+      .eq('status', 'out_for_delivery')
       .single()
 
-    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    if (!order) return NextResponse.json({ error: 'Order not found or already delivered' }, { status: 404 })
     if (order.agent_id !== auth.agentId) return NextResponse.json({ error: 'Not your order' }, { status: 403 })
     if (order.payment_method !== 'cod') return NextResponse.json({ error: 'Not a COD order' }, { status: 400 })
-    if (order.status === 'delivered') return NextResponse.json({ error: 'Already delivered', alreadyDone: true }, { status: 409 })
     if (!order.otp_verified) return NextResponse.json({ error: 'OTP not verified yet' }, { status: 400 })
 
     const now = new Date().toISOString()
