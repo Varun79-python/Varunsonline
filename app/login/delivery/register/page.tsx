@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
+const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike']
 
 export default function DeliveryRegisterPage() {
   const supabase = createClient()
@@ -64,7 +64,7 @@ export default function DeliveryRegisterPage() {
     if (form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
-    if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
+    if (form.vehicle_type !== 'Bicycle' && !form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
@@ -169,8 +169,12 @@ export default function DeliveryRegisterPage() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vehicle Number *</label>
-            <input value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="e.g. TS 01 AB 1234" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', textTransform: 'uppercase' }} />
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vehicle Number {form.vehicle_type === 'Bicycle' ? '(Optional for Bicycle)' : '*'}</label>
+            {form.vehicle_type === 'Bicycle' ? (
+              <input value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="Not required for Bicycle" disabled style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', textTransform: 'uppercase', background: '#f1f5f9', color: '#94a3b8' }} />
+            ) : (
+              <input value={form.vehicle_number} onChange={e => setForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="e.g. TS 01 AB 1234" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', textTransform: 'uppercase' }} />
+            )}
           </div>
         </div>
 

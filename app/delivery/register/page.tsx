@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
+const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike']
 
 export default function DeliveryRegisterPage() {
   const supabase = createClient()
@@ -108,7 +108,7 @@ export default function DeliveryRegisterPage() {
     if (form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
-    if (!form.vehicle_number.trim()) { setFormError('Vehicle Number is required'); return }
+    if (!form.vehicle_number.trim() && form.vehicle_type !== 'Bicycle') { setFormError('Vehicle Number is required'); return }
     if (!form.aadhar_url) { setFormError('Aadhaar Card photo is required'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
