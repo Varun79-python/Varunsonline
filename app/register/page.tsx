@@ -116,6 +116,8 @@ function RegisterForm() {
           setExistingMessage(result.message || 'Existing account found!')
           
           setTimeout(() => {
+            if (!result.redirectTo) return
+            
             if (result.redirectTo === '/shopkeeper' || result.redirectTo === '/delivery' || result.redirectTo === '/customer') {
               localStorage.setItem('existing_user_id', result.userId!)
               router.push('/login' + (role === 'delivery_agent' ? '/delivery' : '/shopkeeper'))
