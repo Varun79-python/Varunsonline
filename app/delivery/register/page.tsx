@@ -70,9 +70,27 @@ export default function DeliveryRegisterPage() {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB'); return }
+    
+    // First create account to get user ID
+    let { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      if (!form.email.trim() || !form.password.trim() || !form.full_name.trim()) {
+        alert('Please fill name, email and password first to create account')
+        return
+      }
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+      })
+      if (signUpError) { alert('Account creation failed: ' + signUpError.message); return }
+      if (!signUpData.user) { alert('Failed to create account'); return }
+      user = signUpData.user
+    }
+    
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `aadhar_${Date.now()}.${ext}`
+    const fileName = `${user.id}/aadhar_${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('agent-documents').upload(fileName, file)
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(fileName)

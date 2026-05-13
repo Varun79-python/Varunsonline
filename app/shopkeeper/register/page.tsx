@@ -55,11 +55,33 @@ export default function ShopRegisterPage() {
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
+  async function getUserId(): Promise<string | null> {
+    let { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      if (!form.email.trim() || !form.password.trim() || !form.full_name.trim() || !form.shop_name.trim()) {
+        alert('Please fill all required fields first')
+        return null
+      }
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+      })
+      if (signUpError) { alert('Account creation failed: ' + signUpError.message); return null }
+      if (!signUpData.user) { alert('Failed to create account'); return null }
+      user = signUpData.user
+    }
+    return user?.id || null
+  }
+
   async function uploadShopPhoto(file: File) {
     setUploading(true)
     try {
+      const userId = await getUserId()
+      if (!userId) { setUploading(false); return null }
+      
       const ext = file.name.split('.').pop()
-      const fileName = `shop_${Date.now()}.${ext}`
+      const fileName = `${userId}/shop_${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('shop-images').upload(fileName, file)
       if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
       const { data: { publicUrl } } = supabase.storage.from('shop-images').getPublicUrl(fileName)
@@ -71,9 +93,12 @@ export default function ShopRegisterPage() {
   async function uploadAdhaarDoc(file: File, frontOrBack: 'front' | 'back') {
     setUploadingDoc(true)
     try {
+      const userId = await getUserId()
+      if (!userId) { setUploadingDoc(false); return null }
+      
       const ext = file.name.split('.').pop()
       const docType = frontOrBack === 'front' ? 'aadhar_front' : 'aadhar_back'
-      const fileName = `${docType}_${Date.now()}.${ext}`
+      const fileName = `${userId}/${docType}_${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('shop-documents').upload(fileName, file)
       if (error) { alert('Upload failed: ' + error.message); setUploadingDoc(false); return null }
       const { data: { publicUrl } } = supabase.storage.from('shop-documents').getPublicUrl(fileName)
