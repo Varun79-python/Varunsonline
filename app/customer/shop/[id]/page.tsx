@@ -382,7 +382,7 @@ export default function ShopPage() {
       {search && (
         <div style={{ padding: '0 16px 12px' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Showing {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"
+            Showing {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &quot;{search}&quot;
           </span>
         </div>
       )}

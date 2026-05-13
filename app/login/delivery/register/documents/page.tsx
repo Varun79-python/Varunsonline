@@ -95,7 +95,7 @@ export default function DeliveryDocumentsPage() {
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎉</div>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Complete!</h2>
-        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your documents have been uploaded.<br/><br/>Admin will review your application and approve it.<br/>You'll be notified once approved.</p>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your documents have been uploaded.<br/><br/>Admin will review your application and approve it.<br/>You&apos;ll be notified once approved.</p>
         <button onClick={() => {
           localStorage.removeItem('delivery_reg_user_id')
           router.push('/login/delivery')

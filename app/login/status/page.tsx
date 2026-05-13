@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -9,11 +9,7 @@ export default function ApprovalStatusPage() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<{approved: boolean, role: string, message: string} | null>(null)
 
-  useEffect(() => {
-    checkApprovalStatus()
-  }, [])
-
-  async function checkApprovalStatus() {
+  const checkApprovalStatus = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -76,7 +72,11 @@ export default function ApprovalStatusPage() {
     }
 
     setLoading(false)
-  }
+  }, [router, supabase])
+
+  useEffect(() => {
+    checkApprovalStatus()
+  }, [checkApprovalStatus])
 
   if (loading) {
     return (

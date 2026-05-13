@@ -160,7 +160,7 @@ export default function RegisterDocumentsPage() {
         <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
           Your documents have been uploaded successfully.<br/><br/>
           Admin will review your application and approve it.<br/>
-          You'll be notified once approved.
+          You&apos;ll be notified once approved.
         </p>
         <button 
           onClick={() => {

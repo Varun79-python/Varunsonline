@@ -209,7 +209,7 @@ export default function ResetPasswordPage() {
                 </button>
               </div>
               {confirm && confirm !== password && (
-                <span style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: 4, display: 'block' }}>❌ Passwords don't match</span>
+                <span style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: 4, display: 'block' }}>❌ Passwords don&apos;t match</span>
               )}
               {confirm && confirm === password && (
                 <span style={{ fontSize: '0.78rem', color: '#16a34a', marginTop: 4, display: 'block' }}>✅ Passwords match</span>

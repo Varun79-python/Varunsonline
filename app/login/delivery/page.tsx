@@ -151,7 +151,7 @@ export default function DeliveryLoginPage() {
         </form>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Don't have an account? </span>
+          <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Don&apos;t have an account? </span>
           <button onClick={() => router.push('/register?type=agent')} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
         </div>
       </div>

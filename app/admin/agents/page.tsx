@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Agent {
@@ -41,11 +41,7 @@ export default function AdminAgents() {
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }
 
-  useEffect(() => { 
-    if (!loadingRef.current) load() 
-  }, [tab])
-
-  async function load() {
+  const load = useCallback(async () => {
     if (loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
@@ -76,7 +72,11 @@ export default function AdminAgents() {
         loadingRef.current = false
       }
     }
-  }
+  }, [tab, supabase])
+
+  useEffect(() => { 
+    if (!loadingRef.current) load() 
+  }, [load])
 
   async function doAction(agentId: string, action: 'approve' | 'reject' | 'deactivate', reason?: string) {
     setProcessing(true)

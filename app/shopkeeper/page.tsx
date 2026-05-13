@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
@@ -25,6 +25,10 @@ export default function ShopkeeperDashboard() {
 
   const [nowTime, setNowTime] = useState<number>(0)
   useEffect(() => { setNowTime(Date.now()) }, [])
+
+  const alertingOrderIds = useMemo(() => {
+    return new Set(alertingOrdersRef.current)
+  }, [alertingOrdersRef.current.size])
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -404,7 +408,7 @@ export default function ShopkeeperDashboard() {
             const isExpanded = expanded.has(order.id)
             const itemCount = order.items?.length || 0
             const isProcessing = actionLoading === order.id
-            const isNew = alertingOrdersRef.current.has(order.id) || idx === 0 && alertingOrdersRef.current.size > 0
+            const isNew = alertingOrderIds.has(order.id) || idx === 0 && alertingOrderIds.size > 0
 
             return (
               <div key={order.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', overflow: 'hidden' }}>
