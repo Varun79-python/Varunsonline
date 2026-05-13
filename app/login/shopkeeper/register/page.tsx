@@ -180,13 +180,38 @@ export default function ShopRegisterPage() {
   }, [form.phone_number, form.email, checkExistingUser])
 
   async function uploadPhoto(file: File) {
+    // Validate file first
+    if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      alert('Only JPG, JPEG, PNG files are allowed.')
+      return null
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Maximum size is 5MB')
+      return null
+    }
+    
     setUploading(true)
+    // Get authenticated user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert('Please login to upload')
+      setUploading(false)
+      return null
+    }
+    
     const ext = file.name.split('.').pop()
-    const tempId = 'temp-' + Date.now()
-    const path = `shop_photos/${tempId}-${Date.now()}.${ext}`
-    const { data, error } = await supabase.storage.from('uploads').upload(path, file)
-    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
-    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(path)
+    const path = `${user.id}/shop_photo_${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage.from('shop-images').upload(path, file, {
+      upsert: true,
+      contentType: file.type
+    })
+    if (error) { 
+      console.error('Upload error:', error)
+      alert('Upload failed: ' + error.message); 
+      setUploading(false); 
+      return null 
+    }
+    const { data: { publicUrl } } = supabase.storage.from('shop-images').getPublicUrl(path)
     setUploading(false)
     return publicUrl
   }
@@ -194,16 +219,29 @@ export default function ShopRegisterPage() {
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB'); return }
+    if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      alert('Only JPG, JPEG, PNG files are allowed.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB'); return }
     uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) })
   }
 
   function openCamera() {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    input.accept = 'image/jpeg,image/jpg,image/png'
     input.capture = 'environment'
-    input.onchange = (e: any) => { const file = e.target.files?.[0]; if (file) uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) }) }
+    input.onchange = (e: any) => { 
+      const file = e.target.files?.[0]
+      if (!file) return
+      if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+        alert('Only JPG, JPEG, PNG files are allowed.')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB'); return }
+      uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) }) 
+    }
     input.click()
   }
 
