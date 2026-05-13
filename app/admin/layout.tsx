@@ -348,7 +348,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }
           .admin-nav-active { color: #f97316; }
           .admin-nav-icon { font-size: 1.2rem; line-height: 1; }
-          .admin-nav-label { font-size: 0.55rem; fontWeight: 600; white-space: nowrap; }
+          .admin-nav-label { font-size: 0.55rem; font-weight: 600; white-space: nowrap; }
           .admin-nav-active .admin-nav-label { font-weight: 700; }
         }
       `}</style>
