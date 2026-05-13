@@ -40,33 +40,68 @@ export default function RegisterDocumentsPage() {
   }, [router])
 
   async function uploadFile(file: File, bucket: string, docType: string): Promise<string | null> {
-    if (!userId) return null
+    if (!userId) {
+      setError('Session expired. Please restart registration.')
+      return null
+    }
+    
+    // Validate file before upload
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
+    if (!validTypes.includes(file.type)) {
+      setError('Only JPG, JPEG, PNG files are allowed.')
+      return null
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File too large. Maximum size is 5MB')
+      return null
+    }
+    
     setUploading(true)
+    setError('')
+    
     try {
+      // Get current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('Auth error:', authError)
+        // Try to recover session or redirect
+        setError('Session expired. Please login and restart registration.')
+        setUploading(false)
+        return null
+      }
+      
+      console.log('Upload auth:', { userId: user.id, expected: userId, bucket })
+      
       const ext = file.name.split('.').pop()
       
-      // For shopkeepers, use shop ID as folder; for agents, use user ID
-      let folderId = userId
-      if (userType === 'shopkeeper') {
-        const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', userId).single()
-        if (shop) folderId = shop.id
-      }
-      // For agents, the folder should be userId (agent ID) - policy checks auth.uid() = folder
+      // For shopkeepers, use owner_id (userId) as folder - simpler path
+      // The RLS policy allows upload to userId folder
+      const folderId = userId
       
+      // Use userId-based path which matches RLS policy
       const path = `${folderId}/${docType}_${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file)
+      console.log('Upload path:', path, 'bucket:', bucket)
+      
+      const { data, error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
+        upsert: true,
+        contentType: file.type
+      })
       
       if (uploadError) { 
-        alert('Upload failed: ' + uploadError.message)
+        console.error('Storage upload error:', uploadError)
+        setError('Upload failed: ' + uploadError.message)
         setUploading(false)
         return null 
       }
       
       const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+      console.log('Upload success:', publicUrl)
       setUploading(false)
       return publicUrl
     } catch (err: any) { 
-      alert('Upload failed: ' + err.message)
+      console.error('Upload exception:', err)
+      setError('Upload failed: ' + (err.message || 'Unknown error'))
       setUploading(false)
       return null 
     }
@@ -75,19 +110,49 @@ export default function RegisterDocumentsPage() {
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>, setter: (url: string) => void, docType: string, bucket: string) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
-    uploadFile(file, bucket, docType).then(url => { if (url) setter(url) })
+    
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
+    if (!validTypes.includes(file.type)) {
+      setError('Only JPG, JPEG, PNG files are allowed.')
+      return
+    }
+    
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File too large. Maximum size is 5MB')
+      return
+    }
+    
+    setError('')
+    uploadFile(file, bucket, docType).then(url => { 
+      if (url) setter(url) 
+    })
   }
 
   function openCamera(setter: (url: string) => void, docType: string, bucket: string) {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    input.accept = 'image/jpeg,image/jpg,image/png'
     input.capture = 'environment'
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0]
       if (!file) return
-      if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
+      
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
+      if (!validTypes.includes(file.type)) {
+        setError('Only JPG, JPEG, PNG files are allowed.')
+        return
+      }
+      
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        setError('File too large. Maximum size is 5MB')
+        return
+      }
+      
+      setError('')
       uploadFile(file, bucket, docType).then(url => { if (url) setter(url) })
     }
     input.click()
@@ -100,31 +165,66 @@ export default function RegisterDocumentsPage() {
     if (!adhaarBackUrl) { setError('Please upload Aadhaar Card (Back)'); return }
 
     setSaving(true)
+    setError('')
 
-    // Update shop with photo
-    const { error: shopUpdateError } = await supabase.from('shops').update({
-      shop_image_url: shopPhotoUrl
-    }).eq('owner_id', userId)
+    try {
+      // Get current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        setError('Session expired. Please login and restart registration.')
+        setSaving(false)
+        return
+      }
+      
+      console.log('Submit shopkeeper - user:', user.id, 'expected:', userId)
 
-    if (shopUpdateError) { 
-      setError('Failed to save: ' + shopUpdateError.message)
-      setSaving(false)
-      return
-    }
+      // Update shop with photo
+      const { error: shopUpdateError } = await supabase.from('shops').update({
+        shop_image_url: shopPhotoUrl
+      }).eq('owner_id', userId)
 
-    // Get shop ID
-    const { data: shopData } = await supabase.from('shops').select('id').eq('owner_id', userId).single()
-    
-    if (shopData) {
-      // Save documents
-      await supabase.from('shop_documents').insert([
+      if (shopUpdateError) { 
+        console.error('Shop update error:', shopUpdateError)
+        setError('Failed to save shop: ' + shopUpdateError.message)
+        setSaving(false)
+        return
+      }
+
+      // Get shop ID
+      const { data: shopData, error: shopQueryError } = await supabase.from('shops').select('id').eq('owner_id', userId).single()
+      
+      if (shopQueryError || !shopData) {
+        console.error('Shop query error:', shopQueryError)
+        setError('Failed to find your shop. Please try again.')
+        setSaving(false)
+        return
+      }
+      
+      console.log('Shop ID:', shopData.id)
+
+      // Save documents with explicit auth check
+      const { data: docData, error: docError } = await supabase.from('shop_documents').insert([
         { shop_id: shopData.id, doc_type: 'aadhar_front', file_url: adhaarFrontUrl, file_name: 'Aadhaar Front' },
         { shop_id: shopData.id, doc_type: 'aadhar_back', file_url: adhaarBackUrl, file_name: 'Aadhaar Back' }
-      ])
-    }
+      ]).select()
 
-    setDone(true)
-    setSaving(false)
+      if (docError) {
+        console.error('Documents insert error:', docError)
+        setError('Failed to save documents: ' + docError.message)
+        setSaving(false)
+        return
+      }
+      
+      console.log('Documents saved:', docData)
+
+      setDone(true)
+      setSaving(false)
+    } catch (err: any) {
+      console.error('Submit exception:', err)
+      setError('Error: ' + (err.message || 'Unknown error'))
+      setSaving(false)
+    }
   }
 
   async function submitAgent() {
@@ -133,21 +233,40 @@ export default function RegisterDocumentsPage() {
     if (!licenseUrl) { setError('Please upload Driving License'); return }
 
     setSaving(true)
+    setError('')
 
-    // Update agent with documents
-    const { error: updateError } = await supabase.from('delivery_agents').update({
-      aadhar_url: aadharUrl,
-      license_url: licenseUrl
-    }).eq('id', userId)
+    try {
+      // Get current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        setError('Session expired. Please login and restart registration.')
+        setSaving(false)
+        return
+      }
+      
+      console.log('Submit agent - user:', user.id, 'expected:', userId)
 
-    if (updateError) { 
-      setError('Failed to save: ' + updateError.message)
+      // Update agent with documents
+      const { error: updateError } = await supabase.from('delivery_agents').update({
+        aadhar_url: aadharUrl,
+        license_url: licenseUrl
+      }).eq('id', userId)
+
+      if (updateError) { 
+        console.error('Agent update error:', updateError)
+        setError('Failed to save: ' + updateError.message)
+        setSaving(false)
+        return
+      }
+
+      setDone(true)
       setSaving(false)
-      return
+    } catch (err: any) {
+      console.error('Submit exception:', err)
+      setError('Error: ' + (err.message || 'Unknown error'))
+      setSaving(false)
     }
-
-    setDone(true)
-    setSaving(false)
   }
 
   if (done) return (

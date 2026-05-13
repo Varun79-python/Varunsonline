@@ -39,39 +39,86 @@ export default function DeliveryRegisterPage() {
     setExistingMessage('')
     
     try {
+      // Try server-side function first
+      try {
+        const { data: statusData, error: statusError } = await supabase.rpc(
+          'check_registration_status',
+          { p_phone: phone.trim(), p_email: email.trim() }
+        )
+        
+        if (!statusError && statusData && statusData.length > 0) {
+          const status = statusData[0]
+          if (status.exists && status.user_type === 'delivery_agent') {
+            const userId = status.user_id
+            localStorage.setItem('delivery_reg_user_id', userId)
+            
+            // Auto-fill based on registration step
+            if (status.registration_step === 'documents_pending') {
+              setExistingMessage('Existing registration found. Continuing to document upload...')
+              setTimeout(() => router.push('/login/delivery/register/documents'), 1000)
+              setCheckingExisting(false)
+              return
+            } else if (status.registration_step === 'verification_pending') {
+              setExistingMessage('Documents uploaded. Waiting for admin approval.')
+              setCheckingExisting(false)
+              return
+            } else if (status.registration_step === 'approved') {
+              setExistingMessage('Your account is already approved! Redirecting to login...')
+              setTimeout(() => router.push('/login/delivery'), 1500)
+              setCheckingExisting(false)
+              return
+            }
+          }
+        }
+      } catch (rpcErr) {
+        console.log('RPC check failed, using fallback')
+      }
+      
+      // Fallback: Check directly in delivery_agents via profile
       const searchValue = phone.trim() || email.trim()
       const isPhone = /^\d{10,}$/.test(searchValue)
       
-      const { data: agent, error } = await supabase
-        .from('delivery_agents')
-        .select('id, full_name, email, phone, vehicle_type, vehicle_number, is_approved, aadhaar_image_url, license_image_url')
+      // Query via profiles to get delivery agent info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone')
         .eq(isPhone ? 'phone' : 'email', searchValue)
+        .eq('role', 'delivery_agent')
         .maybeSingle()
       
       if (!mountedRef.current) return
       
-      if (agent) {
-        // Auto-fill form with existing data
-        setForm(prev => ({
-          ...prev,
-          full_name: agent.full_name || prev.full_name,
-          email: agent.email || prev.email,
-          phone: agent.phone || prev.phone,
-          vehicle_type: agent.vehicle_type || prev.vehicle_type,
-          vehicle_number: agent.vehicle_number || prev.vehicle_number,
-        }))
+      if (profile) {
+        // Get agent details
+        const { data: agent } = await supabase
+          .from('delivery_agents')
+          .select('id, vehicle_type, vehicle_number, is_approved, aadhar_url, license_url')
+          .eq('id', profile.id)
+          .maybeSingle()
         
-        const step2Completed = !!agent.aadhaar_image_url && !!agent.license_image_url
-        
-        if (agent.is_approved) {
-          setExistingMessage('Your account is already approved! Redirecting to login...')
-          setTimeout(() => router.push('/login/delivery'), 1500)
-        } else if (step2Completed) {
-          setExistingMessage('Documents uploaded. Waiting for approval.')
-        } else {
-          setExistingMessage('Existing registration found. Continuing to document upload...')
-          localStorage.setItem('delivery_reg_user_id', agent.id)
-          setTimeout(() => router.push('/login/delivery/register/documents'), 1000)
+        if (agent) {
+          // Auto-fill form with existing data
+          setForm(prev => ({
+            ...prev,
+            full_name: profile.full_name || prev.full_name,
+            email: profile.email || prev.email,
+            phone: profile.phone || prev.phone,
+            vehicle_type: agent.vehicle_type || prev.vehicle_type,
+            vehicle_number: agent.vehicle_number || prev.vehicle_number,
+          }))
+          
+          const step2Completed = !!agent.aadhar_url && !!agent.license_url
+          
+          if (agent.is_approved) {
+            setExistingMessage('Your account is already approved! Redirecting to login...')
+            setTimeout(() => router.push('/login/delivery'), 1500)
+          } else if (step2Completed) {
+            setExistingMessage('Documents uploaded. Waiting for approval.')
+          } else {
+            setExistingMessage('Existing registration found. Continuing to document upload...')
+            localStorage.setItem('delivery_reg_user_id', profile.id)
+            setTimeout(() => router.push('/login/delivery/register/documents'), 1000)
+          }
         }
       }
     } catch (err) {

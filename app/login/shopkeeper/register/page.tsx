@@ -60,6 +60,7 @@ export default function ShopRegisterPage() {
   useEffect(() => { mountedRef.current = true }, [])
 
   // Check for existing user before signUp - Real-time detection with auto-fill
+  // This uses the server-side function for comprehensive checking
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
     if (!phone.trim() && !email.trim()) return
     
@@ -67,56 +68,42 @@ export default function ShopRegisterPage() {
     setExistingUserMessage('')
     
     try {
-      // 1. Check if email exists in auth (most reliable)
-      if (email.trim()) {
-        const { data: { session } } = await supabase.auth.getSession()
+      // Try server-side function first (most reliable)
+      try {
+        const { data: statusData, error: statusError } = await supabase.rpc(
+          'check_registration_status',
+          { p_phone: phone.trim(), p_email: email.trim() }
+        )
         
-        if (session?.user) {
-          if (session.user.email?.toLowerCase() === email.trim().toLowerCase()) {
-            const { data: shop } = await supabase
-              .from('shops')
-              .select('id, is_approved, is_active, name, full_name, phone, email')
-              .eq('owner_id', session.user.id)
-              .maybeSingle()
+        if (!statusError && statusData && statusData.length > 0) {
+          const status = statusData[0]
+          if (status.exists) {
+            const userId = status.user_id
+            localStorage.setItem('shopkeeper_reg_user_id', userId)
             
-            if (shop) {
-              // Auto-fill form with existing data
-              setForm(prev => ({
-                ...prev,
-                full_name: shop.full_name || prev.full_name,
-                phone_number: shop.phone || prev.phone_number,
-                email: shop.email || prev.email,
-                shop_name: shop.name || prev.shop_name,
-              }))
-              
-              if (shop.is_approved && shop.is_active) {
-                setExistingUserMessage('Your shop is already approved! Redirecting to login...')
-                setTimeout(() => router.push('/login/shopkeeper'), 1500)
-              } else {
-                localStorage.setItem('shopkeeper_reg_user_id', session.user.id)
-                setExistingUserMessage('Existing registration found. Continuing to document upload...')
-                setTimeout(() => router.push('/login/shopkeeper/register/documents'), 1000)
-              }
+            // Auto-fill based on registration step
+            if (status.registration_step === 'documents_pending') {
+              setExistingUserMessage('Existing registration found. Continuing to document upload...')
+              setTimeout(() => router.push('/login/shopkeeper/register/documents'), 1000)
+              setCheckingExisting(false)
+              return
+            } else if (status.registration_step === 'verification_pending') {
+              setExistingUserMessage('Documents uploaded. Waiting for admin approval.')
+              setCheckingExisting(false)
+              return
+            } else if (status.registration_step === 'approved') {
+              setExistingUserMessage('Your shop is already approved! Redirecting to login...')
+              setTimeout(() => router.push('/login/shopkeeper'), 1500)
               setCheckingExisting(false)
               return
             }
           }
         }
-        
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, role')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle()
-        
-        if (profile && profile.role === 'shopkeeper') {
-          setExistingUserMessage('An account with this email already exists. Please login to continue.')
-          setCheckingExisting(false)
-          return
-        }
+      } catch (rpcErr) {
+        console.log('RPC check failed, using fallback:', rpcErr)
       }
       
-      // 2. Check by phone number in shops table
+      // Fallback: Check by phone in shops table directly
       if (phone.trim()) {
         const { data: shop } = await supabase
           .from('shops')
@@ -134,34 +121,50 @@ export default function ShopRegisterPage() {
             shop_name: shop.name || prev.shop_name,
           }))
           
+          // Check if we have an active session
           const { data: { session } } = await supabase.auth.getSession()
           
           if (session?.user && session.user.id === shop.owner_id) {
+            // Already logged in, redirect based on status
+            localStorage.setItem('shopkeeper_reg_user_id', shop.owner_id)
+            const { data: docs } = await supabase
+              .from('shop_documents')
+              .select('id')
+              .eq('shop_id', shop.id)
+              .limit(1)
+            
             if (shop.is_approved && shop.is_active) {
               setExistingUserMessage('Your shop is already approved!')
               setTimeout(() => router.push('/login/shopkeeper'), 1500)
+            } else if (docs && docs.length > 0) {
+              setExistingUserMessage('Documents uploaded. Waiting for approval.')
             } else {
-              localStorage.setItem('shopkeeper_reg_user_id', shop.owner_id)
-              const { data: docs } = await supabase
-                .from('shop_documents')
-                .select('id')
-                .eq('shop_id', shop.id)
-                .limit(1)
-              
-              if (docs && docs.length > 0) {
-                setExistingUserMessage('Documents already uploaded. Waiting for approval.')
-              } else {
-                setExistingUserMessage('Existing registration found. Continuing to document upload...')
-                setTimeout(() => router.push('/login/shopkeeper/register/documents'), 1000)
-              }
+              setExistingUserMessage('Existing registration found. Continuing to document upload...')
+              setTimeout(() => router.push('/login/shopkeeper/register/documents'), 1000)
             }
             setCheckingExisting(false)
             return
           } else {
-            setExistingUserMessage('This phone number is already registered. Please login.')
+            // Not logged in - show message to login
+            setExistingUserMessage('This phone number is already registered. Please login to continue.')
             setCheckingExisting(false)
             return
           }
+        }
+      }
+      
+      // Check by email in profiles
+      if (email.trim()) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle()
+        
+        if (profile && profile.role === 'shopkeeper') {
+          setExistingUserMessage('An account with this email already exists. Please login to continue.')
+          setCheckingExisting(false)
+          return
         }
       }
     } catch (err) {
