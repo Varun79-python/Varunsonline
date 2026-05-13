@@ -95,10 +95,10 @@ export default function ShopkeeperDocumentsPage() {
               .eq('shop_id', shop.id)
             
             if (docs && docs.length > 0) {
-              setExistingDocs(docs.map(d => ({ type: d.doc_type, url: d.file_url })))
+              setExistingDocs(docs.map((d: { doc_type: string; file_url: string }) => ({ type: d.doc_type, url: d.file_url })))
               // Pre-fill if exists
-              const frontDoc = docs.find(d => d.doc_type === 'aadhar_front')
-              const backDoc = docs.find(d => d.doc_type === 'aadhar_back')
+              const frontDoc = docs.find((d: { doc_type: string }) => d.doc_type === 'aadhar_front')
+              const backDoc = docs.find((d: { doc_type: string }) => d.doc_type === 'aadhar_back')
               if (frontDoc) setAdhaarFrontUrl(frontDoc.file_url)
               if (backDoc) setAdhaarBackUrl(backDoc.file_url)
             }
