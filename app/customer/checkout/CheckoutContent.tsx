@@ -211,10 +211,9 @@ export default function CheckoutContent() {
       console.error(err)
       alert('Payment failed. Please try again.')
     } finally {
-      setLoading(false)
+setLoading(false)
     }
   }
-  }, [])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
