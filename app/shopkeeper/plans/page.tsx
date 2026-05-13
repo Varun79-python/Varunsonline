@@ -119,9 +119,11 @@ export default function ShopkeeperPlans() {
     setPurchasing(plan.id)
     try {
       const authHeader = await getAuthHeader()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (authHeader.Authorization) headers.Authorization = authHeader.Authorization
       const res = await fetch('/api/shopkeeper/create-subscription-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers,
         body: JSON.stringify({ planId: plan.id, shopId, amount: plan.monthly_fee })
       })
       const { orderId, key, error } = await res.json()
@@ -133,9 +135,11 @@ export default function ShopkeeperPlans() {
         order_id: orderId,
         handler: async (response: Record<string, string>) => {
           const authHeader = await getAuthHeader()
+          const verifyHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (authHeader.Authorization) verifyHeaders.Authorization = authHeader.Authorization
           const verifyRes = await fetch('/api/shopkeeper/verify-subscription', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeader },
+            headers: verifyHeaders,
             body: JSON.stringify({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
