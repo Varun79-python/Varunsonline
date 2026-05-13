@@ -72,7 +72,6 @@ export default function OrderDetailPage() {
           showToast('📦 Order marked as Packed!')
         }
       } else {
-        const authHeader = await getAuthHeader()
         const res = await fetch('/api/shopkeeper/order-action', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader },
@@ -188,10 +187,6 @@ export default function OrderDetailPage() {
             <span style={{ fontWeight: 800, color: 'white', fontSize: '1.3rem' }}>₹{order.shopkeeper_earning}</span>
           </div>
         </div>
-      </div>
-
-      
-
       </div>
   )
 }
