@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Agent {
@@ -22,10 +22,18 @@ export default function AdminAgents() {
   const [selected, setSelected] = useState<Agent | null>(null)
   const [processing, setProcessing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  
+  // Refs to prevent duplicate fetches
+  const loadingRef = useRef(false)
+  const mountedRef = useRef(false)
+
+  useEffect(() => { mountedRef.current = true }, [])
 
   function showToast(msg: string, ok = true) {
+    if (!mountedRef.current) return
     setToast({ msg, ok })
-    setTimeout(() => setToast(null), 3500)
+    setTimeout(() => { if (mountedRef.current) setToast(null) }, 3500)
   }
 
   async function getAuthHeader(): Promise<Record<string, string>> {
@@ -33,27 +41,41 @@ export default function AdminAgents() {
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }
 
-  useEffect(() => { load() }, [tab])
+  useEffect(() => { 
+    if (!loadingRef.current) load() 
+  }, [tab])
 
   async function load() {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
-    const authHeader = await getAuthHeader()
-    // Fetch all agents at once and filter client-side to avoid TS type depth errors
-    const { data } = await supabase
-      .from('delivery_agents')
-      .select('*')
-      .order('created_at', { ascending: false })
+    
+    try {
+      const { data } = await supabase
+        .from('delivery_agents')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    const all = (data || []) as Agent[]
+      if (!mountedRef.current) return
+      
+      const all = (data || []) as Agent[]
+      
+      let filtered: Agent[]
+      if (tab === 'pending') filtered = all.filter(a => !a.is_approved && !a.rejection_reason)
+      else if (tab === 'active') filtered = all.filter(a => a.is_approved)
+      else if (tab === 'rejected') filtered = all.filter(a => !a.is_approved && !!a.rejection_reason)
+      else filtered = all
 
-    let filtered: Agent[]
-    if (tab === 'pending') filtered = all.filter(a => !a.is_approved && !a.rejection_reason)
-    else if (tab === 'active') filtered = all.filter(a => a.is_approved)
-    else if (tab === 'rejected') filtered = all.filter(a => !a.is_approved && !!a.rejection_reason)
-    else filtered = all
-
-    setAgents(filtered)
-    setLoading(false)
+      setAgents(filtered)
+    } catch (err) {
+      console.error('Failed to load agents:', err)
+      showToast('Failed to load agents', false)
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false)
+        loadingRef.current = false
+      }
+    }
   }
 
   async function doAction(agentId: string, action: 'approve' | 'reject' | 'deactivate', reason?: string) {
@@ -73,6 +95,8 @@ export default function AdminAgents() {
       )
       setSelected(null)
       load()
+    } catch (err) {
+      showToast('Action failed', false)
     } finally {
       setProcessing(false)
     }
@@ -95,10 +119,40 @@ export default function AdminAgents() {
     doAction(agent.id, 'deactivate', reason.trim())
   }
 
-  const tabCounts = { pending: 0, active: 0, rejected: 0, all: agents.length }
+  // Document preview component
+  const DocPreview = ({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) => {
+    if (!url) {
+      return (
+        <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 16, textAlign: 'center', color: '#dc2626', fontSize: '0.8rem' }}>
+          ⚠️ {fallback}
+        </div>
+      )
+    }
+    return (
+      <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+        <img 
+          src={url} 
+          alt={label}
+          style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
+          onClick={() => setPreviewImage(url)}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none'
+          }}
+        />
+        <div style={{ padding: '8px 12px', background: '#f8fafc', textAlign: 'center' }}>
+          <button 
+            onClick={() => window.open(url, '_blank')}
+            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            ↗ View Full
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="fade-in">
+    <div style={{ padding: '0 4px' }}>
       {/* Toast */}
       {toast && (
         <div style={{
@@ -111,7 +165,29 @@ export default function AdminAgents() {
         </div>
       )}
 
-      <div style={{ padding: '0 4px' }}>
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+          }}
+          onClick={() => setPreviewImage(null)}
+        >
+          <button 
+            style={{ position: 'absolute', top: 20, right: 20, background: 'white', border: 'none', borderRadius: 20, width: 40, height: 40, fontSize: '1.2rem', cursor: 'pointer' }}
+            onClick={() => setPreviewImage(null)}
+          >
+            ✕
+          </button>
+          <img 
+            src={previewImage} 
+            alt="Preview" 
+            style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+          />
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🛵 Delivery Agents</h2>
         <button onClick={load} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>🔄 Refresh</button>
@@ -179,86 +255,136 @@ export default function AdminAgents() {
           </div>
         ))}
       </div>
-                  </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal - Responsive */}
       {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
-            <div className="modal-header">
-              <h3>🛵 Agent Details</h3>
-              <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
+        <div 
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+          onClick={() => setSelected(null)}
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'white', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '90vh',
+              overflow: 'auto', position: 'relative'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>🛵 Agent Details</h3>
+              <button 
+                onClick={() => setSelected(null)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              {[
-                { label: 'Full Name', value: selected.full_name },
-                { label: 'Phone', value: selected.phone },
-                { label: 'Email', value: selected.email },
-                { label: 'Vehicle Type', value: selected.vehicle_type },
-                { label: 'Vehicle Number', value: selected.vehicle_number },
-                { label: 'UPI ID', value: selected.upi_id || '—' },
-                { label: 'Wallet Balance', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
-                { label: "Today's Earnings", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
-                { label: 'Total Deliveries', value: String(selected.total_deliveries || 0) },
-                { label: 'Availability', value: selected.is_available ? '🟢 Online' : '🔴 Offline' },
-                { label: 'Registration Date', value: new Date(selected.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
-                { label: 'Terms Accepted', value: selected.terms_agreed ? '✅ Yes' : '❌ No' },
-                { label: 'Status', value: selected.is_approved ? '✅ Approved' : selected.rejection_reason ? '❌ Rejected' : '⏳ Pending' },
-              ].map(f => (
-                <div key={f.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{f.label}</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{f.value || '—'}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Document Viewer */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 10 }}>📄 Aadhaar Card</div>
-              {selected.aadhar_url ? (
-                <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
-                  <a href={selected.aadhar_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
-                    <img src={selected.aadhar_url} alt="Aadhaar Card" style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                    <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)', textAlign: 'center', background: '#f0fdf4' }}>
-                      🪪 View Full Image ↗
+            {/* Modal Content */}
+            <div style={{ padding: 20 }}>
+              {/* Basic Info Grid */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>Basic Information</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  {[
+                    { label: 'Full Name', value: selected.full_name },
+                    { label: 'Phone', value: selected.phone },
+                    { label: 'Email', value: selected.email },
+                    { label: 'Vehicle Type', value: selected.vehicle_type },
+                    { label: 'Vehicle Number', value: selected.vehicle_number },
+                    { label: 'UPI ID', value: selected.upi_id || '—' },
+                  ].map(f => (
+                    <div key={f.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>{f.label}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{f.value || '—'}</div>
                     </div>
-                  </a>
+                  ))}
                 </div>
-              ) : (
-                <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 20, textAlign: 'center', color: '#dc2626', fontSize: '0.85rem' }}>
-                  ⚠️ Aadhaar Card Not Uploaded
-                </div>
-              )}
-            </div>
-
-            {selected.rejection_reason && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '0.85rem', color: '#dc2626' }}>
-                ❌ Rejection Reason: <strong>{selected.rejection_reason}</strong>
               </div>
-            )}
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              {!selected.is_approved && !selected.rejection_reason && <>
-                <button className="btn btn-success" disabled={processing} onClick={() => approve(selected)}>
-                  {processing ? '⏳...' : '✅ Approve Agent'}
-                </button>
-                <button className="btn btn-danger" disabled={processing} onClick={() => reject(selected)}>
-                  {processing ? '⏳...' : '❌ Reject'}
-                </button>
-              </>}
-              {selected.rejection_reason && !selected.is_approved && (
-                <button className="btn btn-success" disabled={processing} onClick={() => approve(selected)}>
-                  {processing ? '⏳...' : '✅ Re-Approve'}
-                </button>
+              {/* Performance Stats */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>Performance</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {[
+                    { label: 'Wallet', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
+                    { label: "Today's", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
+                    { label: 'Deliveries', value: String(selected.total_deliveries || 0) },
+                  ].map(f => (
+                    <div key={f.label} style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 600 }}>{f.label}</div>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>{f.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Documents */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>📄 Documents</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Aadhaar Card</div>
+                    <DocPreview url={selected.aadhar_url} label="Aadhaar" fallback="Not uploaded" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
+                    <DocPreview url={selected.license_url} label="License" fallback="Not uploaded" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
+                    <DocPreview url={selected.pan_url} label="PAN" fallback="Not uploaded" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
+                    <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+                <span style={{ background: selected.is_available ? '#dcfce7' : '#f1f5f9', color: selected.is_available ? '#16a34a' : '#64748b', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
+                  {selected.is_available ? '🟢 Online' : '🔴 Offline'}
+                </span>
+                <span style={{ background: selected.is_approved ? '#dcfce7' : selected.rejection_reason ? '#fee2e2' : '#fef3c7', color: selected.is_approved ? '#16a34a' : selected.rejection_reason ? '#dc2626' : '#d97706', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
+                  {selected.is_approved ? '✅ Approved' : selected.rejection_reason ? '❌ Rejected' : '⏳ Pending'}
+                </span>
+                <span style={{ background: '#f8fafc', color: '#64748b', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
+                  📅 {new Date(selected.created_at).toLocaleDateString('en-IN')}
+                </span>
+              </div>
+
+              {selected.rejection_reason && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: '0.85rem', color: '#dc2626' }}>
+                  ❌ Rejection Reason: <strong>{selected.rejection_reason}</strong>
+                </div>
               )}
-              {selected.is_approved && (
-                <button className="btn btn-danger" disabled={processing} onClick={() => deactivate(selected)}>
-                  {processing ? '⏳...' : '🚫 Deactivate'}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {!selected.is_approved && !selected.rejection_reason && (
+                  <>
+                    <button disabled={processing} onClick={() => approve(selected)} style={{ padding: '10px 20px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
+                      {processing ? '⏳' : '✅ Approve'}
+                    </button>
+                    <button disabled={processing} onClick={() => reject(selected)} style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
+                      {processing ? '⏳' : '❌ Reject'}
+                    </button>
+                  </>
+                )}
+                {selected.is_approved && (
+                  <button disabled={processing} onClick={() => deactivate(selected)} style={{ padding: '10px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
+                    {processing ? '⏳' : '🚫 Deactivate'}
+                  </button>
+                )}
+                <button onClick={() => setSelected(null)} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
+                  Close
                 </button>
-              )}
-              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Shop {
@@ -29,20 +29,43 @@ export default function AdminShops() {
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [stats, setStats] = useState({ pendingShops: 0 })
+  const [processing, setProcessing] = useState(false)
+  
+  // Refs to prevent duplicate fetches
+  const loadingRef = useRef(false)
+  const mountedRef = useRef(false)
+
+  useEffect(() => { mountedRef.current = true }, [])
 
   async function load() {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
-    const shopsCount = await supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false)
-    let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
-    if (tab === 'pending') q = q.eq('is_approved', false)
-    else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
-    const { data } = await q
-    setShops(data || [])
-    setStats({ pendingShops: shopsCount.count || 0 })
-    setLoading(false)
+    
+    try {
+      const shopsCount = await supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false)
+      let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
+      if (tab === 'pending') q = q.eq('is_approved', false)
+      else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
+      const { data } = await q
+      
+      if (mountedRef.current) {
+        setShops(data || [])
+        setStats({ pendingShops: shopsCount.count || 0 })
+      }
+    } catch (err) {
+      console.error('Failed to load shops:', err)
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false)
+        loadingRef.current = false
+      }
+    }
   }
 
-  useEffect(() => { load() }, [tab])
+  useEffect(() => { 
+    if (!loadingRef.current) load() 
+  }, [tab])
 
   async function approve(shopId: string) {
     await supabase.from('shops').update({ is_approved: true, is_active: true }).eq('id', shopId)
@@ -89,53 +112,90 @@ export default function AdminShops() {
   return (
     <div style={{ padding: '0 4px' }}>
       {selectedShop && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
-          <div style={{ background: 'white', borderRadius: 16, padding: 24, maxWidth: 500, width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
-            <h3 style={{ marginBottom: 16, fontSize: '1.25rem', fontWeight: 700 }}>📋 Shop Registration Details</h3>
-            {selectedShop.shop_image_url && (
-              <div style={{ marginBottom: 16 }}>
-                <img src={selectedShop.shop_image_url} alt="Shop" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 12 }} />
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Full Name</div>
-                <div style={{ fontWeight: 600 }}>{selectedShop.full_name || '—'}</div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Phone Number</div>
-                <div style={{ fontWeight: 600 }}>{selectedShop.phone || '—'}</div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Email ID</div>
-                <div style={{ fontWeight: 600 }}>{selectedShop.email || '—'}</div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Shop Name</div>
-                <div style={{ fontWeight: 600 }}>{selectedShop.name || '—'}</div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Registration Date</div>
-                <div style={{ fontWeight: 600 }}>{new Date(selectedShop.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-              </div>
-              <div style={{ background: selectedShop.terms_accepted ? '#f0fdf4' : '#fef2f2', padding: 12, borderRadius: 8, border: `1px solid ${selectedShop.terms_accepted ? '#bbf7d0' : '#fecaca'}` }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Terms Accepted</div>
-                <div style={{ fontWeight: 600, color: selectedShop.terms_accepted ? '#16a34a' : '#dc2626' }}>{selectedShop.terms_accepted ? 'Yes' : 'No'}</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <button onClick={() => approve(selectedShop.id)} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                Approve Shop
+        <div 
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => { setSelectedShop(null); setRejectReason('') }}
+        >
+          <div 
+            style={{ background: 'white', borderRadius: 16, padding: 0, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>📋 Shop Details</h3>
+              <button 
+                onClick={() => { setSelectedShop(null); setRejectReason('') }}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
+              >
+                ✕
               </button>
-              <div>
-                <textarea placeholder="Rejection reason (optional)" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} />
-                <button onClick={rejectShop} disabled={!rejectReason && !confirm('Are you sure?')} style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                  Reject Shop
+            </div>
+            
+            {/* Modal Content */}
+            <div style={{ padding: 20 }}>
+              {selectedShop.shop_image_url && (
+                <div style={{ marginBottom: 16 }}>
+                  <img src={selectedShop.shop_image_url} alt="Shop" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 12 }} />
+                </div>
+              )}
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Full Name</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.full_name || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Phone</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.phone || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Email</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.email || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Shop Name</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.name || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Category</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.category || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>City</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.city || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Registration Date</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{new Date(selectedShop.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <button onClick={() => approve(selectedShop.id)} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                  ✅ Approve Shop
+                </button>
+                <div>
+                  <textarea 
+                    placeholder="Rejection reason (optional)" 
+                    value={rejectReason} 
+                    onChange={e => setRejectReason(e.target.value)} 
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} 
+                  />
+                  <button 
+                    onClick={rejectShop} 
+                    disabled={!rejectReason && !confirm('Are you sure you want to reject this shop?')}
+                    style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    ❌ Reject Shop
+                  </button>
+                </div>
+                <button 
+                  onClick={() => { setSelectedShop(null); setRejectReason('') }} 
+                  style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
                 </button>
               </div>
-              <button onClick={() => { setSelectedShop(null); setRejectReason('') }} style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
-              </button>
             </div>
           </div>
         </div>
