@@ -22,22 +22,19 @@ export default function AdminLoginPage() {
     const user = data.user
     if (!user) { setError('Login failed'); setLoading(false); return }
 
-    // Wait for session to be fully established
-    await new Promise(resolve => setTimeout(resolve, 500))
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setError('Session error. Please try again.'); setLoading(false); return }
-
+    const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+    
     // Check 1: user_metadata.role (set during account creation — no DB needed)
     const metaRole = user.user_metadata?.role
     if (metaRole === 'admin') {
-      window.location.href = '/admin'
+      router.push('/admin')
       return
     }
 
     // Check 2: app_metadata.role (set via Supabase admin API)
     const appRole = user.app_metadata?.role
     if (appRole === 'admin') {
-      window.location.href = '/admin'
+      router.push('/admin')
       return
     }
 
@@ -49,12 +46,11 @@ export default function AdminLoginPage() {
       .single()
 
     if (!profileErr && profile?.role === 'admin') {
-      window.location.href = '/admin'
+      router.push('/admin')
       return
     }
 
     // Check 4: hardcoded admin email as final fallback (owner's email)
-    const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
     if (user.email === ADMIN_EMAIL) {
       // Also try to upsert the profile so future logins use Check 3
       await supabase.from('profiles').upsert({
@@ -64,7 +60,7 @@ export default function AdminLoginPage() {
         role: 'admin',
         is_active: true,
       }).then(() => {})
-      window.location.href = '/admin'
+      router.push('/admin')
       return
     }
 

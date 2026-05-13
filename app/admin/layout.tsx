@@ -30,16 +30,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isLoginPage) { setChecking(false); return }
 
     async function checkAuth() {
+      // Wait for session to initialize
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/admin/login'); return }
+      if (!user) { 
+        // Try getting session directly as fallback
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { 
+          router.replace('/admin/login'); 
+          return 
+        }
+      }
 
       const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
-      const metaRole = user.user_metadata?.role || user.app_metadata?.role
+      const metaRole = user?.user_metadata?.role || user?.app_metadata?.role
       
-      if (metaRole === 'admin' || user.email === ADMIN_EMAIL) {
-        setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
+      if (metaRole === 'admin' || user?.email === ADMIN_EMAIL) {
+        setAdminName(user?.user_metadata?.full_name || user?.email || 'Admin')
         setChecking(false); return
       }
+
+      if (!user) { router.replace('/admin/login'); return }
 
       const { data: profile, error: profileErr } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
       
