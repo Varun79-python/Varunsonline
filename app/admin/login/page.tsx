@@ -20,12 +20,15 @@ export default function AdminLoginPage() {
     if (err) { setError(err.message); setLoading(false); return }
 
     const user = data.user
+    if (!user) { setError('Login failed'); setLoading(false); return }
+
+    // Wait for session to be fully established
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setError('Session error'); setLoading(false); return }
 
     // Check 1: user_metadata.role (set during account creation — no DB needed)
     const metaRole = user.user_metadata?.role
     if (metaRole === 'admin') {
-      // Wait for session to be set in cookies
-      await new Promise(resolve => setTimeout(resolve, 500))
       router.push('/admin')
       return
     }
@@ -33,7 +36,6 @@ export default function AdminLoginPage() {
     // Check 2: app_metadata.role (set via Supabase admin API)
     const appRole = user.app_metadata?.role
     if (appRole === 'admin') {
-      await new Promise(resolve => setTimeout(resolve, 500))
       router.push('/admin')
       return
     }
@@ -46,7 +48,6 @@ export default function AdminLoginPage() {
       .single()
 
     if (!profileErr && profile?.role === 'admin') {
-      await new Promise(resolve => setTimeout(resolve, 500))
       router.push('/admin')
       return
     }
@@ -62,7 +63,6 @@ export default function AdminLoginPage() {
         role: 'admin',
         is_active: true,
       }).then(() => {})
-      await new Promise(resolve => setTimeout(resolve, 500))
       router.push('/admin')
       return
     }
