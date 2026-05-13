@@ -23,6 +23,8 @@ export default function CheckoutContent() {
   const [step, setStep] = useState<'address' | 'summary'>('address')
   const [deliveryCharge, setDeliveryCharge] = useState(30)
   const [platformFeePercent, setPlatformFeePercent] = useState(5)
+  const [shopId, setShopId] = useState<string>('')
+  const [shopName, setShopName] = useState<string>('')
 
   const couponDiscount = Number(params.get('discount') || 0)
   const couponCode = params.get('coupon') || ''
@@ -33,9 +35,13 @@ export default function CheckoutContent() {
   const [codLoading, setCodLoading] = useState(false)
 
   useEffect(() => {
-    setCart(JSON.parse(localStorage.getItem('vo_cart') || '[]'))
+    const savedCart = JSON.parse(localStorage.getItem('vo_cart') || '[]')
+    setCart(savedCart)
+    if (savedCart.length > 0) {
+      setShopId(savedCart[0].shop_id)
+      setShopName(savedCart[0].shop_name)
+    }
     loadData()
-    // Pre-load Razorpay script once, quietly
     const existing = document.getElementById('rzp-script')
     if (!existing) {
       const s = document.createElement('script')
@@ -44,6 +50,170 @@ export default function CheckoutContent() {
       s.async = true
       document.head.appendChild(s)
     }
+  }, [])
+
+  async function loadData() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const [addrRes, settingsRes] = await Promise.all([
+      supabase.from('addresses').select('*').eq('customer_id', user.id),
+      supabase.from('platform_settings').select('key,value').in('key', ['base_delivery_charge', 'platform_fee_percent'])
+    ])
+    setAddresses(addrRes.data || [])
+    if (addrRes.data?.length) setSelectedAddr(addrRes.data[0]?.id || '')
+    settingsRes.data?.forEach((s: { key: string; value: string }) => {
+      if (s.key === 'base_delivery_charge') setDeliveryCharge(Number(s.value))
+      if (s.key === 'platform_fee_percent') setPlatformFeePercent(Number(s.value))
+    })
+  }
+
+  function getGPS() {
+    setGettingGPS(true)
+    setGpsAccuracy(null)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords
+        setAddr(a => ({ ...a, latitude, longitude }))
+        setGpsAccuracy(accuracy)
+        setGettingGPS(false)
+        if (accuracy > 100) {
+          alert(`GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
+        }
+      },
+      err => {
+        setGettingGPS(false)
+        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied — please allow location access.' : err.code === 2 ? 'Position unavailable.' : 'Timed out. Try again.'))
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    )
+  }
+
+  async function saveAddress() {
+    if (!addr.house_name || !addr.street_name || !addr.city) {
+      alert('Please fill House Name, Street and City')
+      return
+    }
+    if (!addr.phone) {
+      alert('Please enter your phone number for the delivery agent')
+      return
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { alert('Please login first'); return }
+
+    const payload = {
+      customer_id: user.id,
+      label: addr.label || 'Home',
+      house_name: addr.house_name,
+      street_name: addr.street_name,
+      landmark: addr.landmark || null,
+      city: addr.city,
+      pincode: addr.pincode || null,
+      phone: addr.phone,
+      latitude: addr.latitude !== 0 ? addr.latitude : null,
+      longitude: addr.longitude !== 0 ? addr.longitude : null,
+    }
+
+    const { data, error } = await supabase.from('addresses').insert(payload).select().single()
+    if (error) {
+      console.error('Save address error:', error)
+      alert('Failed to save address: ' + error.message)
+      return
+    }
+    if (data) {
+      setAddresses(a => [...a, data])
+      setSelectedAddr(data.id)
+      setShowNewAddr(false)
+      setAddr({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', phone: '', latitude: 0, longitude: 0 })
+    }
+  }
+
+  async function placeOrder() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !selectedAddr || cart.length === 0) return
+    setLoading(true)
+
+    const cartItems = cart.map(i => ({ product_id: i.product_id, quantity: i.quantity }))
+
+    try {
+      const secureRes = await fetch('/api/orders/secure-place', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+        body: JSON.stringify({
+          shopId: cart[0].shop_id,
+          addressId: selectedAddr,
+          cart: cartItems,
+          paymentMethod: paymentMode,
+          couponCode: couponCode || undefined,
+        })
+      })
+      const secureData = await secureRes.json()
+      if (!secureRes.ok) {
+        alert(secureData.error || 'Failed to place order')
+        setLoading(false)
+        return
+      }
+
+      if (paymentMode === 'cod') {
+        localStorage.removeItem('vo_cart')
+        router.push(`/customer/orders/${secureData.orderId}`)
+        return
+      }
+
+      if (secureData.totalAmount <= 0) {
+        localStorage.removeItem('vo_cart')
+        router.push(`/customer/orders/${secureData.orderId}`)
+        return
+      }
+
+      const rzpRes = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: secureData.totalAmount })
+      })
+      const rzpData = await rzpRes.json()
+      if (!rzpRes.ok || !rzpData.id) throw new Error(rzpData.error || 'Could not create payment order')
+
+      const rzp = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: secureData.totalAmount * 100,
+        currency: 'INR',
+        name: "Varun's Online",
+        description: `Order from ${cart[0].shop_name}`,
+        order_id: rzpData.id,
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          const verifyRes = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...response, orderId: secureData.orderId }),
+          })
+          const verifyData = await verifyRes.json()
+          if (!verifyRes.ok || !verifyData.verified) {
+            alert('Payment verification failed. Please contact support.')
+            return
+          }
+          try {
+            await supabase.from('notifications').insert({
+              user_id: cart[0].shop_id,
+              title: '🛒 Payment Confirmed!',
+              body: `Order ${secureData.orderNumber} payment received`,
+              type: 'payment_confirmed',
+              data: { order_id: secureData.orderId }
+            })
+          } catch { /* optional */ }
+          localStorage.removeItem('vo_cart')
+          router.push(`/customer/orders/${secureData.orderId}`)
+        },
+        prefill: { name: user.user_metadata?.full_name, email: user.email },
+        theme: { color: '#f97316' }
+      })
+      rzp.open()
+    } catch (err) {
+      console.error(err)
+      alert('Payment failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   }, [])
 
   async function loadData() {
@@ -495,15 +665,15 @@ export default function CheckoutContent() {
           {paymentMode === 'cod' ? (
             <>
               <div style={{ background: '#fefce8', border: '1.5px solid #fde047', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: '0.83rem', color: '#854d0e' }}>
-                💡 <strong>Cash on Delivery:</strong> Pay ₹{Math.max(0, total).toFixed(0)} in cash to the delivery agent. They will show you a QR code or collect cash at your doorstep.
+                💡 <strong>Cash on Delivery:</strong> Pay in cash to the delivery agent when your order arrives.
               </div>
               <button
                 className="btn btn-full btn-lg"
-                onClick={placeCodOrder}
-                disabled={codLoading || !selectedAddr}
-                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, padding: '14px', fontSize: '1rem', cursor: 'pointer', opacity: (!selectedAddr || codLoading) ? 0.6 : 1 }}
+                onClick={placeOrder}
+                disabled={loading || !selectedAddr}
+                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, padding: '14px', fontSize: '1rem', cursor: 'pointer', opacity: (!selectedAddr || loading) ? 0.6 : 1 }}
               >
-                {codLoading ? '⏳ Placing Order...' : `💵 Place COD Order — ₹${Math.max(0, total).toFixed(0)}`}
+                {loading ? '⏳ Placing Order...' : '💵 Place Cash on Delivery Order'}
               </button>
             </>
           ) : (
@@ -513,7 +683,7 @@ export default function CheckoutContent() {
               disabled={loading || !selectedAddr || cart.length === 0}
               style={{ fontSize: '1rem' }}
             >
-              {loading ? '⏳ Processing...' : total <= 0 ? '🎉 Place Free Order' : `💳 Pay ₹${total.toFixed(0)} Securely`}
+              {loading ? '⏳ Processing...' : '💳 Pay Securely'}
             </button>
           )}
 
