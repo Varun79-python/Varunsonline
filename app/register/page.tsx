@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
@@ -75,8 +75,15 @@ const TERMS_SHOPKEEPER = `SHOPKEEPER TERMS & CONDITIONS
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [userType, setUserType] = useState<'shopkeeper' | 'agent' | null>(null)
+
+  useEffect(() => {
+    const type = searchParams.get('type')
+    if (type === 'shopkeeper') setUserType('shopkeeper')
+    else if (type === 'agent') setUserType('agent')
+  }, [searchParams])
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
