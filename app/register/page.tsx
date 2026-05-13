@@ -5,6 +5,40 @@ import { createClient } from '@/lib/supabase/client'
 
 const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike', 'Other']
 
+function generateCaptcha(length = 5): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+function CaptchaDisplay({ code }: { code: string }) {
+  return (
+    <div style={{ 
+      display: 'flex', 
+      gap: 4, 
+      justifyContent: 'center', 
+      padding: '10px 16px',
+      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+      borderRadius: 10,
+      marginBottom: 12
+    }}>
+      {code.split('').map((char, i) => (
+        <span key={i} style={{
+          fontSize: '1.3rem',
+          fontWeight: 800,
+          color: ['#f97316', '#22c55e', '#3b82f6', '#f43f5e', '#a855f7'][i % 5],
+          fontFamily: 'monospace',
+          transform: `rotate(${[-5, 5, -3, 8, -2][i % 5]}deg)`,
+          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+        }}>{char}</span>
+      ))}
+    </div>
+  )
+}
+
 const TERMS_AGENT = `DELIVERY AGENT TERMS & CONDITIONS
 
 1. The delivery agent must provide genuine and accurate information during registration.
@@ -21,11 +55,7 @@ const TERMS_AGENT = `DELIVERY AGENT TERMS & CONDITIONS
 
 7. Cash collected from Cash on Delivery (COD) orders must be settled correctly to the platform without delay.
 
-8. Repeated late deliveries, fake location activity, or intentional order delays may reduce delivery priority or lead to suspension.
-
-9. The platform has the right to approve, reject, suspend, or terminate a delivery agent account at any time if suspicious activity is detected.
-
-10. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval.`
+8. By registering, the delivery agent confirms all submitted details are true and agrees to platform verification and approval.`
 
 const TERMS_SHOPKEEPER = `SHOPKEEPER TERMS & CONDITIONS
 
@@ -33,21 +63,15 @@ const TERMS_SHOPKEEPER = `SHOPKEEPER TERMS & CONDITIONS
 
 2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
 
-3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken including warnings, temporary suspension, payment hold, or permanent account removal.
+3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken.
 
 4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.
 
-5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition before handing over to delivery agents.
+5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition.
 
-6. Intentional order cancellations after accepting orders, repeated delays, or bad order handling may reduce shop visibility or result in penalties.
+6. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning.
 
-7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
-
-8. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning and legal action.
-
-9. Shopkeepers must treat customers, delivery agents, and platform staff professionally.
-
-10. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
+7. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -56,8 +80,11 @@ export default function RegisterPage() {
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [error, setError] = useState('')
+  const [captcha, setCaptcha] = useState(() => generateCaptcha())
+  const [captchaInput, setCaptchaInput] = useState('')
 
   const [form, setForm] = useState({
     full_name: '',
@@ -68,6 +95,11 @@ export default function RegisterPage() {
     vehicle_type: 'Bike',
     vehicle_number: '',
   })
+
+  function refreshCaptcha() {
+    setCaptcha(generateCaptcha())
+    setCaptchaInput('')
+  }
 
   async function handleSubmit() {
     setError('')
@@ -86,6 +118,12 @@ export default function RegisterPage() {
       if (!form.shop_name.trim()) { setError('Shop Name is required'); return }
     }
     if (!agreedToTerms) { setError('You must agree to the Terms & Conditions'); return }
+
+    if (captchaInput.toUpperCase() !== captcha) {
+      setError('Incorrect CAPTCHA. Please try again.')
+      refreshCaptcha()
+      return
+    }
 
     setSaving(true)
 
@@ -117,11 +155,9 @@ export default function RegisterPage() {
       if (userType === 'shopkeeper') {
         await supabase.from('shops').insert({
           owner_id: signUpData.user.id,
-          full_name: form.full_name.trim(),
           phone: form.phone_number.trim(),
           email: form.email.trim(),
           name: form.shop_name.trim(),
-          terms_accepted: true,
           is_approved: false,
           is_active: false,
         })
@@ -137,12 +173,11 @@ export default function RegisterPage() {
         })
       }
 
-      // Store user type for next step
       localStorage.setItem('registration_user_type', userType)
       localStorage.setItem('registration_user_id', signUpData.user.id)
 
       setSaving(false)
-      router.push('/register-documents')
+      setShowSuccessPopup(true)
     } catch (err: any) {
       setError('Error: ' + err.message)
       setSaving(false)
@@ -274,7 +309,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Shop Name for Shopkeeper / Vehicle Details for Agent */}
+            {/* Shop/Vehicle Details */}
             {userType === 'shopkeeper' ? (
               <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Shop Details</h3>
@@ -314,6 +349,22 @@ export default function RegisterPage() {
                 </div>
               </div>
             )}
+
+            {/* CAPTCHA */}
+            <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+              <CaptchaDisplay code={captcha} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input 
+                  type="text" 
+                  placeholder="Enter CAPTCHA" 
+                  value={captchaInput} 
+                  onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+                  maxLength={5}
+                  style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }} 
+                />
+                <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
+              </div>
+            </div>
 
             {/* Terms & Conditions */}
             <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
@@ -369,7 +420,7 @@ export default function RegisterPage() {
                 boxShadow: saving ? 'none' : userType === 'shopkeeper' ? '0 4px 16px rgba(249,115,22,0.3)' : '0 4px 16px rgba(34,197,94,0.3)'
               }}
             >
-              {saving ? 'Submitting...' : 'Submit Registration'}
+              {saving ? 'Submitting...' : 'Proceed to Step 2'}
             </button>
 
             <button 
@@ -402,6 +453,36 @@ export default function RegisterPage() {
                 ✅ I Agree
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Popup - Add Documents */}
+      {showSuccessPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Step 1 Complete!</h2>
+            <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+              Your basic details have been saved.<br/><br/>
+              <strong>Please add your documents now</strong> to complete registration.
+            </p>
+            <button 
+              onClick={() => { setShowSuccessPopup(false); router.push('/register-documents') }} 
+              style={{ 
+                width: '100%', 
+                padding: '14px', 
+                background: userType === 'shopkeeper' ? '#f97316' : '#22c55e', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: 12, 
+                fontWeight: 700, 
+                cursor: 'pointer',
+                fontSize: '1rem'
+              }}
+            >
+              📄 Add Documents
+            </button>
           </div>
         </div>
       )}

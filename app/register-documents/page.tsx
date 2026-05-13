@@ -146,7 +146,7 @@ export default function RegisterDocumentsPage() {
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎉</div>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-          {userType === 'shopkeeper' ? 'Shopkeeper' : 'Delivery Agent'} Registration Complete!
+          Registration Complete!
         </h2>
         <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
           Your documents have been uploaded successfully.<br/><br/>
