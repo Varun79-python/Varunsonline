@@ -187,6 +187,20 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================
+-- 10. CREATE DECREMENT_PRODUCT_STOCK FUNCTION (prevents overselling)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.decrement_product_stock(product_id_param UUID, quantity_param INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.products
+  SET stock_quantity = GREATEST(0, stock_quantity - quantity_param),
+      is_available = CASE WHEN stock_quantity - quantity_param <= 0 THEN FALSE ELSE is_available END,
+      updated_at = NOW()
+  WHERE id = product_id_param;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
 -- 10. ADD INDEXES FOR PERFORMANCE
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);

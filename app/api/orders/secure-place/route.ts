@@ -261,6 +261,16 @@ export async function POST(req: NextRequest) {
       }))
     )
 
+    // Deduct stock for each item (atomic decrement, prevents overselling)
+    for (const item of cart) {
+      await supabase.rpc('decrement_product_stock', {
+        product_id_param: item.product_id,
+        quantity_param: item.quantity
+      }).catch(err => {
+        console.error('Stock deduction failed for product', item.product_id, err)
+      })
+    }
+
     // Record status history
     await supabase.from('order_status_history').insert({
       order_id: order.id,
