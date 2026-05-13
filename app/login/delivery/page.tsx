@@ -82,12 +82,24 @@ export default function DeliveryLoginPage() {
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
 
+    let signInError: any = null
     if (isPhone) {
       const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
+      signInError = error
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
-      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
+      signInError = error
+    }
+    if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
+
+    // Check if agent is approved
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active').eq('id', user.id).single()
+      if (!agent || !agent.is_approved || !agent.is_active) {
+        router.push('/login/status')
+        return
+      }
     }
     router.push('/delivery')
   }

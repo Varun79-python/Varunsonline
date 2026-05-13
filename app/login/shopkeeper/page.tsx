@@ -82,12 +82,24 @@ export default function ShopkeeperLoginPage() {
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
 
+    let signInError: any = null
     if (isPhone) {
       const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
+      signInError = error
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
-      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
+      signInError = error
+    }
+    if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
+
+    // Check if shop is approved
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: shop } = await supabase.from('shops').select('is_approved, is_active').eq('owner_id', user.id).single()
+      if (!shop || !shop.is_approved || !shop.is_active) {
+        router.push('/login/status')
+        return
+      }
     }
     router.push('/shopkeeper')
   }
