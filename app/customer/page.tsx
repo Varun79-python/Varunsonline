@@ -70,17 +70,16 @@ export default function CustomerHome() {
     } else loadShops(null, null)
   }
 
-  const MAX_RADIUS_KM = 10
-
   async function loadShops(lat: number | null, lon: number | null) {
     setLoading(true)
     const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
     if (data) {
+      const activeRadius = radiusKm || 10
       const withDist = data.map((s: Shop) => ({
         ...s,
         distance: lat && lon && s.latitude && s.longitude
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
-      })).filter((s: Shop) => s.distance === null || (s.distance !== undefined && s.distance <= MAX_RADIUS_KM))
+      })).filter((s: Shop) => s.distance === null || (s.distance !== undefined && s.distance <= activeRadius))
       if (withDist.length === 0) {
         setShops([])
         setFiltered([])
