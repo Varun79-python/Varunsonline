@@ -40,6 +40,7 @@ export default function ShopRegisterPage() {
   const [done, setDone] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
   const [form, setForm] = useState({
     full_name: '',
     phone_number: '',
@@ -47,34 +48,77 @@ export default function ShopRegisterPage() {
     password: '',
     shop_name: '',
     shop_photo_url: '',
+    adhaar_front_url: '',
+    adhaar_back_url: '',
     terms_accepted: false,
   })
 
-  async function uploadPhoto(file: File) {
+  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+  async function uploadShopPhoto(file: File) {
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const tempId = 'temp-' + Date.now()
-    const path = `shop_photos/${tempId}-${Date.now()}.${ext}`
-    const { data, error } = await supabase.storage.from('uploads').upload(path, file)
-    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
-    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(path)
-    setUploading(false)
-    return publicUrl
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `shop_${Date.now()}.${ext}`
+      const { data, error } = await supabase.storage.from('shop-images').upload(fileName, file)
+      if (error) { alert('Upload failed: ' + error.message); setUploading(false); return null }
+      const { data: { publicUrl } } = supabase.storage.from('shop-images').getPublicUrl(fileName)
+      setUploading(false)
+      return publicUrl
+    } catch (err: any) { alert('Upload failed: ' + err.message); setUploading(false); return null }
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function uploadAdhaarDoc(file: File, frontOrBack: 'front' | 'back') {
+    setUploadingDoc(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const docType = frontOrBack === 'front' ? 'aadhar_front' : 'aadhar_back'
+      const fileName = `${docType}_${Date.now()}.${ext}`
+      const { data, error } = await supabase.storage.from('shop-documents').upload(fileName, file)
+      if (error) { alert('Upload failed: ' + error.message); setUploadingDoc(false); return null }
+      const { data: { publicUrl } } = supabase.storage.from('shop-documents').getPublicUrl(fileName)
+      setUploadingDoc(false)
+      return publicUrl
+    } catch (err: any) { alert('Upload failed: ' + err.message); setUploadingDoc(false); return null }
+  }
+
+  function handleShopPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB'); return }
-    uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) })
+    if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
+    uploadShopPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) })
   }
 
-  function openCamera() {
+  function handleAdhaarSelect(e: React.ChangeEvent<HTMLInputElement>, frontOrBack: 'front' | 'back') {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
+    uploadAdhaarDoc(file, frontOrBack).then(url => { 
+      if (url) {
+        if (frontOrBack === 'front') setForm(f => ({ ...f, adhaar_front_url: url }))
+        else setForm(f => ({ ...f, adhaar_back_url: url }))
+      }
+    })
+  }
+
+  function openCamera(type: 'shop' | 'adhaar_front' | 'adhaar_back') {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
     input.capture = 'environment'
-    input.onchange = (e: any) => { const file = e.target.files?.[0]; if (file) uploadPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) }) }
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
+      
+      if (type === 'shop') {
+        uploadShopPhoto(file).then(url => { if (url) setForm(f => ({ ...f, shop_photo_url: url })) })
+      } else if (type === 'adhaar_front') {
+        uploadAdhaarDoc(file, 'front').then(url => { if (url) setForm(f => ({ ...f, adhaar_front_url: url })) })
+      } else if (type === 'adhaar_back') {
+        uploadAdhaarDoc(file, 'back').then(url => { if (url) setForm(f => ({ ...f, adhaar_back_url: url })) })
+      }
+    }
     input.click()
   }
 
@@ -86,12 +130,13 @@ export default function ShopRegisterPage() {
     if (form.password.length < 6) { alert('Password must be at least 6 characters'); return }
     if (!form.shop_name.trim()) { alert('Please enter Shop Name'); return }
     if (!form.shop_photo_url) { alert('Please upload Shop Photo'); return }
+    if (!form.adhaar_front_url) { alert('Please upload Aadhaar Card (Front)'); return }
+    if (!form.adhaar_back_url) { alert('Please upload Aadhaar Card (Back)'); return }
     if (!form.terms_accepted) { alert('Please accept Terms & Conditions'); return }
 
     setSaving(true)
     let { data: { user } } = await supabase.auth.getUser()
 
-    // If not logged in, create an account first
     if (!user) {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: form.email.trim(),
@@ -103,7 +148,7 @@ export default function ShopRegisterPage() {
       user = signUpData.user
     }
 
-    const { error } = await supabase.from('shops').insert({
+    const { data: shopData, error: shopError } = await supabase.from('shops').insert({
       owner_id: user.id,
       full_name: form.full_name.trim(),
       phone: form.phone_number.trim(),
@@ -113,9 +158,16 @@ export default function ShopRegisterPage() {
       terms_accepted: true,
       is_approved: false,
       is_active: false,
-    })
+    }).select().single()
 
-    if (error) { alert(error.message); setSaving(false); return }
+    if (shopError) { alert(shopError.message); setSaving(false); return }
+
+    // Save adhaar documents
+    await supabase.from('shop_documents').insert([
+      { shop_id: shopData.id, doc_type: 'aadhar_front', file_url: form.adhaar_front_url, file_name: 'Aadhaar Front' },
+      { shop_id: shopData.id, doc_type: 'aadhar_back', file_url: form.adhaar_back_url, file_name: 'Aadhaar Back' }
+    ])
+
     setDone(true); setSaving(false)
   }
 
@@ -182,8 +234,9 @@ export default function ShopRegisterPage() {
               <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="e.g. Ravi General Store" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
 
+            {/* Shop Photo */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Photo *</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Photo * <span style={{ color: '#64748b', fontWeight: 400 }}>(Max 5MB)</span></label>
               {form.shop_photo_url ? (
                 <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
                   <img src={form.shop_photo_url} alt="Shop" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
@@ -192,17 +245,63 @@ export default function ShopRegisterPage() {
               ) : (
                 <div style={{ display: 'flex', gap: 10 }}>
                   <label style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
-                    <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+                    <input type="file" accept="image/*" onChange={handleShopPhotoSelect} style={{ display: 'none' }} />
                     <div style={{ fontSize: '2rem', marginBottom: 4 }}>📁</div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Upload from Gallery</div>
                   </label>
-                  <button onClick={openCamera} style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                  <button onClick={() => openCamera('shop')} style={{ flex: 1, padding: 20, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
                     <div style={{ fontSize: '2rem', marginBottom: 4 }}>📷</div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Take Photo</div>
                   </button>
                 </div>
               )}
               {uploading && <div style={{ textAlign: 'center', padding: 10, color: '#f97316' }}>⏳ Uploading...</div>}
+            </div>
+
+            {/* Aadhaar Front */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Aadhaar Card (Front) * <span style={{ color: '#64748b', fontWeight: 400 }}>(Max 5MB)</span></label>
+              {form.adhaar_front_url ? (
+                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                  <img src={form.adhaar_front_url} alt="Aadhaar Front" style={{ width: '100%', height: 150, objectFit: 'cover' }} />
+                  <button onClick={() => setForm(f => ({ ...f, adhaar_front_url: '' }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: 20, width: 28, height: 28, cursor: 'pointer' }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <label style={{ flex: 1, padding: 16, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <input type="file" accept="image/*" onChange={(e) => handleAdhaarSelect(e, 'front')} style={{ display: 'none' }} />
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📁</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload</div>
+                  </label>
+                  <button onClick={() => openCamera('adhaar_front')} style={{ flex: 1, padding: 16, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📷</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Camera</div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Aadhaar Back */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Aadhaar Card (Back) * <span style={{ color: '#64748b', fontWeight: 400 }}>(Max 5MB)</span></label>
+              {form.adhaar_back_url ? (
+                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                  <img src={form.adhaar_back_url} alt="Aadhaar Back" style={{ width: '100%', height: 150, objectFit: 'cover' }} />
+                  <button onClick={() => setForm(f => ({ ...f, adhaar_back_url: '' }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: 20, width: 28, height: 28, cursor: 'pointer' }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <label style={{ flex: 1, padding: 16, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <input type="file" accept="image/*" onChange={(e) => handleAdhaarSelect(e, 'back')} style={{ display: 'none' }} />
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📁</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload</div>
+                  </label>
+                  <button onClick={() => openCamera('adhaar_back')} style={{ flex: 1, padding: 16, border: '2px dashed #e2e8f0', borderRadius: 12, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📷</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Camera</div>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
@@ -215,7 +314,7 @@ export default function ShopRegisterPage() {
               </label>
             </div>
 
-            <button onClick={submit} disabled={saving || uploading} style={{ padding: 16, background: saving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <button onClick={submit} disabled={saving || uploading || uploadingDoc} style={{ padding: 16, background: saving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Submitting...' : '📝 Submit for Approval'}
             </button>
           </div>

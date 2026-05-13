@@ -69,13 +69,13 @@ export default function DeliveryRegisterPage() {
   async function handleAadhaarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB'); return }
     setUploading(true)
-    const tempId = 'temp-' + Date.now()
     const ext = file.name.split('.').pop()
-    const path = `aadhar/${tempId}/aadhar-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('agent-documents').upload(path, file, { upsert: true })
+    const fileName = `aadhar_${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('agent-documents').upload(fileName, file)
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
+    const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(fileName)
     setForm(f => ({ ...f, aadhar_url: publicUrl }))
     setUploading(false)
   }
@@ -195,7 +195,7 @@ export default function DeliveryRegisterPage() {
         </div>
 
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card *</h3>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card * <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(Max 5MB)</span></h3>
           
           <label style={{ display: 'block', cursor: 'pointer' }}>
             <input type="file" accept="image/*" capture="environment" onChange={handleAadhaarUpload} style={{ display: 'none' }} />
