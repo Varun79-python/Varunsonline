@@ -134,7 +134,6 @@ export default function RegisterPage() {
           vehicle_type: form.vehicle_type,
           vehicle_number: form.vehicle_number.trim().toUpperCase(),
           is_approved: false,
-          terms_agreed: true,
         })
       }
 
@@ -157,6 +156,22 @@ export default function RegisterPage() {
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
           {userType === 'agent' ? 'Delivery Partner Registration' : userType === 'shopkeeper' ? 'Shopkeeper Registration' : 'Registration'}
         </h2>
+      </div>
+
+      {/* 2 Steps Indicator */}
+      <div style={{ maxWidth: 500, margin: '0 auto 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'white', padding: '12px 20px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 24, height: 24, borderRadius: 12, background: userType ? '#22c55e' : '#e2e8f0', color: 'white', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
+            <span style={{ fontSize: '0.85rem', color: userType ? '#374151' : '#94a3b8', fontWeight: 600 }}>Basic Details</span>
+          </div>
+          <div style={{ width: 30, height: 2, background: '#e2e8f0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 24, height: 24, borderRadius: 12, background: '#e2e8f0', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
+            <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Documents</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>2 Steps to Complete Registration</div>
       </div>
 
       {/* User Type Selection */}

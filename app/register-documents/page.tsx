@@ -188,6 +188,22 @@ export default function RegisterDocumentsPage() {
         </h2>
       </div>
 
+      {/* 2 Steps Indicator */}
+      <div style={{ maxWidth: 500, margin: '0 auto 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'white', padding: '12px 20px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 24, height: 24, borderRadius: 12, background: '#22c55e', color: 'white', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
+            <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 600 }}>Basic Details</span>
+          </div>
+          <div style={{ width: 30, height: 2, background: '#22c55e' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 24, height: 24, borderRadius: 12, background: '#22c55e', color: 'white', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
+            <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 600 }}>Documents</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>Step 2 of 2 - Upload Required Documents</div>
+      </div>
+
       <div style={{ maxWidth: 500, margin: '0 auto' }}>
         {userType === 'shopkeeper' ? (
           <>
