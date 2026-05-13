@@ -16,9 +16,11 @@ export async function POST(req: NextRequest) {
     const body = await req.text()
     const signature = req.headers.get('x-razorpay-signature') || ''
 
-    // Verify webhook authenticity
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || ''
-    if (webhookSecret) {
+    // Verify webhook authenticity — require if secret is set
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET
+    if (!webhookSecret) {
+      console.warn('[WEBHOOK] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification. Set it in production!')
+    } else {
       const expectedSig = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex')
       if (expectedSig !== signature) {
         console.error('Razorpay webhook signature mismatch')
@@ -42,85 +44,89 @@ export async function POST(req: NextRequest) {
         const razorpay_payment_id = payment.id
         const razorpay_order_id = payment.order_id
 
-        // Fetch plan duration
-        const { data: plan } = await supabase.from('subscription_plans').select('duration_days, fee_percent').eq('id', planId).single()
-        if (!plan) { console.error('Plan not found:', planId); return NextResponse.json({ ok: true }) }
+        // Fetch plan duration based on plan_type
+        const { data: plan } = await supabase.from('subscription_plans').select('price, features').eq('id', planId).single()
+        if (!plan) { console.error('Plan not found:', planId); return NextResponse.json({ received: true }) }
 
         const now = new Date()
-        const expiresAt = new Date(now.getTime() + plan.duration_days * 24 * 60 * 60 * 1000)
+        const planFeatures = plan.features || {}
+        const durationDays = planFeatures.duration_days || 30
+        const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
 
         // Check if subscription already activated (idempotency)
         const { data: existing } = await supabase.from('shop_subscriptions').select('id').eq('razorpay_payment_id', razorpay_payment_id).maybeSingle()
         if (existing) {
           console.log('Subscription already activated, skipping:', razorpay_payment_id)
-          return NextResponse.json({ ok: true })
+          return NextResponse.json({ received: true })
         }
 
         // Deactivate old subscriptions
         await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopId).eq('is_active', true)
 
-        // Create new subscription
+        // Create new subscription (columns: start_date, end_date per schema)
         await supabase.from('shop_subscriptions').insert({
           shop_id: shopId, plan_id: planId,
           razorpay_order_id, razorpay_payment_id,
           payment_status: 'paid',
-          starts_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
+          start_date: now.toISOString(),
+          end_date: expiresAt.toISOString(),
+          amount_paid: payment.amount / 100,
           is_active: true
         })
 
         // Activate shop
         await supabase.from('shops').update({
           is_active: true,
-          subscription_plan_id: planId,
-          subscription_expires_at: expiresAt.toISOString(),
-          subscription_fee_percent: plan.fee_percent || 0
+          is_approved: true,
         }).eq('id', shopId)
 
-        console.log(`✅ Subscription auto-activated for shop ${shopId} via webhook`)
+        console.log(`Subscription auto-activated for shop ${shopId} via webhook`)
       }
 
       // Handle order payment (mark order as payment_confirmed)
       if (notes.type === 'order' && notes.orderId) {
-        await supabase.from('orders').update({
-          payment_status: 'paid',
-          status: 'payment_confirmed',
-          razorpay_payment_id: payment.id,
-          razorpay_order_id: payment.order_id
-        }).eq('id', notes.orderId).eq('payment_status', 'pending')
+        // secure-place creates order with payment_status='pending' for online payments
+        // Webhook confirms the payment - only update if still pending (idempotent)
+        const { data: order } = await supabase
+          .from('orders')
+          .select('id, payment_status, customer_id, total_amount, order_number, shops:shop_id(owner_id)')
+          .eq('id', notes.orderId)
+          .eq('payment_status', 'pending')
+          .single()
 
-        console.log(`✅ Order ${notes.orderId} payment confirmed via webhook`)
+        if (order) {
+          await supabase.from('orders').update({
+            payment_status: 'paid',
+            razorpay_payment_id: payment.id,
+            razorpay_order_id: payment.order_id
+          }).eq('id', notes.orderId).eq('payment_status', 'pending')
 
-        // ── FCM push to shopkeeper ──────────────────────────────────────────
+          console.log(`Order ${notes.orderId} payment confirmed via webhook`)
+        } else {
+          console.log(`Order ${notes.orderId} payment already processed (status != pending), skipping`)
+          return NextResponse.json({ received: true })
+        }
+
+        // FCM push to shopkeeper
         try {
-          const { data: order } = await supabase
-            .from('orders')
-            .select('order_number, total_amount, user_id, shops:shop_id(owner_id, name)')
-            .eq('id', notes.orderId)
-            .single()
-
           if (order?.shops) {
             const shop = order.shops as unknown as { owner_id: string; name: string }
-            let customerName = 'a customer'
-            if (order.user_id) {
-              const { data: prof } = await supabase
-                .from('profiles').select('full_name').eq('id', order.user_id).single()
-              if (prof?.full_name) customerName = prof.full_name
-            }
+            const { data: prof } = await supabase
+              .from('profiles').select('full_name').eq('id', order.customer_id).maybeSingle()
+            const customerName = prof?.full_name || 'a customer'
             const orderNum = order.order_number || notes.orderId.slice(0, 8).toUpperCase()
             await pushToUser(
               supabase,
               shop.owner_id,
-              '🛒 New Order Received!',
-              `Order ${orderNum} from ${customerName} — ₹${order.total_amount || ''}. Tap to Accept.`,
-              { type: 'new_order', role: 'shopkeeper', orderId: notes.orderId, orderNumber: orderNum },
+              '🛒 Payment Confirmed!',
+              `Order ${orderNum} from ${customerName} — ₹${order.total_amount || ''}. Prepare for dispatch.`,
+              { type: 'payment_confirmed', role: 'shopkeeper', orderId: notes.orderId, orderNumber: orderNum },
               'varunsonline_orders'
             )
           }
         } catch (pushErr) {
           console.error('[FCM] Shopkeeper push error (non-fatal):', pushErr)
         }
-        // ──────────────────────────────────────────────────────────────────────────
       }
     }
 
