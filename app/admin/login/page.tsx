@@ -23,8 +23,9 @@ export default function AdminLoginPage() {
     if (!user) { setError('Login failed'); setLoading(false); return }
 
     // Wait for session to be fully established
+    await new Promise(resolve => setTimeout(resolve, 500))
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setError('Session error'); setLoading(false); return }
+    if (!session) { setError('Session error. Please try again.'); setLoading(false); return }
 
     // Check 1: user_metadata.role (set during account creation — no DB needed)
     const metaRole = user.user_metadata?.role
