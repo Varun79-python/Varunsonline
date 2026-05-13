@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AdminCustomers() {
-  const supabase = createClient()
+  const supabase = createClient() as any
   const [customers, setCustomers] = useState<Record<string, unknown>[]>([])
   const [search, setSearch] = useState('')
 
   useEffect(() => {
+    if (!supabase) return
     supabase.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false })
-      .then(({ data }) => setCustomers(data || []))
+      .then(({ data }: { data: any[] | null }) => setCustomers(data || []))
   }, [])
 
   const filtered = search ? customers.filter(c => (c.full_name as string)?.toLowerCase().includes(search.toLowerCase()) || (c.email as string)?.toLowerCase().includes(search.toLowerCase())) : customers

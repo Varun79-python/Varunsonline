@@ -1,28 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServiceClient } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized - no token' }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+    }
+
+    const body = await req.json()
     const {
       customerId, shopId, addressId, cart,
       subtotal, deliveryCharge, platformFee,
       couponDiscount, total, agentEarning, shopEarning, adminEarning,
       couponCode
-    } = await req.json()
+    } = body
 
     if (!customerId || !shopId || !addressId || !cart?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    // CRITICAL: Verify the requesting user owns this customerId
+    if (user.id !== customerId) {
+      return NextResponse.json({ error: 'Cannot place order for another user' }, { status: 403 })
+    }
+
+    // Verify user has a customer profile
+    const serviceSupabase = createServiceClient()
+    const { data: profile } = await serviceSupabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!profile || profile.role !== 'customer') {
+      return NextResponse.json({ error: 'Only customers can place orders' }, { status: 403 })
+    }
+
+    // Verify address belongs to customer
+    const { data: address } = await serviceSupabase.from('addresses').select('customer_id').eq('id', addressId).single()
+    if (!address || address.customer_id !== customerId) {
+      return NextResponse.json({ error: 'Invalid address' }, { status: 400 })
+    }
+
+    // Verify shop exists and is active
+    const { data: shop } = await serviceSupabase.from('shops').select('id, is_active').eq('id', shopId).single()
+    if (!shop || !shop.is_active) {
+      return NextResponse.json({ error: 'Shop not available' }, { status: 400 })
+    }
 
     // Place order with COD payment method
-    const { data: order, error: orderErr } = await supabase
+    const { data: order, error: orderErr } = await serviceSupabase
       .from('orders')
       .insert({
         customer_id: customerId,
@@ -50,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert order items
-    await supabase.from('order_items').insert(
+    await serviceSupabase.from('order_items').insert(
       cart.map((i: { product_id: string; name: string; image_url: string; quantity: number; price: number }) => ({
         order_id: order.id,
         product_id: i.product_id,
@@ -63,17 +100,20 @@ export async function POST(req: NextRequest) {
     )
 
     // Status history
-    await supabase.from('order_status_history').insert({
+    await serviceSupabase.from('order_status_history').insert({
       order_id: order.id, status: 'payment_confirmed', changed_by: customerId
     })
 
-    // Notification to shop
+    // Notification to shop owner
     try {
-      await supabase.from('notifications').insert({
-        user_id: shopId, title: '🛒 New COD Order!',
-        body: `Cash order ${order.order_number} received`, type: 'new_order',
-        data: { order_id: order.id }
-      })
+      const { data: shopOwner } = await serviceSupabase.from('shops').select('owner_id').eq('id', shopId).single()
+      if (shopOwner?.owner_id) {
+        await serviceSupabase.from('notifications').insert({
+          user_id: shopOwner.owner_id, title: '🛒 New COD Order!',
+          body: `Cash order ${order.order_number} received`, type: 'new_order',
+          data: { order_id: order.id }
+        })
+      }
     } catch { /* optional */ }
 
     return NextResponse.json({ success: true, orderId: order.id })

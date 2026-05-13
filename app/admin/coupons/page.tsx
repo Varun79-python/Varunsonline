@@ -5,14 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 interface Coupon { id: string; code: string; description: string; discount_type: string; discount_value: number; min_order_amount: number; used_count: number; is_active: boolean; valid_until: string }
 
 export default function AdminCoupons() {
-  const supabase = createClient()
+  const supabase = createClient() as any
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ code: '', description: '', discount_type: 'percent', discount_value: '', min_order_amount: '0', max_discount: '', valid_until: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    supabase.from('coupons').select('*').order('created_at', { ascending: false }).then(({ data }) => setCoupons(data || []))
+    if (!supabase) return
+    supabase.from('coupons').select('*').order('created_at', { ascending: false }).then(({ data }: { data: Coupon[] | null }) => setCoupons(data || []))
   }, [])
 
   async function save() {
