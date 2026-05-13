@@ -152,7 +152,7 @@ export default function DeliveryLoginPage() {
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Don't have an account? </span>
-          <button onClick={() => router.push('/login/delivery/register')} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
+          <button onClick={() => router.push('/register')} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
         </div>
       </div>
 
