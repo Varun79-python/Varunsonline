@@ -44,7 +44,16 @@ export default function RegisterDocumentsPage() {
     setUploading(true)
     try {
       const ext = file.name.split('.').pop()
-      const path = `${userId}/${docType}_${Date.now()}.${ext}`
+      
+      // For shopkeepers, use shop ID as folder; for agents, use user ID
+      let folderId = userId
+      if (userType === 'shopkeeper') {
+        const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', userId).single()
+        if (shop) folderId = shop.id
+      }
+      // For agents, the folder should be userId (agent ID) - policy checks auth.uid() = folder
+      
+      const path = `${folderId}/${docType}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file)
       
       if (uploadError) { 
