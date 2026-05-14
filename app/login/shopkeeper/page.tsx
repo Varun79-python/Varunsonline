@@ -100,17 +100,13 @@ export default function ShopkeeperLoginPage() {
     if (sessionError) console.error('Session error:', sessionError)
 
     if (!session?.user) {
-      // Try one more refresh
       await supabase.auth.refreshSession()
       const { data: { session: retry } } = await supabase.auth.getSession()
-      if (!retry?.user) {
-        setError('Session expired. Please login again.')
-        setLoading(false)
-        return
-      }
+      if (!retry?.user) { setError('Session expired. Please login again.'); setLoading(false); return }
+      session = retry
     }
 
-    const user = session!.user
+    const user = session.user
 
     // ── Step 1: Check if shop exists for this user ──────────────────
     // Note: profiles table may not have rows for all users (registration doesn't create profiles).
