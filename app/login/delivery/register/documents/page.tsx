@@ -7,11 +7,12 @@ export default function DeliveryDocumentsPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  
+
   const [aadharUrl, setAadharUrl] = useState('')
   const [error, setError] = useState('')
 
@@ -20,17 +21,33 @@ export default function DeliveryDocumentsPage() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        if (authError) {
+          console.error('Auth error:', authError)
+          setLoadError('Session error. Please login again.')
+          setLoading(false)
+          return
+        }
+
         if (!user) {
           router.push('/login/delivery')
           return
         }
 
-        const { data: agent } = await supabase
+        // Check if agent profile exists
+        const { data: agent, error: agentError } = await supabase
           .from('delivery_agents')
-          .select('aadhar_url, id')
+          .select('id, aadhar_url')
           .eq('id', user.id)
           .maybeSingle()
+
+        if (agentError) {
+          console.error('Agent query error:', agentError)
+          setLoadError('Failed to load profile. Please try again.')
+          setLoading(false)
+          return
+        }
 
         if (!agent) {
           router.push('/delivery/register')
@@ -44,9 +61,10 @@ export default function DeliveryDocumentsPage() {
 
         setUserId(user.id)
         setLoading(false)
-      } catch (err) {
-        console.error('Auth check failed:', err)
-        router.push('/login/delivery')
+      } catch (err: any) {
+        console.error('Check auth error:', err)
+        setLoadError(err.message || 'Something went wrong. Please try again.')
+        setLoading(false)
       }
     }
     checkAuth()
@@ -59,18 +77,18 @@ export default function DeliveryDocumentsPage() {
       const ext = file.name.split('.').pop()
       const path = `${userId}/${docType}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('agent-documents').upload(path, file)
-      if (uploadError) { 
+      if (uploadError) {
         alert('Upload failed: ' + uploadError.message)
         setUploading(false)
-        return null 
+        return null
       }
       const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
       setUploading(false)
       return publicUrl
-    } catch (err: any) { 
+    } catch (err: any) {
       alert('Upload failed: ' + err.message)
       setUploading(false)
-      return null 
+      return null
     }
   }
 
@@ -79,20 +97,6 @@ export default function DeliveryDocumentsPage() {
     if (!file) return
     if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
     uploadFile(file, docType).then(url => { if (url) setter(url) })
-  }
-
-  function openCamera(setter: (url: string) => void, docType: string) {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.capture = 'environment'
-    input.onchange = async (e: any) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
-      uploadFile(file, docType).then(url => { if (url) setter(url) })
-    }
-    input.click()
   }
 
   async function submit() {
@@ -115,15 +119,40 @@ export default function DeliveryDocumentsPage() {
     setSaving(false)
   }
 
+  // Loading state
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
       <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 16 }} />
-      <p style={{ color: '#64748b' }}>Loading...</p>
+      <p style={{ color: '#64748b' }}>Loading your profile...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 
+  // Error state with retry
+  if (loadError) return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: 400 }}>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ marginBottom: 12, fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>Something went wrong</h2>
+        <p style={{ color: '#64748b', marginBottom: 24 }}>{loadError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ padding: '12px 24px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer', marginBottom: 12, width: '100%' }}
+        >
+          🔄 Reload Page
+        </button>
+        <button
+          onClick={() => router.push('/login/delivery')}
+          style={{ padding: '12px 24px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', width: '100%' }}
+        >
+          ← Back to Login
+        </button>
+      </div>
+    </div>
+  )
+
+  // Done state
   useEffect(() => {
     if (done) {
       const timer = setTimeout(() => {
@@ -153,12 +182,15 @@ export default function DeliveryDocumentsPage() {
       <div style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card * <span style={{ fontSize: '0.75rem', color: '#64748b' }}>(Max 5MB)</span></h3>
-          
+
           <label style={{ display: 'block', cursor: 'pointer' }}>
             <input type="file" accept="image/*" onChange={(e) => handleFileSelect(e, setAadharUrl, 'aadhar')} style={{ display: 'none' }} />
             <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: aadharUrl ? '#f0fdf4' : '#f8fafc' }}>
               {uploading ? (
-                <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
+                <div>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
+                  <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
+                </div>
               ) : aadharUrl ? (
                 <div>
                   <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
@@ -188,9 +220,9 @@ export default function DeliveryDocumentsPage() {
           </div>
         )}
 
-        <button 
-          onClick={submit} 
-          disabled={saving || uploading} 
+        <button
+          onClick={submit}
+          disabled={saving || uploading}
           style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(34,197,94,0.3)' }}
         >
           {saving ? 'Saving...' : 'Submit Documents'}
