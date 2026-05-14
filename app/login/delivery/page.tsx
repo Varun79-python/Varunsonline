@@ -95,8 +95,16 @@ export default function DeliveryLoginPage() {
 
     // Wait briefly for Supabase to write auth cookies after signIn
     await new Promise(resolve => setTimeout(resolve, 100))
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Session expired. Please login again.'); setLoading(false); return }
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) console.error('Session error:', sessionError)
+
+    if (!session?.user) {
+      await supabase.auth.refreshSession()
+      const { data: { session: retry } } = await supabase.auth.getSession()
+      if (!retry?.user) { setError('Session expired. Please login again.'); setLoading(false); return }
+    }
+
+    const user = session!.user
 
     // Check if agent is approved, active and has documents
     const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).maybeSingle()
