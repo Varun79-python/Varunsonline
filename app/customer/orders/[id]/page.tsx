@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import OrderChat from '@/components/OrderChat/OrderChat'
 
 const STEPS = [
   { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '✅' },
@@ -17,7 +18,6 @@ const ORDER_RANK: Record<string, number> = {
   order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7
 }
 
-// Statuses when OTP should be visible to customer
 const OTP_VISIBLE_STATUSES = ['shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery']
 
 export default function OrderDetailPage() {
@@ -31,9 +31,13 @@ export default function OrderDetailPage() {
   const [ratingModal, setRatingModal] = useState<{ productId: string; productName: string } | null>(null)
   const [ratingValue, setRatingValue] = useState(0)
   const [ratingSubmitting, setRatingSubmitting] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState('')
 
   useEffect(() => {
     async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUserId(user.id)
+
       const [{ data: o }, { data: i }, { data: ratings }] = await Promise.all([
         supabase.from('orders').select('*, shops(name, phone, address_line1, city)').eq('id', id).single(),
         supabase.from('order_items').select('*').eq('order_id', id),
@@ -94,7 +98,6 @@ export default function OrderDetailPage() {
         <p style={{ color: 'var(--text-muted)' }}>from {(order.shops as Record<string, unknown>)?.name as string}</p>
       </div>
 
-      {/* ── Delivery OTP Box ── */}
       {otpVisible && deliveryOtp && (
         <div style={{
           marginBottom: 20,
@@ -155,7 +158,6 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Delivered — OTP used */}
       {order.status === 'delivered' && (order.otp_verified as boolean) && (
         <div style={{
           marginBottom: 20, padding: '14px 18px', borderRadius: 12,
@@ -170,7 +172,6 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Timeline */}
       {!['cancelled', 'rejected'].includes(order.status as string) && (
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 20 }}>Order Progress</h3>
@@ -193,7 +194,6 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Items */}
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 style={{ marginBottom: 14 }}>Order Items</h3>
         {items.map((item: Record<string, unknown>) => {
@@ -229,7 +229,6 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Delivery Address */}
       {address && (
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 12 }}>📍 Delivery Address</h3>
@@ -245,59 +244,59 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-    {/* Product Rating Modal */}
-    {ratingModal && (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, backdropFilter: 'blur(4px)'
-      }} onClick={() => setRatingModal(null)}>
+      {ratingModal && (
         <div style={{
-          background: 'white', borderRadius: 24, padding: 24, width: '90%', maxWidth: 340,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
-        }} onClick={e => e.stopPropagation()}>
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>⭐</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Rate Product</h3>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 4 }}>{ratingModal.productName}</p>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
-            {[1, 2, 3, 4, 5].map(star => (
-              <span
-                key={star}
-                onClick={() => setRatingValue(star)}
-                style={{
-                  fontSize: '2.5rem', cursor: 'pointer', color: star <= ratingValue ? '#f59e0b' : '#d1d5db',
-                  transition: 'transform 0.1s'
-                }}
-              >
-                {star <= ratingValue ? '★' : '☆'}
-              </span>
-            ))}
-          </div>
-
-          {ratingValue > 0 && (
-            <div style={{ textAlign: 'center', marginBottom: 20, fontSize: '0.9rem', color: '#f59e0b', fontWeight: 600 }}>
-              {ratingValue === 5 ? 'Excellent!' : ratingValue === 4 ? 'Great!' : ratingValue === 3 ? 'Good' : ratingValue === 2 ? 'Fair' : 'Poor'}
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, backdropFilter: 'blur(4px)'
+        }} onClick={() => setRatingModal(null)}>
+          <div style={{
+            background: 'white', borderRadius: 24, padding: 24, width: '90%', maxWidth: 340,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: '2rem', marginBottom: 8 }}>⭐</div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Rate Product</h3>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 4 }}>{ratingModal.productName}</p>
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setRatingModal(null)} style={{ flex: 1, background: '#f1f5f9', border: 'none', color: '#475569', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button
-              onClick={submitProductRating}
-              disabled={ratingSubmitting || ratingValue === 0}
-              style={{ flex: 1, background: ratingValue === 0 ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: ratingValue === 0 ? 'not-allowed' : 'pointer' }}
-            >
-              {ratingSubmitting ? 'Submitting...' : 'Submit'}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <span
+                  key={star}
+                  onClick={() => setRatingValue(star)}
+                  style={{ fontSize: '2.5rem', cursor: 'pointer', color: star <= ratingValue ? '#f59e0b' : '#d1d5db', transition: 'transform 0.1s' }}
+                >
+                  {star <= ratingValue ? '★' : '☆'}
+                </span>
+              ))}
+            </div>
+            {ratingValue > 0 && (
+              <div style={{ textAlign: 'center', marginBottom: 20, fontSize: '0.9rem', color: '#f59e0b', fontWeight: 600 }}>
+                {ratingValue === 5 ? 'Excellent!' : ratingValue === 4 ? 'Great!' : ratingValue === 3 ? 'Good' : ratingValue === 2 ? 'Fair' : 'Poor'}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setRatingModal(null)} style={{ flex: 1, background: '#f1f5f9', border: 'none', color: '#475569', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={submitProductRating}
+                disabled={ratingSubmitting || ratingValue === 0}
+                style={{ flex: 1, background: ratingValue === 0 ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '14px', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: ratingValue === 0 ? 'not-allowed' : 'pointer' }}
+              >
+                {ratingSubmitting ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
+
+      <OrderChat
+        orderId={id}
+        currentUserId={currentUserId}
+        currentUserRole="customer"
+        shopName={(order.shops as Record<string, unknown>)?.name as string}
+      />
     </div>
   )
 }

@@ -98,24 +98,23 @@ export default function DeliveryLoginPage() {
       const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).single()
       
       if (!agent) {
-        setError('Account not found. Please register first.')
-        setLoading(false)
-        return
-      }
-      
-      // Old approved users can login without documents
-      if (agent.is_approved && agent.is_active) {
-        router.push('/delivery')
+        router.push('/delivery/register')
         return
       }
 
-      // For pending users, check if documents uploaded
+      // Check documents uploaded
       if (!agent.aadhar_url) {
         router.push('/login/delivery/register/documents')
         return
       }
 
-      // Documents uploaded but still pending approval
+      // Admin approved → go to dashboard
+      if (agent.is_approved && agent.is_active) {
+        router.push('/delivery')
+        return
+      }
+
+      // Docs uploaded but still pending approval
       router.push('/login/status')
       return
     }

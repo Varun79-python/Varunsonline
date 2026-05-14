@@ -94,6 +94,7 @@ return (
                 <div style={{ fontWeight: 800, color: '#f97316', fontSize: '1rem' }}>₹{order.shopkeeper_earning || order.total_amount}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => router.push(`/shopkeeper/orders/${order.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Details</button>
+                  <button onClick={() => router.push(`/shopkeeper/orders/${order.id}`)} style={{ background: '#fff7ed', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#f97316', cursor: 'pointer' }}>💬 Chat</button>
                   {order.status === 'shop_accepted' && (
                     <button onClick={() => markPacked(order.id)} style={{ background: '#f97316', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, color: 'white', cursor: 'pointer' }}>📦 Pack</button>
                   )}

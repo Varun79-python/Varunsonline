@@ -350,6 +350,29 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 -- ============================================================
+-- ORDER CONVERSATIONS (one per order, for chat between customer, shopkeeper, delivery agent)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.order_conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- ORDER MESSAGES (chat messages within an order conversation)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.order_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID NOT NULL REFERENCES public.order_conversations(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES public.profiles(id),
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('customer', 'shopkeeper', 'delivery_agent', 'admin')),
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- REVIEWS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.reviews (
@@ -378,6 +401,51 @@ ALTER TABLE public.withdraw_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+-- ORDER CONVERSATIONS policies
+CREATE POLICY "Participants can view order conversations" ON public.order_conversations FOR SELECT USING (
+  order_id IN (
+    SELECT id FROM public.orders WHERE
+      customer_id = auth.uid()
+      OR shop_id IN (SELECT id FROM public.shops WHERE owner_id = auth.uid())
+      OR agent_id = auth.uid()
+      OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+);
+CREATE POLICY "Participants can create order conversations" ON public.order_conversations FOR INSERT WITH CHECK (
+  order_id IN (
+    SELECT id FROM public.orders WHERE
+      customer_id = auth.uid()
+      OR shop_id IN (SELECT id FROM public.shops WHERE owner_id = auth.uid())
+      OR agent_id = auth.uid()
+      OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+);
+
+-- ORDER MESSAGES policies
+CREATE POLICY "Participants can view order messages" ON public.order_messages FOR SELECT USING (
+  conversation_id IN (
+    SELECT id FROM public.order_conversations WHERE order_id IN (
+      SELECT id FROM public.orders WHERE
+        customer_id = auth.uid()
+        OR shop_id IN (SELECT id FROM public.shops WHERE owner_id = auth.uid())
+        OR agent_id = auth.uid()
+        OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    )
+  )
+);
+CREATE POLICY "Participants can send order messages" ON public.order_messages FOR INSERT WITH CHECK (
+  conversation_id IN (
+    SELECT id FROM public.order_conversations WHERE order_id IN (
+      SELECT id FROM public.orders WHERE
+        customer_id = auth.uid()
+        OR shop_id IN (SELECT id FROM public.shops WHERE owner_id = auth.uid())
+        OR agent_id = auth.uid()
+        OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    )
+  )
+);
+CREATE POLICY "Participants can update own messages as read" ON public.order_messages FOR UPDATE USING (sender_id = auth.uid());
 
 -- PROFILES policies
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
@@ -607,6 +675,7 @@ CREATE POLICY "Admins can manage all agent documents" ON storage.objects FOR ALL
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_status_history;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.order_messages;
 
 -- ============================================================
 -- SEED: Default admin user (update email to your email)

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Order {
@@ -29,6 +30,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 
 export default function DeliveryOrdersPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
@@ -116,7 +118,7 @@ export default function DeliveryOrdersPage() {
         {orders.map(o => {
           const colors = STATUS_COLORS[o.status] || STATUS_COLORS.delivered
           return (
-            <div key={o.id} className="dl-order-card">
+            <div key={o.id} className="dl-order-card" onClick={() => router.push(`/delivery/orders/${o.id}`)} style={{ cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>#{o.order_number}</span>
                 <span style={{ 

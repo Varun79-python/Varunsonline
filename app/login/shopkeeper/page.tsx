@@ -98,18 +98,11 @@ export default function ShopkeeperLoginPage() {
       const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).single()
       
       if (!shop) {
-        setError('Shop not found. Please register first.')
-        setLoading(false)
+        router.push('/shopkeeper/register')
         return
       }
 
-      // Old approved users can login without documents
-      if (shop.is_approved && shop.is_active) {
-        router.push('/shopkeeper')
-        return
-      }
-
-      // For pending users, check if documents uploaded
+      // Check documents uploaded
       const { data: docs } = await supabase
         .from('shop_documents')
         .select('id')
@@ -121,7 +114,13 @@ export default function ShopkeeperLoginPage() {
         return
       }
 
-      // Documents uploaded but still pending approval
+      // Admin approved → go to dashboard
+      if (shop.is_approved && shop.is_active) {
+        router.push('/shopkeeper')
+        return
+      }
+
+      // Docs uploaded but still pending approval
       router.push('/login/status')
       return
     }

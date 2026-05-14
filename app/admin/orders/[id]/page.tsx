@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import OrderChat from '@/components/OrderChat/OrderChat'
 
 const STATUS_STEPS = [
   { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '💳' },
@@ -43,11 +44,14 @@ export default function AdminOrderDetail() {
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [currentUserId, setCurrentUserId] = useState('')
 
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       const authHeader: HeadersInit = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUserId(user.id)
       fetch(`/api/admin/order-detail/${id}`, { headers: { ...authHeader } })
         .then(r => r.json())
         .then(d => { if (d.error) setError(d.error); else setData(d) })
@@ -205,6 +209,14 @@ export default function AdminOrderDetail() {
         <InfoRow label="Payment Method" value={String(order.payment_method || '')} />
         <InfoRow label="Razorpay ID" value={String(order.razorpay_order_id || '')} mono />
       </Card>
+
+      <OrderChat
+        orderId={id}
+        currentUserId={currentUserId}
+        currentUserRole="admin"
+        customerName={(customer as Record<string, unknown>)?.full_name as string}
+        shopName={(shop as Record<string, unknown>)?.name as string}
+      />
     </div>
   )
 }

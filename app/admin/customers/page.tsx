@@ -10,7 +10,7 @@ export default function AdminCustomers() {
 
   useEffect(() => {
     if (!supabase) return
-    supabase.from('customers').select('*').order('created_at', { ascending: false })
+    supabase.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false })
       .then(({ data }: { data: any[] | null }) => {
         setCustomers(data || [])
         setStats({ total: data?.length || 0 })
