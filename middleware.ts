@@ -7,8 +7,15 @@ const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', pathname)
+
   // Create Supabase response with cookie handling
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({ 
+    request: {
+      headers: requestHeaders,
+    }
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

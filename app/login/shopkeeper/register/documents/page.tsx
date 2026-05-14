@@ -90,11 +90,19 @@ export default function ShopDocumentsPage() {
   }, [done, router])
 
   async function uploadFile(file: File, docType: string): Promise<string | null> {
-    if (!shopId) return null
     setUploading(true)
     try {
+      // Get the current user's ID to use as the folder name
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please login to upload files')
+        setUploading(false)
+        return null
+      }
+      
       const ext = file.name.split('.').pop()
-      const path = `${shopId}/${docType}_${Date.now()}.${ext}`
+      // Use user ID as folder name for RLS policy
+      const path = `${user.id}/${docType}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('shop-documents').upload(path, file)
       if (uploadError) {
         alert('Upload failed: ' + uploadError.message)
