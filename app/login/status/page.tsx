@@ -120,7 +120,7 @@ export default function ApprovalStatusPage() {
                     You haven't completed your registration yet.
                   </p>
                   <button 
-                    onClick={() => router.push(status.role === 'shopkeeper' ? '/shopkeeper/register' : '/delivery/register')}
+                    onClick={() => router.push(status.role === 'shopkeeper' ? '/register' : '/delivery/register')}
                     style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}
                   >
                     Complete Registration

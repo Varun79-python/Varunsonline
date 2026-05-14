@@ -22,8 +22,8 @@ export default async function ShopkeeperLayout({ children }: { children: React.R
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Allow unauthenticated/registering users to view the registration page without the dashboard shell or redirects
-  if (!user || pathname === '/shopkeeper/register') {
+  // Allow unauthenticated users to view pages without the dashboard shell
+  if (!user) {
     return <>{children}</>
   }
 

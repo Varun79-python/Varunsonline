@@ -51,7 +51,7 @@ export default function ShopDocumentsPage() {
       }
 
       if (!shop) {
-        router.replace('/shopkeeper/register')
+        router.replace('/register')
         return
       }
 

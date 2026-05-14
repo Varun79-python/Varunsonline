@@ -117,7 +117,7 @@ export default function ShopkeeperLoginPage() {
 
     if (!shop) {
       // No shop = redirect to register (NEW USER flow)
-      window.location.href = '/shopkeeper/register'
+      window.location.href = '/register'
       return
     }
 
