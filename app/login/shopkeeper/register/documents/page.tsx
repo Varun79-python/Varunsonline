@@ -24,44 +24,39 @@ export default function ShopkeeperDocumentsPage() {
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        alert('Please login first')
         router.push('/login/shopkeeper')
         return
       }
-      
-      const { data: shop } = await supabase
+
+      const { data: shop, error: shopErr } = await supabase
         .from('shops')
         .select('id, is_approved, shop_image_url')
         .eq('owner_id', user.id)
-        .single()
-      
-      if (!shop) {
-        alert('Please complete registration first')
+        .maybeSingle()
+
+      if (shopErr || !shop) {
         router.push('/shopkeeper/register')
         return
       }
-      
-      if (shop.is_approved) {
-        router.push('/shopkeeper')
-        return
-      }
-      
+
+      // Never redirect to dashboard here — let the login flow handle routing
+      // based on approval status. This page is for documents upload only.
       setUserId(user.id)
       setExistingShopPhoto(shop.shop_image_url || '')
-      
-      // Check existing documents
+
+      // Pre-fill existing documents so user can see what they uploaded
       const { data: docs } = await supabase
         .from('shop_documents')
         .select('doc_type, file_url')
         .eq('shop_id', shop.id)
-      
-      if (docs) {
+
+      if (docs && docs.length > 0) {
         const frontDoc = docs.find((d: { doc_type: string }) => d.doc_type === 'aadhar_front')
         const backDoc = docs.find((d: { doc_type: string }) => d.doc_type === 'aadhar_back')
         if (frontDoc) setAdhaarFrontUrl(frontDoc.file_url)
         if (backDoc) setAdhaarBackUrl(backDoc.file_url)
       }
-      
+
       setLoading(false)
     }
     checkAuth()
