@@ -146,22 +146,35 @@ export default function AdminAgents() {
 
     useEffect(() => {
       if (!url) { setDisplayUrl(''); return }
-      // If url is a full signed URL already, use it
-      if (url.includes('signed=') || url.includes('?token=')) {
+
+      // Already has signed token
+      if (url.includes('signed=') || url.includes('?token=') || url.includes('X-Amz-')) {
         setDisplayUrl(url)
         return
       }
+
       // Extract bucket and path from Supabase storage URL
-      const match = url.match(/storage\.supabase\.co.*\/v1\/object\/(public\/)?([^?]+)/i)
+      // Format: https://xxx.supabase.co/storage/v1/object/public/bucket/path
+      // or:     https://xxx.supabase.co/storage/v1/object/bucket/path (private)
+      const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
       if (match) {
-        const bucket = match[2]?.split('/')[0] || ''
-        const path = match[2]?.slice(bucket.length + 1) || ''
+        const bucket = match[1] || ''
+        const path = match[2] || ''
         if (bucket && path) {
           setSigning(true)
           getSignedUrl(bucket, path).then(signed => {
-            setDisplayUrl(signed || url)
+            if (signed) {
+              setDisplayUrl(signed)
+            } else {
+              // Fallback: try direct URL without /public/
+              const directUrl = url.replace('/public/', '/')
+              setDisplayUrl(directUrl)
+            }
             setSigning(false)
-          }).catch(() => { setDisplayUrl(url); setSigning(false) })
+          }).catch(() => {
+            setDisplayUrl(url)
+            setSigning(false)
+          })
         } else {
           setDisplayUrl(url)
         }
