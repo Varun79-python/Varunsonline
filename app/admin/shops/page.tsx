@@ -31,7 +31,7 @@ interface ShopDocument {
 export default function AdminShops() {
   const supabase = createClient()
   const [shops, setShops] = useState<Shop[]>([])
-  const [tab, setTab] = useState<'pending' | 'active' | 'all'>('pending')
+  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [shopDocs, setShopDocs] = useState<ShopDocument[]>([])
@@ -52,8 +52,9 @@ export default function AdminShops() {
     try {
       const shopsCount = await supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false)
       let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
-      if (tab === 'pending') q = q.eq('is_approved', false)
+      if (tab === 'pending') q = q.eq('is_approved', false).is('rejection_reason', null)
       else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
+      else if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
       const { data } = await q
       
       if (mountedRef.current) {
@@ -134,6 +135,66 @@ export default function AdminShops() {
   async function toggleActive(shop: Shop) {
     await supabase.from('shops').update({ is_active: !shop.is_active }).eq('id', shop.id)
     setShops(prev => prev.map(s => s.id === shop.id ? { ...s, is_active: !s.is_active } : s))
+  }
+
+  async function reapproveShop(shop: Shop) {
+    if (!confirm(`Re-approve ${shop.name}? They will be able to start selling again.`)) return
+    setProcessing(true)
+    await supabase.from('shops').update({ 
+      is_approved: true, 
+      is_active: true,
+      rejection_reason: null 
+    }).eq('id', shop.id)
+    
+    if (shop.owner_id) {
+      await supabase.from('notifications').insert({ 
+        user_id: shop.owner_id, 
+        title: '🎉 Shop Re-approved!', 
+        body: 'Your shop has been re-approved. Start selling now!', 
+        type: 'shop_approved' 
+      })
+    }
+    
+    setProcessing(false)
+    load()
+    setSelectedShop(null)
+  }
+
+  async function deleteShopPermanently(shop: Shop) {
+    if (!confirm(`⚠️ PERMANENTLY DELETE ${shop.name}? This will:\n\n• Delete all shop data\n• Delete uploaded documents\n• Allow them to register again\n\nThis cannot be undone!`)) return
+    
+    setProcessing(true)
+    try {
+      // Delete shop documents from storage
+      const { data: docs } = await supabase.from('shop_documents').select('file_url').eq('shop_id', shop.id)
+      if (docs) {
+        for (const doc of docs) {
+          if (doc.file_url) {
+            try {
+              const pathMatch = doc.file_url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?[^/]+\/(.+)/i)
+              if (pathMatch) {
+                await supabase.storage.from('shop-documents').remove([pathMatch[1]])
+              }
+            } catch (e) { console.error('Delete file error:', e) }
+          }
+        }
+      }
+      
+      // Delete shop documents from database
+      await supabase.from('shop_documents').delete().eq('shop_id', shop.id)
+      
+      // Delete shop
+      await supabase.from('shops').delete().eq('id', shop.id)
+      
+      alert(`✅ Shop "${shop.name}" has been permanently deleted. They can now register again.`)
+      setSelectedShop(null)
+      load()
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Failed to delete shop. Please try again.')
+    } finally {
+      setProcessing(false)
+    }
   }
 
   return (
@@ -235,37 +296,71 @@ export default function AdminShops() {
               </div>
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <button 
-                  onClick={() => approve(selectedShop.id)} 
-                  disabled={processing || shopDocs.length === 0}
-                  style={{ 
-                    padding: 14, 
-                    background: shopDocs.length === 0 ? '#94a3b8' : '#16a34a', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: 10, 
-                    fontWeight: 700, 
-                    cursor: shopDocs.length === 0 ? 'not-allowed' : 'pointer',
-                    opacity: shopDocs.length === 0 ? 0.6 : 1
-                  }}
-                >
-                  {shopDocs.length === 0 ? '⏳ Waiting for Documents' : '✅ Approve Shop'}
-                </button>
-                <div>
-                  <textarea 
-                    placeholder="Rejection reason (optional)" 
-                    value={rejectReason} 
-                    onChange={e => setRejectReason(e.target.value)} 
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} 
-                  />
+                {/* Show rejection reason if exists */}
+                {selectedShop.rejection_reason && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 8, fontSize: '0.85rem', color: '#dc2626' }}>
+                    ❌ Rejection Reason: <strong>{selectedShop.rejection_reason}</strong>
+                  </div>
+                )}
+                
+                {/* Show reapprove button for inactive/deactivated shops */}
+                {selectedShop.is_approved && !selectedShop.is_active && (
                   <button 
-                    onClick={rejectShop} 
+                    onClick={() => reapproveShop(selectedShop)} 
                     disabled={processing}
-                    style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}
                   >
-                    ❌ Reject Shop
+                    ✅ Reapprove & Activate
                   </button>
-                </div>
+                )}
+                
+                {/* Show delete button for rejected shops */}
+                {selectedShop.rejection_reason && (
+                  <button 
+                    onClick={() => deleteShopPermanently(selectedShop)} 
+                    disabled={processing}
+                    style={{ padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}
+                  >
+                    🗑️ Delete Permanently
+                  </button>
+                )}
+                
+                {/* Show approve/reject buttons for pending shops */}
+                {!selectedShop.is_approved && !selectedShop.rejection_reason && (
+                  <>
+                    <button 
+                      onClick={() => approve(selectedShop.id)} 
+                      disabled={processing || shopDocs.length === 0}
+                      style={{ 
+                        padding: 14, 
+                        background: shopDocs.length === 0 ? '#94a3b8' : '#16a34a', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: 10, 
+                        fontWeight: 700, 
+                        cursor: shopDocs.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: shopDocs.length === 0 ? 0.6 : 1
+                      }}
+                    >
+                      {shopDocs.length === 0 ? '⏳ Waiting for Documents' : '✅ Approve Shop'}
+                    </button>
+                    <div>
+                      <textarea 
+                        placeholder="Rejection reason (optional)" 
+                        value={rejectReason} 
+                        onChange={e => setRejectReason(e.target.value)} 
+                        style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} 
+                      />
+                      <button 
+                        onClick={rejectShop} 
+                        disabled={processing}
+                        style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        ❌ Reject Shop
+                      </button>
+                    </div>
+                  </>
+                )}
                 <button 
                   onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }} 
                   style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
@@ -282,7 +377,7 @@ export default function AdminShops() {
       
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
-        {(['pending', 'active', 'all'] as const).map(t => (
+        {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ 
             flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
             background: tab === t ? '#f97316' : 'white', borderColor: tab === t ? '#f97316' : '#e2e8f0',
@@ -328,12 +423,24 @@ export default function AdminShops() {
                   👤 {shop.full_name || 'N/A'} • 📱 {shop.phone || 'N/A'}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {!shop.is_approved && (
+                  {!shop.is_approved && !shop.rejection_reason && (
                     <button onClick={() => handleSelectShop(shop)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
                   )}
                   {shop.is_approved && (
                     <button onClick={() => toggleActive(shop)} style={{ background: shop.is_active ? '#fef3c7' : '#dcfce7', color: shop.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
                       {shop.is_active ? '⏸️ Pause' : '▶️ Activate'}
+                    </button>
+                  )}
+                  {/* Reapprove button for inactive/deactivated shops */}
+                  {shop.is_approved && !shop.is_active && (
+                    <button onClick={() => reapproveShop(shop)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                      ✅ Reapprove
+                    </button>
+                  )}
+                  {/* Delete permanently button for rejected shops */}
+                  {shop.rejection_reason && (
+                    <button onClick={() => deleteShopPermanently(shop)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                      🗑️ Delete
                     </button>
                   )}
                 </div>

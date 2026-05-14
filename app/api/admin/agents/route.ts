@@ -99,6 +99,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
+    if (action === 'reapprove') {
+      const { error } = await supabase
+        .from('delivery_agents')
+        .update({ is_approved: true, is_active: true, rejection_reason: null })
+        .eq('id', agentId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      // Send notification
+      await supabase.from('notifications').insert({
+        user_id: agentId,
+        title: '🎉 Account Re-approved!',
+        body: "Your account has been re-approved. You can now start accepting deliveries again!",
+        type: 'agent_approved'
+      }).maybeSingle()
+
+      return NextResponse.json({ success: true })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
     console.error('Admin agent action error:', err)

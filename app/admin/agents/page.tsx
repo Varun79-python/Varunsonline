@@ -119,6 +119,58 @@ export default function AdminAgents() {
     doAction(agent.id, 'deactivate', reason.trim())
   }
 
+  async function reapproveAgent(agent: Agent) {
+    if (!confirm(`Re-approve ${agent.full_name || 'this agent'}? They will be able to start accepting deliveries again.`)) return
+    setProcessing(true)
+    try {
+      const authHeader = await getAuthHeader()
+      const res = await fetch('/api/admin/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ agentId: agent.id, action: 'reapprove' })
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`, false); return }
+      showToast('✅ Agent re-approved!')
+      setSelected(null)
+      load()
+    } catch (err) {
+      showToast('Action failed', false)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function deleteAgentPermanently(agent: Agent) {
+    if (!confirm(`⚠️ PERMANENTLY DELETE ${agent.full_name || 'this agent'}? This will:\n\n• Delete all agent data\n• Delete uploaded documents\n• Allow them to register again\n\nThis cannot be undone!`)) return
+    
+    setProcessing(true)
+    try {
+      // Delete agent documents from storage
+      const docUrls = [agent.aadhar_url, agent.license_url, agent.pan_url, agent.vehicle_rc_url].filter(Boolean)
+      for (const url of docUrls) {
+        try {
+          const pathMatch = url?.match(/storage\.supabase\.co.*\/object\/(?:public\/)?[^/]+\/(.+)/i)
+          if (pathMatch) {
+            await supabase.storage.from('agent-documents').remove([pathMatch[1]])
+          }
+        } catch (e) { console.error('Delete file error:', e) }
+      }
+      
+      // Delete agent from database
+      await supabase.from('delivery_agents').delete().eq('id', agent.id)
+      
+      alert(`✅ Agent "${agent.full_name}" has been permanently deleted. They can now register again.`)
+      setSelected(null)
+      load()
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Failed to delete agent. Please try again.')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   // Signed URL cache (ref-based for immediate access)
   const signedCache = useRef<Record<string, string>>({})
 
@@ -324,6 +376,18 @@ export default function AdminAgents() {
                 {agent.is_approved && (
                   <button onClick={() => deactivate(agent)} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>⏸</button>
                 )}
+                {/* Reapprove button for deactivated agents */}
+                {agent.is_approved && !agent.is_active && (
+                  <button onClick={() => reapproveAgent(agent)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
+                    ✅
+                  </button>
+                )}
+                {/* Delete permanently button for rejected agents */}
+                {agent.rejection_reason && (
+                  <button onClick={() => deleteAgentPermanently(agent)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
+                    🗑️
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -450,9 +514,19 @@ export default function AdminAgents() {
                     </button>
                   </>
                 )}
+                {selected.is_approved && !selected.is_active && (
+                  <button disabled={processing} onClick={() => reapproveAgent(selected)} style={{ padding: '10px 20px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
+                    {processing ? '⏳' : '✅ Reapprove'}
+                  </button>
+                )}
                 {selected.is_approved && (
                   <button disabled={processing} onClick={() => deactivate(selected)} style={{ padding: '10px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
                     {processing ? '⏳' : '🚫 Deactivate'}
+                  </button>
+                )}
+                {selected.rejection_reason && (
+                  <button disabled={processing} onClick={() => deleteAgentPermanently(selected)} style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
+                    {processing ? '⏳' : '🗑️ Delete Permanently'}
                   </button>
                 )}
                 <button onClick={() => setSelected(null)} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
