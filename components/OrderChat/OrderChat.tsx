@@ -95,7 +95,7 @@ export default function OrderChat({ orderId, currentUserId, currentUserRole, sho
             .select('*, profiles(full_name, role, avatar_url)')
             .eq('id', newMsg.id)
             .single()
-            .then(({ data: fullMsg }) => {
+            .then(({ data: fullMsg }: { data: Message | null }) => {
               if (fullMsg) {
                 setMessages((prev: Message[]) => [...prev, fullMsg])
                 if (newMsg.sender_id !== currentUserId) {
