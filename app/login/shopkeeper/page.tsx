@@ -93,6 +93,10 @@ export default function ShopkeeperLoginPage() {
       return
     }
 
+    // Use getUser() on the browser client. Note: after signInWithPassword, Supabase writes
+    // cookies asynchronously. We add a brief delay to ensure cookies are written before getUser().
+    // Without this, getUser() may return null immediately after signIn on some browsers.
+    await new Promise(resolve => setTimeout(resolve, 100))
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       setError('Session expired. Please login again.')
@@ -100,19 +104,9 @@ export default function ShopkeeperLoginPage() {
       return
     }
 
-    // Fallback: if profile role is not shopkeeper, redirect to main login
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (!profile || profile.role !== 'shopkeeper') {
-      await supabase.auth.signOut()
-      router.replace('/login')
-      return
-    }
-
+    // ── Step 1: Check if shop exists for this user ──────────────────
+    // Note: profiles table may not have rows for all users (registration doesn't create profiles).
+    // So we check shops directly — if a shop exists with this owner_id, user is a shopkeeper.
     const { data: shop } = await supabase
       .from('shops')
       .select('id, is_approved, is_active')
@@ -120,10 +114,12 @@ export default function ShopkeeperLoginPage() {
       .maybeSingle()
 
     if (!shop) {
+      // No shop = redirect to register
       router.push('/shopkeeper/register')
       return
     }
 
+    // ── Step 2: Check documents uploaded ─────────────────────────
     const { data: docs } = await supabase
       .from('shop_documents')
       .select('id')
@@ -133,15 +129,19 @@ export default function ShopkeeperLoginPage() {
     const hasDocs = !!docs
 
     if (!hasDocs) {
+      // No docs yet → documents upload page
       router.push('/login/shopkeeper/register/documents')
       return
     }
 
+    // ── Step 3: Check approval status ────────────────────────────
     if (shop.is_approved && shop.is_active) {
+      // Fully approved → dashboard
       router.push('/shopkeeper')
       return
     }
 
+    // Pending approval → status page
     router.push('/login/status')
   }
 

@@ -20,23 +20,18 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, {
-              ...options,
-              // Ensure cookies work across all paths
-              path: options?.path || '/',
-            })
+            supabaseResponse.cookies.set(name, value, { ...options, path: '/' })
           )
         },
       },
     }
   )
 
-  // Refresh session — call getUser to refresh token from cookies, then getSession for the current session
-  await supabase.auth.getUser()
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Re-create response after session refresh to pick up any new cookies
-  supabaseResponse = NextResponse.next({ request })
+  // Use getUser() to validate token and refresh cookies — this is the correct approach
+  // getUser() checks the JWT signature, validates expiration, and refreshes if needed.
+  // The updated session (with refreshed cookies) is returned directly — no need for getSession().
+  const { data: { user }, error: sessionError } = await supabase.auth.getUser()
+  if (sessionError) console.error('Session error in middleware:', sessionError)
 
   // Add security headers
   supabaseResponse.headers.set('X-Frame-Options', 'DENY')
@@ -52,11 +47,10 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     if (pathname === '/admin/login') return supabaseResponse
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
 
-    const user = session.user
     const isAdminEmail = user.email === ADMIN_EMAIL
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
@@ -79,7 +73,7 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow login pages — never redirect authenticated users back to login
+    // Allow login/register pages — never redirect authenticated users back to login
     if (
       pathname === '/shopkeeper/register' ||
       pathname === '/login/shopkeeper' ||
@@ -88,11 +82,10 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse
     }
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
     }
 
-    const user = session.user
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
     if (metaRole === 'shopkeeper') return supabaseResponse
@@ -112,11 +105,10 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /delivery and /delivery/* routes ──────────────────────────
   if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
     }
 
-    const user = session.user
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
     if (metaRole === 'delivery_agent') return supabaseResponse
@@ -136,11 +128,10 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /customer and /customer/* routes ────────────────────────
   if (pathname.startsWith('/customer') && !pathname.startsWith('/login/customer')) {
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const user = session.user
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
     if (metaRole === 'customer') return supabaseResponse

@@ -14,10 +14,10 @@ function generateCaptcha(length = 5): string {
 
 function CaptchaDisplay({ code }: { code: string }) {
   return (
-    <div style={{ 
-      display: 'flex', 
-      gap: 4, 
-      justifyContent: 'center', 
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      justifyContent: 'center',
       padding: '12px 16px',
       background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
       borderRadius: 10,
@@ -69,7 +69,7 @@ export default function DeliveryLoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (captchaInput.toUpperCase() !== captcha) {
       setError('Incorrect CAPTCHA. Please try again.')
       refreshCaptcha()
@@ -82,43 +82,44 @@ export default function DeliveryLoginPage() {
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
 
-    let signInError: any = null
-    if (isPhone) {
-      const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      signInError = error
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
-      signInError = error
-    }
-    if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
+    const { error: signInError } = isPhone
+      ? await supabase.auth.signInWithPassword({ phone: input, password: form.password })
+      : await supabase.auth.signInWithPassword({ email: input, password: form.password })
 
-    // Check if agent is approved, active and has documents
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).maybeSingle()
-
-      if (!agent) {
-        router.push('/delivery/register')
-        return
-      }
-
-      // No docs yet → go to documents upload
-      if (!agent.aadhar_url) {
-        router.push('/login/delivery/register/documents')
-        return
-      }
-
-      // Approved + active + has docs → dashboard
-      if (agent.is_approved && agent.is_active) {
-        router.push('/delivery')
-        return
-      }
-
-      // Docs uploaded but still pending approval → status page
-      router.push('/login/status')
+    if (signInError) {
+      setError(signInError.message)
+      setLoading(false)
+      refreshCaptcha()
       return
     }
-    router.push('/delivery')
+
+    // Wait briefly for Supabase to write auth cookies after signIn
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setError('Session expired. Please login again.'); setLoading(false); return }
+
+    // Check if agent is approved, active and has documents
+    const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).maybeSingle()
+
+    if (!agent) {
+      router.push('/delivery/register')
+      return
+    }
+
+    // No docs yet → go to documents upload
+    if (!agent.aadhar_url) {
+      router.push('/login/delivery/register/documents')
+      return
+    }
+
+    // Approved + active + has docs → dashboard
+    if (agent.is_approved && agent.is_active) {
+      router.push('/delivery')
+      return
+    }
+
+    // Docs uploaded but still pending approval → status page
+    router.push('/login/status')
   }
 
   return (
@@ -138,25 +139,25 @@ export default function DeliveryLoginPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <input type="text" placeholder="Email or Phone Number" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
           <div style={{ position: 'relative' }}>
-              <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                {showPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
-              </button>
-            </div>
+            <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {showPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+            </button>
+          </div>
 
-            <CaptchaDisplay code={captcha} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input 
-                type="text" 
-                placeholder="Enter CAPTCHA" 
-                value={captchaInput} 
-                onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
-                maxLength={5}
-                required
-                style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }} 
-              />
-              <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
-            </div>
+          <CaptchaDisplay code={captcha} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Enter CAPTCHA"
+              value={captchaInput}
+              onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+              maxLength={5}
+              required
+              style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }}
+            />
+            <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
+          </div>
 
           {error && <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 500 }}>{error}</div>}
 
