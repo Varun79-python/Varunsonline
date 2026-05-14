@@ -119,20 +119,17 @@ export default function AdminAgents() {
     doAction(agent.id, 'deactivate', reason.trim())
   }
 
-  // Signed URL cache for private docs
-  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+  // Signed URL cache (ref-based for immediate access)
+  const signedCache = useRef<Record<string, string>>({})
 
   async function getSignedUrl(bucket: string, path: string): Promise<string> {
     const cacheKey = `${bucket}:${path}`
-    if (signedUrls[cacheKey]) return signedUrls[cacheKey]
+    if (signedCache.current[cacheKey]) return signedCache.current[cacheKey]
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const headers: Record<string, string> = {}
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
-      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`, { headers })
+      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`)
       const data = await res.json()
       if (data.url) {
-        setSignedUrls(prev => ({ ...prev, [cacheKey]: data.url }))
+        signedCache.current[cacheKey] = data.url
         return data.url
       }
     } catch (err) { console.error('Sign URL error:', err) }
@@ -142,12 +139,12 @@ export default function AdminAgents() {
   // Document preview component
   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
     const [displayUrl, setDisplayUrl] = useState<string>('')
-    const [signing, setSigning] = useState(false)
+    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
       if (!url) { setDisplayUrl(''); return }
 
-      // Already has signed token
+      // Already has signed/token
       if (url.includes('signed=') || url.includes('?token=') || url.includes('X-Amz-')) {
         setDisplayUrl(url)
         return
@@ -157,30 +154,26 @@ export default function AdminAgents() {
       // Format: https://xxx.supabase.co/storage/v1/object/public/bucket/path
       // or:     https://xxx.supabase.co/storage/v1/object/bucket/path (private)
       const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
-      if (match) {
-        const bucket = match[1] || ''
-        const path = match[2] || ''
-        if (bucket && path) {
-          setSigning(true)
-          getSignedUrl(bucket, path).then(signed => {
-            if (signed) {
-              setDisplayUrl(signed)
-            } else {
-              // Fallback: try direct URL without /public/
-              const directUrl = url.replace('/public/', '/')
-              setDisplayUrl(directUrl)
-            }
-            setSigning(false)
-          }).catch(() => {
-            setDisplayUrl(url)
-            setSigning(false)
-          })
-        } else {
-          setDisplayUrl(url)
-        }
-      } else {
+      if (!match) {
         setDisplayUrl(url)
+        return
       }
+
+      const bucket = match[1] || ''
+      const path = match[2] || ''
+      if (!bucket || !path) {
+        setDisplayUrl(url)
+        return
+      }
+
+      setLoading(true)
+      getSignedUrl(bucket, path).then(signed => {
+        setDisplayUrl(signed || url)
+        setLoading(false)
+      }).catch(() => {
+        setDisplayUrl(url)
+        setLoading(false)
+      })
     }, [url])
 
     if (!url) {
@@ -193,7 +186,7 @@ export default function AdminAgents() {
 
     return (
       <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        {signing ? (
+        {loading ? (
           <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ width: 24, height: 24, border: '2px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
