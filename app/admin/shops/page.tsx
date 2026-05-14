@@ -21,17 +21,24 @@ interface Shop {
   total_orders: number
 }
 
+interface ShopDocument {
+  id: string
+  doc_type: string
+  file_url: string
+  file_name: string
+}
+
 export default function AdminShops() {
   const supabase = createClient()
   const [shops, setShops] = useState<Shop[]>([])
   const [tab, setTab] = useState<'pending' | 'active' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
+  const [shopDocs, setShopDocs] = useState<ShopDocument[]>([])
   const [rejectReason, setRejectReason] = useState('')
   const [stats, setStats] = useState({ pendingShops: 0 })
   const [processing, setProcessing] = useState(false)
   
-  // Refs to prevent duplicate fetches
   const loadingRef = useRef(false)
   const mountedRef = useRef(false)
 
@@ -67,7 +74,22 @@ export default function AdminShops() {
     if (!loadingRef.current) load() 
   }, [tab])
 
+  async function loadShopDocuments(shopId: string) {
+    const { data } = await supabase
+      .from('shop_documents')
+      .select('*')
+      .eq('shop_id', shopId)
+    setShopDocs(data || [])
+  }
+
+  function handleSelectShop(shop: Shop) {
+    setSelectedShop(shop)
+    setRejectReason('')
+    loadShopDocuments(shop.id)
+  }
+
   async function approve(shopId: string) {
+    setProcessing(true)
     await supabase.from('shops').update({ is_approved: true, is_active: true }).eq('id', shopId)
     const shop = shops.find(s => s.id === shopId)
     if (shop?.owner_id) {
@@ -80,10 +102,13 @@ export default function AdminShops() {
     }
     setShops(prev => prev.filter(s => s.id !== shopId))
     setSelectedShop(null)
+    setShopDocs([])
+    setProcessing(false)
   }
 
   async function rejectShop() {
     if (!selectedShop) return
+    setProcessing(true)
     await supabase.from('shops').update({ 
       is_approved: false, 
       is_active: false, 
@@ -101,7 +126,9 @@ export default function AdminShops() {
     
     setShops(prev => prev.filter(s => s.id !== selectedShop.id))
     setSelectedShop(null)
+    setShopDocs([])
     setRejectReason('')
+    setProcessing(false)
   }
 
   async function toggleActive(shop: Shop) {
@@ -114,7 +141,7 @@ export default function AdminShops() {
       {selectedShop && (
         <div 
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
-          onClick={() => { setSelectedShop(null); setRejectReason('') }}
+          onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }}
         >
           <div 
             style={{ background: 'white', borderRadius: 16, padding: 0, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto' }}
@@ -124,7 +151,7 @@ export default function AdminShops() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>📋 Shop Details</h3>
               <button 
-                onClick={() => { setSelectedShop(null); setRejectReason('') }}
+                onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }}
                 style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
               >
                 ✕
@@ -138,6 +165,43 @@ export default function AdminShops() {
                   <img src={selectedShop.shop_image_url} alt="Shop" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 12 }} />
                 </div>
               )}
+              
+              {/* Documents Section */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: 12, color: '#0f172a' }}>📄 Uploaded Documents</h4>
+                {shopDocs.length === 0 ? (
+                  <div style={{ background: '#fef3c7', padding: 12, borderRadius: 8, fontSize: '0.85rem', color: '#92400e' }}>
+                    No documents uploaded yet
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {shopDocs.map(doc => (
+                      <div key={doc.id} style={{ background: '#f8fafc', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                        <div style={{ padding: '8px 12px', background: '#f1f5f9', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                          {doc.file_name || doc.doc_type}
+                        </div>
+                        {doc.file_url && (
+                          <div style={{ padding: 8 }}>
+                            <img 
+                              src={doc.file_url} 
+                              alt={doc.doc_type}
+                              style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 6, background: '#fff' }}
+                            />
+                            <a 
+                              href={doc.file_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ display: 'block', marginTop: 8, fontSize: '0.8rem', color: '#0ea5e9', textDecoration: 'underline' }}
+                            >
+                              🔗 Open Full Image
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
@@ -171,8 +235,21 @@ export default function AdminShops() {
               </div>
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <button onClick={() => approve(selectedShop.id)} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                  ✅ Approve Shop
+                <button 
+                  onClick={() => approve(selectedShop.id)} 
+                  disabled={processing || shopDocs.length === 0}
+                  style={{ 
+                    padding: 14, 
+                    background: shopDocs.length === 0 ? '#94a3b8' : '#16a34a', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: 10, 
+                    fontWeight: 700, 
+                    cursor: shopDocs.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: shopDocs.length === 0 ? 0.6 : 1
+                  }}
+                >
+                  {shopDocs.length === 0 ? '⏳ Waiting for Documents' : '✅ Approve Shop'}
                 </button>
                 <div>
                   <textarea 
@@ -183,14 +260,14 @@ export default function AdminShops() {
                   />
                   <button 
                     onClick={rejectShop} 
-                    disabled={!rejectReason && !confirm('Are you sure you want to reject this shop?')}
+                    disabled={processing}
                     style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
                   >
                     ❌ Reject Shop
                   </button>
                 </div>
                 <button 
-                  onClick={() => { setSelectedShop(null); setRejectReason('') }} 
+                  onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }} 
                   style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
                 >
                   Cancel
@@ -252,7 +329,7 @@ export default function AdminShops() {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {!shop.is_approved && (
-                    <button onClick={() => setSelectedShop(shop)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
+                    <button onClick={() => handleSelectShop(shop)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
                   )}
                   {shop.is_approved && (
                     <button onClick={() => toggleActive(shop)} style={{ background: shop.is_active ? '#fef3c7' : '#dcfce7', color: shop.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
