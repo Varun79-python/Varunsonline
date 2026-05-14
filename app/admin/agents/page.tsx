@@ -127,8 +127,9 @@ export default function AdminAgents() {
     if (signedUrls[cacheKey]) return signedUrls[cacheKey]
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
-      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`, { headers: authHeader })
+      const headers: Record<string, string> = {}
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`, { headers })
       const data = await res.json()
       if (data.url) {
         setSignedUrls(prev => ({ ...prev, [cacheKey]: data.url }))
