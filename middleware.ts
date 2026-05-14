@@ -19,18 +19,24 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              // Ensure cookies work across all paths
+              path: options?.path || '/',
+            })
           )
         },
       },
     }
   )
 
-  // Refresh session on every request (getUser is more reliable than getSession for cookie-based auth)
+  // Refresh session — call getUser to refresh token from cookies, then getSession for the current session
+  await supabase.auth.getUser()
   const { data: { session } } = await supabase.auth.getSession()
+
+  // Re-create response after session refresh to pick up any new cookies
+  supabaseResponse = NextResponse.next({ request })
 
   // Add security headers
   supabaseResponse.headers.set('X-Frame-Options', 'DENY')

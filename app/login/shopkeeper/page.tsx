@@ -82,20 +82,42 @@ export default function ShopkeeperLoginPage() {
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
 
-    let signInError: any = null
-    if (isPhone) {
-      const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      signInError = error
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
-      signInError = error
+    const { error: signInError } = isPhone
+      ? await supabase.auth.signInWithPassword({ phone: input, password: form.password })
+      : await supabase.auth.signInWithPassword({ email: input, password: form.password })
+
+    if (signInError) {
+      setError(signInError.message)
+      setLoading(false)
+      refreshCaptcha()
+      return
     }
-    if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
+    if (!user) {
+      setError('Session expired. Please login again.')
+      setLoading(false)
+      return
+    }
 
-    const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
+    // Fallback: if profile role is not shopkeeper, redirect to main login
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile || profile.role !== 'shopkeeper') {
+      await supabase.auth.signOut()
+      router.replace('/login')
+      return
+    }
+
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('id, is_approved, is_active')
+      .eq('owner_id', user.id)
+      .maybeSingle()
 
     if (!shop) {
       router.push('/shopkeeper/register')
@@ -106,9 +128,9 @@ export default function ShopkeeperLoginPage() {
       .from('shop_documents')
       .select('id')
       .eq('shop_id', shop.id)
-      .limit(1)
+      .maybeSingle()
 
-    const hasDocs = docs && docs.length > 0
+    const hasDocs = !!docs
 
     if (!hasDocs) {
       router.push('/login/shopkeeper/register/documents')
