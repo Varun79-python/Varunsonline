@@ -175,6 +175,19 @@ export default function ShopRegisterPage() {
         return
       }
 
+      // Create profile first
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: signUpData.user.id,
+        full_name: form.full_name.trim(),
+        phone: form.phone_number.trim(),
+        role: 'shopkeeper',
+      })
+
+      if (profileError) {
+        console.error('Profile error:', profileError)
+        // Continue anyway - profile is not critical
+      }
+
       const { data: shopData, error: shopError } = await supabase.from('shops').insert({
         owner_id: signUpData.user.id,
         full_name: form.full_name.trim(),
