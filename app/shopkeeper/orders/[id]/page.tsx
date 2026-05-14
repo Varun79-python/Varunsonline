@@ -199,9 +199,9 @@ export default function ShopkeeperOrderDetail() {
           <div key={item.id as string} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.product_name as string}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹{item.unit_price} × {item.quantity}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹{Number(item.unit_price)} × {Number(item.quantity)}</div>
             </div>
-            <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{item.total_price}</div>
+            <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{Number(item.total_price)}</div>
           </div>
         ))}
         <div style={{ borderTop: '2px solid var(--border)', marginTop: 10, paddingTop: 10 }}>
