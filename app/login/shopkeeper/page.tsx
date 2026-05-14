@@ -93,16 +93,24 @@ export default function ShopkeeperLoginPage() {
       return
     }
 
-    // Use getUser() on the browser client. Note: after signInWithPassword, Supabase writes
-    // cookies asynchronously. We add a brief delay to ensure cookies are written before getUser().
-    // Without this, getUser() may return null immediately after signIn on some browsers.
-    await new Promise(resolve => setTimeout(resolve, 100))
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError('Session expired. Please login again.')
-      setLoading(false)
-      return
+    // After signInWithPassword, Supabase writes session to cookies.
+    // getSession() reads from cookies directly (no cache) so it picks up the new session immediately.
+    // Then refresh to ensure the session is fully active before routing.
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) console.error('Session error:', sessionError)
+
+    if (!session?.user) {
+      // Try one more refresh
+      await supabase.auth.refreshSession()
+      const { data: { session: retry } } = await supabase.auth.getSession()
+      if (!retry?.user) {
+        setError('Session expired. Please login again.')
+        setLoading(false)
+        return
+      }
     }
+
+    const user = session!.user
 
     // ── Step 1: Check if shop exists for this user ──────────────────
     // Note: profiles table may not have rows for all users (registration doesn't create profiles).
