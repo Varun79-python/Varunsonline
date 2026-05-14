@@ -3,7 +3,35 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const TERMS_TEXT = `### Shopkeeper Terms & Conditions`
+const TERMS_TEXT = `### Shopkeeper Terms & Conditions
+
+1. The shopkeeper must provide genuine and accurate information during registration.
+
+2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
+
+3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken including warnings, temporary suspension, payment hold, or permanent account removal.
+
+4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.
+
+5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition before handing over to delivery agents.
+
+6. Intentional order cancellations after accepting orders, repeated delays, or bad order handling may reduce shop visibility or result in penalties.
+
+7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
+
+8. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning and legal action.
+
+9. Shopkeepers must treat customers, delivery agents, and platform staff professionally.
+
+10. Misconduct, abusive language, harassment, threats, or repeated customer complaints may result in account suspension.
+
+11. The platform has the right to approve, reject, suspend, or permanently terminate any shopkeeper account if suspicious activity or policy violations are detected.
+
+12. Shops must comply with local laws, food safety standards, and applicable business regulations.
+
+13. Repeated poor customer ratings, damaged product complaints, or policy violations may reduce visibility or disable the shop.
+
+14. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
 
 // Check if user is already logged in and redirect to appropriate page
 async function checkExistingSession(supabase: any, router: any) {
@@ -39,34 +67,6 @@ async function checkExistingSession(supabase: any, router: any) {
     }
   }
 }
-
-1. The shopkeeper must provide genuine and accurate information during registration.
-
-2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
-
-3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken including warnings, temporary suspension, payment hold, or permanent account removal.
-
-4. Fake product listings, misleading prices, false offers, or intentionally incorrect product information are strictly prohibited.
-
-5. Shopkeepers must ensure all products are hygienic, safe, properly packed, and in good condition before handing over to delivery agents.
-
-6. Intentional order cancellations after accepting orders, repeated delays, or bad order handling may reduce shop visibility or result in penalties.
-
-7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
-
-8. Fraudulent activity, fake orders, scams, payment abuse, or misuse of the platform may lead to permanent banning and legal action.
-
-9. Shopkeepers must treat customers, delivery agents, and platform staff professionally.
-
-10. Misconduct, abusive language, harassment, threats, or repeated customer complaints may result in account suspension.
-
-11. The platform has the right to approve, reject, suspend, or permanently terminate any shopkeeper account if suspicious activity or policy violations are detected.
-
-12. Shops must comply with local laws, food safety standards, and applicable business regulations.
-
-13. Repeated poor customer ratings, damaged product complaints, or policy violations may reduce visibility or disable the shop.
-
-14. By registering, the shopkeeper confirms all submitted information is true and agrees to platform verification and admin approval.`
 
 export default function ShopRegisterPage() {
   const router = useRouter()

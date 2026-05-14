@@ -96,7 +96,7 @@ export default function ShopkeeperLoginPage() {
     // After signInWithPassword, Supabase writes session to cookies.
     // getSession() reads from cookies directly (no cache) so it picks up the new session immediately.
     // Then refresh to ensure the session is fully active before routing.
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    let { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) console.error('Session error:', sessionError)
 
     if (!session?.user) {

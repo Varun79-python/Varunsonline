@@ -3,7 +3,22 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const TERMS_TEXT = `### Shopkeeper Terms & Conditions`
+const TERMS_TEXT = `### Shopkeeper Terms & Conditions
+
+1. The shopkeeper must provide genuine and accurate information during registration.
+2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
+3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken.
+4. Fake product listings, misleading prices, false offers are strictly prohibited.
+5. Shopkeepers must ensure all products are hygienic, safe, properly packed.
+6. Intentional order cancellations may reduce shop visibility or result in penalties.
+7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
+8. Fraudulent activity may lead to permanent banning and legal action.
+9. Shopkeepers must treat customers, delivery agents professionally.
+10. Misconduct, abusive language may result in account suspension.
+11. The platform has the right to approve, reject, suspend any shopkeeper account.
+12. Shops must comply with local laws and business regulations.
+13. Repeated poor ratings may disable the shop.
+14. By registering, the shopkeeper agrees to platform verification and admin approval.`
 
 // Check if user is already logged in and redirect to appropriate page
 async function checkExistingSession(supabase: any, router: any) {
@@ -39,21 +54,6 @@ async function checkExistingSession(supabase: any, router: any) {
     }
   }
 }
-
-1. The shopkeeper must provide genuine and accurate information during registration.
-2. Selling expired, damaged, duplicate, fake, unsafe, or poor-quality products is strictly prohibited.
-3. If customers repeatedly receive damaged, expired, wrong, or low-quality products, strict action will be taken.
-4. Fake product listings, misleading prices, false offers are strictly prohibited.
-5. Shopkeepers must ensure all products are hygienic, safe, properly packed.
-6. Intentional order cancellations may reduce shop visibility or result in penalties.
-7. The shopkeeper is responsible for maintaining correct stock availability and pricing.
-8. Fraudulent activity may lead to permanent banning and legal action.
-9. Shopkeepers must treat customers, delivery agents professionally.
-10. Misconduct, abusive language may result in account suspension.
-11. The platform has the right to approve, reject, suspend any shopkeeper account.
-12. Shops must comply with local laws and business regulations.
-13. Repeated poor ratings may disable the shop.
-14. By registering, the shopkeeper agrees to platform verification and admin approval.`
 
 export default function ShopRegisterPage() {
   const router = useRouter()
