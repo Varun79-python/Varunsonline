@@ -23,7 +23,7 @@ export default function ShopkeeperDashboard() {
   const alertingOrdersRef = useRef<Set<string>>(new Set())
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
 
-  const [nowTime, setNowTime] = useState<number>(0)
+  const [nowTime, setNowTime] = useState<number | null>(null)
   useEffect(() => { setNowTime(Date.now()) }, [])
 
   const alertingOrderIds = useMemo(() => {
