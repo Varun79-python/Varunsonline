@@ -3,7 +3,42 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const TERMS_TEXT = `### Shopkeeper Terms & Conditions
+const TERMS_TEXT = `### Shopkeeper Terms & Conditions`
+
+// Check if user is already logged in and redirect to appropriate page
+async function checkExistingSession(supabase: any, router: any) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.user) {
+    // Check if shop exists
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('id, is_approved, is_active')
+      .eq('owner_id', session.user.id)
+      .maybeSingle()
+
+    if (shop) {
+      // Check if documents uploaded
+      const { data: docs } = await supabase
+        .from('shop_documents')
+        .select('id')
+        .eq('shop_id', shop.id)
+        .maybeSingle()
+
+      if (!docs) {
+        router.replace('/login/shopkeeper/register/documents')
+        return
+      }
+
+      if (shop.is_approved && shop.is_active) {
+        router.replace('/shopkeeper')
+        return
+      }
+
+      router.replace('/login/status')
+      return
+    }
+  }
+}
 
 1. The shopkeeper must provide genuine and accurate information during registration.
 
@@ -51,6 +86,11 @@ export default function ShopRegisterPage() {
   })
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  // Check existing session on mount
+  useEffect(() => {
+    checkExistingSession(supabase, router)
+  }, [supabase, router])
 
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
     if (!phone.trim() && !email.trim()) return
