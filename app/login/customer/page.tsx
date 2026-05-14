@@ -47,7 +47,7 @@ export default function CustomerLoginPage() {
   
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '' })
+  const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '', gender: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [showReset, setShowReset] = useState(false)
@@ -226,6 +226,7 @@ export default function CustomerLoginPage() {
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
+          gender: form.gender,
         })
         alert('Account created! Please login.')
         setIsLogin(true)
@@ -266,7 +267,18 @@ export default function CustomerLoginPage() {
           {!isLogin && (
             <>
               <input type="text" placeholder="Full Name" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
-              <input type="tel" placeholder="Phone Number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
+              <input type="tel" placeholder="Phone Number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
+              <select 
+                value={form.gender} 
+                onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
+                required
+                style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', appearance: 'none' }}
+              >
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
             </>
           )}
           <input type="text" placeholder="Email or Phone Number" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
@@ -277,23 +289,20 @@ export default function CustomerLoginPage() {
               </button>
             </div>
 
-          {isLogin && (
-            <>
-              <CaptchaDisplay code={captcha} />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input 
-                  type="text" 
-                  placeholder="Enter CAPTCHA" 
-                  value={captchaInput} 
-                  onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
-                  maxLength={5}
-                  required
-                  style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }} 
-                />
-                <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
-              </div>
-            </>
-          )}
+          {/* CAPTCHA for both login and register */}
+          <CaptchaDisplay code={captcha} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input 
+              type="text" 
+              placeholder="Enter CAPTCHA" 
+              value={captchaInput} 
+              onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+              maxLength={5}
+              required
+              style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }} 
+            />
+            <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
+          </div>
 
           {error && <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 500 }}>{error}</div>}
 

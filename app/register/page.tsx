@@ -291,11 +291,11 @@ function RegisterForm() {
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <div style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Registration Complete!</h2>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>🎉 Registration Done!</h2>
           <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
             Your registration has been submitted.<br/><br/>
-            <strong>Admin will verify and approve your account.</strong><br/><br/>
-            You'll receive a notification once approved.
+            <strong>Complete registration by logging in.</strong><br/><br/>
+            Admin will verify and approve your account.
           </p>
           <button 
             onClick={() => { setShowSuccessPopup(false); router.push('/login') }} 
@@ -311,7 +311,7 @@ function RegisterForm() {
               fontSize: '1rem'
             }}
           >
-            Go to Login
+            Login to Continue
           </button>
         </div>
       </div>

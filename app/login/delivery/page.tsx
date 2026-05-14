@@ -103,16 +103,21 @@ export default function DeliveryLoginPage() {
         return
       }
       
-      // Check if documents not uploaded (aadhar_url is the key indicator)
+      // Old approved users can login without documents
+      if (agent.is_approved && agent.is_active) {
+        router.push('/delivery')
+        return
+      }
+
+      // For pending users, check if documents uploaded
       if (!agent.aadhar_url) {
         router.push('/login/delivery/register/documents')
         return
       }
 
-      if (!agent.is_approved || !agent.is_active) {
-        router.push('/login/status')
-        return
-      }
+      // Documents uploaded but still pending approval
+      router.push('/login/status')
+      return
     }
     router.push('/delivery')
   }

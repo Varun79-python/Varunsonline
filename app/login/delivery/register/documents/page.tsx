@@ -110,13 +110,21 @@ export default function DeliveryDocumentsPage() {
     </div>
   )
 
+  useEffect(() => {
+    if (done) {
+      const timer = setTimeout(() => {
+        router.push('/login/status')
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [done, router])
+
   if (done) return (
     <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎉</div>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Documents Submitted!</h2>
-        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your documents have been uploaded.<br/><br/>Admin will review your application and approve it.<br/>You&apos;ll be notified once approved.</p>
-        <button onClick={() => router.push('/login/status')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Check Status</button>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your documents have been uploaded.<br/><br/>Redirecting to check status...</p>
       </div>
     </div>
   )
@@ -125,7 +133,7 @@ export default function DeliveryDocumentsPage() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '0 16px 40px' }}>
       <div style={{ padding: '20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Step 2: Upload Documents</h2>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Upload Documents</h2>
       </div>
 
       <div style={{ maxWidth: 500, margin: '0 auto' }}>

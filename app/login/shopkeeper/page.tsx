@@ -103,7 +103,13 @@ export default function ShopkeeperLoginPage() {
         return
       }
 
-      // Check if documents uploaded (check shop_documents table)
+      // Old approved users can login without documents
+      if (shop.is_approved && shop.is_active) {
+        router.push('/shopkeeper')
+        return
+      }
+
+      // For pending users, check if documents uploaded
       const { data: docs } = await supabase
         .from('shop_documents')
         .select('id')
@@ -115,10 +121,9 @@ export default function ShopkeeperLoginPage() {
         return
       }
 
-      if (!shop.is_approved || !shop.is_active) {
-        router.push('/login/status')
-        return
-      }
+      // Documents uploaded but still pending approval
+      router.push('/login/status')
+      return
     }
     router.push('/shopkeeper')
   }
