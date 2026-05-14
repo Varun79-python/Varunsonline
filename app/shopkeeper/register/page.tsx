@@ -209,11 +209,9 @@ export default function ShopRegisterPage() {
 
       if (shopError) { alert(shopError.message); setSaving(false); return }
 
-      if (session?.user) {
-        router.push('/login/shopkeeper/register/documents')
-      } else {
-        setShowLoginPopup(true)
-      }
+      // Force sign out so everyone must explicitly login
+      await supabase.auth.signOut()
+      setShowLoginPopup(true)
     } catch (err: any) {
       alert('Error: ' + err.message)
     } finally {

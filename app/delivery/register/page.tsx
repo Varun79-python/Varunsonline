@@ -175,11 +175,9 @@ export default function DeliveryRegisterPage() {
 
       if (agentError) { setFormError('Failed to submit: ' + agentError.message); setSaving(false); return }
       
-      if (session?.user) {
-        router.push('/login/delivery/register/documents')
-      } else {
-        setShowLoginPopup(true)
-      }
+      // Force sign out so everyone must explicitly login
+      await supabase.auth.signOut()
+      setShowLoginPopup(true)
     } catch (err: any) {
       setFormError('Error: ' + err.message)
     } finally {
