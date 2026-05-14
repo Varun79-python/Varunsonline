@@ -116,13 +116,17 @@ export default function DeliveryDocumentsPage() {
 
     setSaving(true)
     setError('')
-    const { error: updateError } = await supabase
-      .from('delivery_agents')
-      .update({ aadhar_url: aadharUrl })
-      .eq('id', userId)
 
-    if (updateError) {
-      setError('Failed to save: ' + updateError.message)
+    // Use API to bypass RLS
+    const res = await fetch('/api/delivery/update-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, aadharUrl })
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      setError('Failed to save: ' + (data.error || 'Unknown error'))
       setSaving(false)
       return
     }

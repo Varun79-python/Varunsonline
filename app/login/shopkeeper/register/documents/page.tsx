@@ -132,12 +132,17 @@ export default function ShopDocumentsPage() {
 
     setSaving(true)
     setError('')
-    const { error: insertError } = await supabase
-      .from('shop_documents')
-      .insert({ shop_id: shopId, shop_photo_url: shopPhotoUrl, aadhar_url: aadharUrl })
 
-    if (insertError) {
-      setError('Failed to save: ' + insertError.message)
+    // Use API to bypass RLS
+    const res = await fetch('/api/shopkeeper/update-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shopId, shopPhotoUrl, aadharUrl })
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      setError('Failed to save: ' + (data.error || 'Unknown error'))
       setSaving(false)
       return
     }
