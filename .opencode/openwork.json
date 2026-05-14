@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "workspace": {
+    "name": "varunsonline",
+    "createdAt": 1778701430270,
+    "preset": "starter"
+  },
+  "authorizedRoots": [
+    "C:\\Users\\venka\\.gemini\\antigravity\\scratch\\varunsonline"
+  ],
+  "reload": null
+}

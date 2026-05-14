@@ -92,7 +92,7 @@ export default function ShopkeeperLoginPage() {
     }
     if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
 
-    // Check if shop is approved
+    // Check if shop is approved and has documents
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: shop } = await supabase.from('shops').select('is_approved, is_active, shop_image_url').eq('owner_id', user.id).single()
@@ -103,9 +103,8 @@ export default function ShopkeeperLoginPage() {
         return
       }
 
-      // Check if step 1 done but step 2 (documents) not done
-      if (shop.is_approved === false && shop.is_active === false && !shop.shop_image_url) {
-        localStorage.setItem('shopkeeper_reg_user_id', user.id)
+      // Check if documents not uploaded (shop_image_url is the key indicator)
+      if (!shop.shop_image_url) {
         router.push('/login/shopkeeper/register/documents')
         return
       }

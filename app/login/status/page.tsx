@@ -7,7 +7,7 @@ export default function ApprovalStatusPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState<{approved: boolean, role: string, message: string} | null>(null)
+  const [status, setStatus] = useState<{approved: boolean, role: string, message: string, needsRegistration?: boolean} | null>(null)
 
   const checkApprovalStatus = useCallback(async () => {
     setLoading(true)
@@ -39,7 +39,7 @@ export default function ApprovalStatusPage() {
         .single()
 
       if (!shop) {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'No shop found. Please complete registration.' })
+        setStatus({ approved: false, role: 'shopkeeper', message: 'No shop found. Please complete registration.', needsRegistration: true })
       } else if (shop.is_approved && shop.is_active) {
         setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
       } else if (shop.is_approved && !shop.is_active) {
@@ -57,7 +57,7 @@ export default function ApprovalStatusPage() {
         .single()
 
       if (!agent) {
-        setStatus({ approved: false, role: 'delivery_agent', message: 'No agent profile found. Please complete registration.' })
+        setStatus({ approved: false, role: 'delivery_agent', message: 'No agent profile found. Please complete registration.', needsRegistration: true })
       } else if (agent.is_approved && agent.is_active) {
         setStatus({ approved: true, role: 'delivery_agent', message: 'Your agent account is approved and active!' })
       } else if (agent.is_approved && !agent.is_active) {
@@ -114,15 +114,37 @@ export default function ApprovalStatusPage() {
             </button>
           ) : (
             <div>
-              <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
-                Please wait for admin to review your application.<br/>This usually takes 24-48 hours.
-              </p>
-              <button 
-                onClick={() => router.push('/login')}
-                style={{ padding: '14px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Back to Login
-              </button>
+              {status?.needsRegistration ? (
+                <>
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
+                    You haven't completed your registration yet.
+                  </p>
+                  <button 
+                    onClick={() => router.push(status.role === 'shopkeeper' ? '/shopkeeper/register' : '/delivery/register')}
+                    style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}
+                  >
+                    Complete Registration
+                  </button>
+                  <button 
+                    onClick={() => router.push('/login')}
+                    style={{ padding: '14px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', display: 'block', width: '100%' }}
+                  >
+                    Back to Login
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
+                    Please wait for admin to review your application.<br/>This usually takes 24-48 hours.
+                  </p>
+                  <button 
+                    onClick={() => router.push('/login')}
+                    style={{ padding: '14px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Back to Login
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

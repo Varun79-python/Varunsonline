@@ -213,9 +213,9 @@ export default function CheckoutContent() {
     } finally {
 setLoading(false)
     }
-  }
+}
 
-  async function loadData() {
+  async function reloadData() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const [addrRes, settingsRes] = await Promise.all([
@@ -230,7 +230,7 @@ setLoading(false)
     })
   }
 
-  function getGPS() {
+  function updateLocation() {
     setGettingGPS(true)
     setGpsAccuracy(null)
     navigator.geolocation.getCurrentPosition(
@@ -248,50 +248,10 @@ setLoading(false)
         alert('GPS failed: ' + (err.code === 1 ? 'Permission denied — please allow location access.' : err.code === 2 ? 'Position unavailable.' : 'Timed out. Try again.'))
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    )
+)
   }
 
-  async function saveAddress() {
-    if (!addr.house_name || !addr.street_name || !addr.city) {
-      alert('Please fill House Name, Street and City')
-      return
-    }
-    if (!addr.phone) {
-      alert('Please enter your phone number for the delivery agent')
-      return
-    }
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { alert('Please login first'); return }
-
-    const payload = {
-      customer_id: user.id,
-      label: addr.label || 'Home',
-      house_name: addr.house_name,
-      street_name: addr.street_name,
-      landmark: addr.landmark || null,
-      city: addr.city,
-      pincode: addr.pincode || null,
-      phone: addr.phone,
-      latitude: addr.latitude !== 0 ? addr.latitude : null,
-      longitude: addr.longitude !== 0 ? addr.longitude : null,
-    }
-
-    const { data, error } = await supabase.from('addresses').insert(payload).select().single()
-    if (error) {
-      console.error('Save address error:', error)
-      alert('Failed to save address: ' + error.message)
-      return
-    }
-    if (data) {
-      setAddresses(a => [...a, data])
-      setSelectedAddr(data.id)
-      setShowNewAddr(false)
-      // Reset form
-      setAddr({ label: 'Home', house_name: '', street_name: '', landmark: '', city: '', state: '', pincode: '', phone: '', latitude: 0, longitude: 0 })
-    }
-  }
-
-  async function placeFreeOrder(userId: string) {
+  async function createNewAddress(userId: string) {
     // Free order = full coupon cover. Shop STILL gets full item amount;
     // admin absorbs coupon cost + platform fee.
     const agentEarning = Math.round(deliveryCharge * 0.8)
@@ -359,14 +319,14 @@ setLoading(false)
     }
   }
 
-  async function placeOrder() {
+  async function processOnlineOrder() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !selectedAddr || cart.length === 0) return
     setLoading(true)
 
     // Free order (₹0 total after coupon) — skip Razorpay, only for online mode
     if (total <= 0 && paymentMode !== 'cod') {
-      await placeFreeOrder(user.id)
+      await createNewAddress(user.id)
       setLoading(false)
       return
     }

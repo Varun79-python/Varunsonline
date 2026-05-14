@@ -15,19 +15,16 @@ export default function DeliveryRegisterPage() {
     password: '',
     vehicle_type: 'Bike',
     vehicle_number: '',
-    aadhar_url: '',
   })
   const [saving, setSaving] = useState(false)
-  const [done, setDone] = useState(false)
+  const [showLoginPopup, setShowLoginPopup] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const [checkingExisting, setCheckingExisting] = useState(false)
   const [existingUserMessage, setExistingUserMessage] = useState('')
 
-  // Debounce search for existing user
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
@@ -37,7 +34,6 @@ export default function DeliveryRegisterPage() {
     setExistingUserMessage('')
     
     try {
-      // Check by phone in delivery_agents table
       const { data: existingAgent } = await supabase
         .from('delivery_agents')
         .select('*')
@@ -45,14 +41,12 @@ export default function DeliveryRegisterPage() {
         .maybeSingle()
 
       if (existingAgent) {
-        // Check if fully registered and approved
         if (existingAgent.is_approved) {
-          setExistingUserMessage('Account already exists and approved. Redirecting to delivery agent dashboard...')
-          setTimeout(() => router.push('/delivery'), 1500)
+          setExistingUserMessage('Account already exists and approved. Redirecting to login...')
+          setTimeout(() => router.push('/login/delivery'), 1500)
           return
         }
         
-        // Partial registration - restore data
         setForm(f => ({
           ...f,
           full_name: existingAgent.full_name || f.full_name,
@@ -60,34 +54,10 @@ export default function DeliveryRegisterPage() {
           phone: existingAgent.phone || f.phone,
           vehicle_type: existingAgent.vehicle_type || f.vehicle_type,
           vehicle_number: existingAgent.vehicle_number || f.vehicle_number,
-          aadhar_url: existingAgent.aadhar_url || f.aadhar_url,
         }))
-        setExistingUserMessage('Existing registration found. Continuing from saved progress.')
+        setExistingUserMessage('Partial registration found. Please login to continue.')
         setCheckingExisting(false)
         return
-      }
-
-      // Check by email in auth
-      if (email.trim()) {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user && user.email?.toLowerCase() === email.trim().toLowerCase()) {
-          setExistingUserMessage('Account found. Please complete your registration.')
-          setCheckingExisting(false)
-          return
-        }
-      }
-
-      // Check profiles table
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('phone', phone.trim())
-        .maybeSingle()
-
-      if (existingProfile && existingProfile.role === 'delivery_agent') {
-        if (!existingAgent) {
-          setExistingUserMessage('Profile found. Please complete your registration.')
-        }
       }
     } catch (err) {
       console.error('Error checking existing user:', err)
@@ -96,7 +66,6 @@ export default function DeliveryRegisterPage() {
     }
   }, [supabase, router])
 
-  // Watch phone/email for existing user
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
     
@@ -150,38 +119,6 @@ export default function DeliveryRegisterPage() {
     prefill()
   }, [])
 
-  async function handleAadhaarUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB'); return }
-    
-    // First create account to get user ID
-    let { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      if (!form.email.trim() || !form.password.trim() || !form.full_name.trim()) {
-        alert('Please fill name, email and password first to create account')
-        return
-      }
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
-      })
-      if (signUpError) { alert('Account creation failed: ' + signUpError.message); return }
-      if (!signUpData.user) { alert('Failed to create account'); return }
-      user = signUpData.user
-    }
-    
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const fileName = `temp/${user.id}/aadhar_${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('agent-documents').upload(fileName, file)
-    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(fileName)
-    setForm(f => ({ ...f, aadhar_url: publicUrl }))
-    setUploading(false)
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
@@ -193,102 +130,49 @@ export default function DeliveryRegisterPage() {
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim() && form.vehicle_type !== 'Bicycle') { setFormError('Vehicle Number is required'); return }
-    if (!form.aadhar_url) { setFormError('Aadhaar Card photo is required'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
-    let { data: { user } } = await supabase.auth.getUser()
-
-    // If not logged in, try sign in first
-    if (!user) {
-      const { data: signInData } = await supabase.auth.signInWithPassword({
+    
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: form.email.trim(),
-        password: form.password
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
       })
       
-      if (signInData?.user) {
-        user = signInData.user
-      } else {
-        // Try sign up
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: form.email.trim(),
-          password: form.password,
-          options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
-        })
-        
-        // Handle existing user gracefully
-        if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            // Try sign in
-            const { data: retrySignIn } = await supabase.auth.signInWithPassword({
-              email: form.email.trim(),
-              password: form.password
-            })
-            if (retrySignIn?.user) {
-              user = retrySignIn.user
-            } else {
-              setFormError('An account with this email already exists. Please login.')
-              setSaving(false); return
-            }
-          } else {
-            setFormError(signUpError.message); setSaving(false); return
-          }
-        } else if (signUpData?.user) {
-          user = signUpData.user
-        } else {
-          setFormError('Failed to create account'); setSaving(false); return
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+          setFormError('An account with this email already exists. Please login.')
+          setSaving(false)
+          return
         }
+        setFormError(signUpError.message); setSaving(false); return
       }
-    }
 
-    // Check if agent already exists
-    const { data: existingAgent } = await supabase
-      .from('delivery_agents')
-      .select('id, is_approved')
-      .eq('id', user.id)
-      .maybeSingle()
+      if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
 
-    if (existingAgent) {
-      if (existingAgent.is_approved) {
-        setFormError('Your account is already approved. Redirecting to login...')
-        setTimeout(() => router.push('/login/delivery'), 1500)
-        setSaving(false); return
-      }
-      
-      // Update existing instead of creating new
-      const { error: updateError } = await supabase.from('delivery_agents').update({
+      const { error: agentError } = await supabase.from('delivery_agents').upsert({
+        id: signUpData.user.id,
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
         vehicle_type: form.vehicle_type,
         vehicle_number: form.vehicle_number.trim().toUpperCase(),
-        aadhar_url: form.aadhar_url,
         is_approved: false,
         rejection_reason: null,
         terms_agreed: true,
-      }).eq('id', existingAgent.id)
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
 
-      if (updateError) { setFormError('Update failed: ' + updateError.message); setSaving(false); return }
-      setDone(true); setSaving(false); return
+      if (agentError) { setFormError('Failed to submit: ' + agentError.message); setSaving(false); return }
+      
+      setShowLoginPopup(true)
+    } catch (err: any) {
+      setFormError('Error: ' + err.message)
+    } finally {
+      setSaving(false)
     }
-
-    const { error } = await supabase.from('delivery_agents').upsert({
-      id: user.id,
-      full_name: form.full_name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      vehicle_type: form.vehicle_type,
-      vehicle_number: form.vehicle_number.trim().toUpperCase(),
-      aadhar_url: form.aadhar_url,
-      is_approved: false,
-      rejection_reason: null,
-      terms_agreed: true,
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'id' })
-
-    if (error) { setFormError('Failed to submit: ' + error.message); setSaving(false); return }
-    setDone(true)
-    setSaving(false)
   }
 
   if (loading) return (
@@ -298,13 +182,21 @@ export default function DeliveryRegisterPage() {
     </div>
   )
 
-  if (done) return (
-    <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Registration Submitted!</h2>
-        <p style={{ color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>Your registration has been submitted successfully.<br/><br/>Admin will review your application and approve it.<br/>You&apos;ll be notified once approved.</p>
-        <button onClick={() => router.push('/login/delivery')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '12px 24px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Back to Login</button>
+  if (showLoginPopup) return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: 400 }}>
+        <div style={{ fontSize: '4rem', marginBottom: 16 }}>🔐</div>
+        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Login to Complete Registration</h2>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+          Your basic details have been saved.<br/>
+          Please login to upload your documents and complete registration.
+        </p>
+        <button 
+          onClick={() => router.push('/login/delivery')} 
+          style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', width: '100%' }}
+        >
+          🔑 Login to Continue
+        </button>
       </div>
     </div>
   )
@@ -332,7 +224,7 @@ export default function DeliveryRegisterPage() {
           margin: '0 auto 16px'
         }}>
           {checkingExisting ? (
-            <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking existing account...</>
+            <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking...</>
           ) : (
             <>✅ {existingUserMessage}</>
           )}
@@ -341,10 +233,10 @@ export default function DeliveryRegisterPage() {
 
       <form onSubmit={submit} style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Personal Details</h3>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Step 1: Personal Details</h3>
           
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name (as per Aadhaar) *</label>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name *</label>
             <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Enter your full name" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
           </div>
 
@@ -381,37 +273,6 @@ export default function DeliveryRegisterPage() {
         </div>
 
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card * <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(Max 5MB)</span></h3>
-          
-          <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept="image/*" capture="environment" onChange={handleAadhaarUpload} style={{ display: 'none' }} />
-            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: form.aadhar_url ? '#f0fdf4' : '#f8fafc' }}>
-              {uploading ? (
-                <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
-              ) : form.aadhar_url ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Aadhaar Uploaded</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Aadhaar Photo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
-                </div>
-              )}
-            </div>
-          </label>
-
-          {form.aadhar_url && (
-            <div style={{ marginTop: 12 }}>
-              <img src={form.aadhar_url} alt="Aadhaar" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
-            </div>
-          )}
-        </div>
-
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions *</h3>
           
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', marginBottom: 12 }}>
@@ -433,7 +294,7 @@ export default function DeliveryRegisterPage() {
         )}
 
         <button type="submit" disabled={saving} style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(34,197,94,0.3)' }}>
-          {saving ? 'Submitting...' : 'Submit Registration'}
+          {saving ? 'Submitting...' : 'Next Step →'}
         </button>
       </form>
 

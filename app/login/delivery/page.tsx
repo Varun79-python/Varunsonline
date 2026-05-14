@@ -92,11 +92,24 @@ export default function DeliveryLoginPage() {
     }
     if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
 
-    // Check if agent is approved
+    // Check if agent is approved, active and has documents
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active').eq('id', user.id).single()
-      if (!agent || !agent.is_approved || !agent.is_active) {
+      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).single()
+      
+      if (!agent) {
+        setError('Account not found. Please register first.')
+        setLoading(false)
+        return
+      }
+      
+      // Check if documents not uploaded (aadhar_url is the key indicator)
+      if (!agent.aadhar_url) {
+        router.push('/login/delivery/register/documents')
+        return
+      }
+
+      if (!agent.is_approved || !agent.is_active) {
         router.push('/login/status')
         return
       }
