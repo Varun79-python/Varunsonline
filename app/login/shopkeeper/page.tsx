@@ -95,7 +95,7 @@ export default function ShopkeeperLoginPage() {
     // Check if shop is approved and has documents
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: shop } = await supabase.from('shops').select('is_approved, is_active, shop_image_url').eq('owner_id', user.id).single()
+      const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).single()
       
       if (!shop) {
         setError('Shop not found. Please register first.')
@@ -103,8 +103,14 @@ export default function ShopkeeperLoginPage() {
         return
       }
 
-      // Check if documents not uploaded (shop_image_url is the key indicator)
-      if (!shop.shop_image_url) {
+      // Check if documents uploaded (check shop_documents table)
+      const { data: docs } = await supabase
+        .from('shop_documents')
+        .select('id')
+        .eq('shop_id', shop.id)
+        .limit(1)
+
+      if (!docs || docs.length === 0) {
         router.push('/login/shopkeeper/register/documents')
         return
       }
