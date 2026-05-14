@@ -14,10 +14,10 @@ function generateCaptcha(length = 5): string {
 
 function CaptchaDisplay({ code }: { code: string }) {
   return (
-    <div style={{ 
-      display: 'flex', 
-      gap: 4, 
-      justifyContent: 'center', 
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      justifyContent: 'center',
       padding: '12px 16px',
       background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
       borderRadius: 10,
@@ -69,7 +69,7 @@ export default function ShopkeeperLoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (captchaInput.toUpperCase() !== captcha) {
       setError('Incorrect CAPTCHA. Please try again.')
       refreshCaptcha()
@@ -92,56 +92,35 @@ export default function ShopkeeperLoginPage() {
     }
     if (signInError) { setError(signInError.message); setLoading(false); refreshCaptcha(); return }
 
-// Check if shop is approved and has documents
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
+    if (!user) { setLoading(false); return }
 
-      if (!shop) {
-        router.push('/shopkeeper/register')
-        return
-      }
+    const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
 
-      // Check documents uploaded
-      const { data: docs } = await supabase
-        .from('shop_documents')
-        .select('id')
-        .eq('shop_id', shop.id)
-        .limit(1)
-
-      const hasDocs = docs && docs.length > 0
-
-      // No docs yet → go to documents upload
-      if (!hasDocs) {
-        router.push('/login/shopkeeper/register/documents')
-        return
-      }
-
-      // Approved + active + has docs → dashboard
-      if (shop.is_approved && shop.is_active) {
-        router.push('/shopkeeper')
-        return
-      }
-
-      // Docs uploaded but still pending approval → status page
-      router.push('/login/status')
+    if (!shop) {
+      router.push('/shopkeeper/register')
       return
     }
-    router.push('/shopkeeper')
-        return
-      }
 
-      // No docs yet → go to documents upload
-      if (!hasDocs) {
-        router.push('/login/shopkeeper/register/documents')
-        return
-      }
+    const { data: docs } = await supabase
+      .from('shop_documents')
+      .select('id')
+      .eq('shop_id', shop.id)
+      .limit(1)
 
-      // Docs uploaded but still pending approval → status page
-      router.push('/login/status')
+    const hasDocs = docs && docs.length > 0
+
+    if (!hasDocs) {
+      router.push('/login/shopkeeper/register/documents')
       return
     }
-    router.push('/shopkeeper')
+
+    if (shop.is_approved && shop.is_active) {
+      router.push('/shopkeeper')
+      return
+    }
+
+    router.push('/login/status')
   }
 
   return (
@@ -161,25 +140,25 @@ export default function ShopkeeperLoginPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <input type="text" placeholder="Email or Phone Number" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required style={{ padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white' }} />
           <div style={{ position: 'relative' }}>
-              <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                {showPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
-              </button>
-            </div>
+            <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required style={{ width: '100%', padding: '14px 16px', paddingRight: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', boxSizing: 'border-box' }} />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {showPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+            </button>
+          </div>
 
-            <CaptchaDisplay code={captcha} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input 
-                type="text" 
-                placeholder="Enter CAPTCHA" 
-                value={captchaInput} 
-                onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
-                maxLength={5}
-                required
-                style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }} 
-              />
-              <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
-            </div>
+          <CaptchaDisplay code={captcha} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Enter CAPTCHA"
+              value={captchaInput}
+              onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+              maxLength={5}
+              required
+              style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }}
+            />
+            <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
+          </div>
 
           {error && <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 500 }}>{error}</div>}
 
