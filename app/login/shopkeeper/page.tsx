@@ -109,8 +109,6 @@ export default function ShopkeeperLoginPage() {
     const user = session.user
 
     // ── Step 1: Check if shop exists for this user ──────────────────
-    // Note: profiles table may not have rows for all users (registration doesn't create profiles).
-    // So we check shops directly — if a shop exists with this owner_id, user is a shopkeeper.
     const { data: shop } = await supabase
       .from('shops')
       .select('id, is_approved, is_active')
@@ -118,7 +116,7 @@ export default function ShopkeeperLoginPage() {
       .maybeSingle()
 
     if (!shop) {
-      // No shop = redirect to register
+      // No shop = redirect to register (NEW USER flow)
       window.location.href = '/shopkeeper/register'
       return
     }
@@ -130,22 +128,20 @@ export default function ShopkeeperLoginPage() {
       .eq('shop_id', shop.id)
       .maybeSingle()
 
-    const hasDocs = !!docs
-
-    if (!hasDocs) {
-      // No docs yet → documents upload page
+    if (!docs) {
+      // No docs yet → documents upload page (NEW USER - need to upload docs)
       window.location.href = '/login/shopkeeper/register/documents'
       return
     }
 
     // ── Step 3: Check approval status ────────────────────────────
     if (shop.is_approved && shop.is_active) {
-      // Fully approved → dashboard
+      // Fully approved → dashboard (EXISTING USER - approved)
       window.location.href = '/shopkeeper'
       return
     }
 
-    // Pending approval → status page
+    // Pending approval → status page (EXISTING USER - waiting for approval)
     window.location.href = '/login/status'
   }
 

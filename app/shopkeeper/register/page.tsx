@@ -52,39 +52,39 @@ export default function ShopRegisterPage() {
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  // Check if user is already logged in
+  // Check if user is already logged in and has a shop
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        // Check if shop exists
-        const { data: shop } = await supabase
-          .from('shops')
-          .select('id, is_approved, is_active')
-          .eq('owner_id', session.user.id)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Check if shop exists
+      const { data: shop } = await supabase
+        .from('shops')
+        .select('id, is_approved, is_active')
+        .eq('owner_id', user.id)
+        .maybeSingle()
+
+      if (shop) {
+        // Check if documents uploaded
+        const { data: docs } = await supabase
+          .from('shop_documents')
+          .select('id')
+          .eq('shop_id', shop.id)
           .maybeSingle()
 
-        if (shop) {
-          // Check if documents uploaded
-          const { data: docs } = await supabase
-            .from('shop_documents')
-            .select('id')
-            .eq('shop_id', shop.id)
-            .maybeSingle()
-
-          if (!docs) {
-            router.replace('/login/shopkeeper/register/documents')
-            return
-          }
-
-          if (shop.is_approved && shop.is_active) {
-            router.replace('/shopkeeper')
-            return
-          }
-
-          router.replace('/login/status')
+        if (!docs) {
+          router.replace('/login/shopkeeper/register/documents')
           return
         }
+
+        if (shop.is_approved && shop.is_active) {
+          router.replace('/shopkeeper')
+          return
+        }
+
+        router.replace('/login/status')
+        return
       }
     }
     checkAuth()
