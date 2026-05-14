@@ -336,7 +336,7 @@ export default function ShopkeeperDashboard() {
           return null
         }
         const expiry = new Date(expiresAt)
-        const daysLeft = nowTime > 0 ? Math.ceil((expiry.getTime() - nowTime) / 86400000) : 0
+        const daysLeft = nowTime && nowTime > 0 ? Math.ceil((expiry.getTime() - nowTime) / 86400000) : 0
         if (daysLeft <= 0) {
           return (
             <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
