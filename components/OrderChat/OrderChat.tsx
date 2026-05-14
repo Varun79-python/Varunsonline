@@ -75,35 +75,43 @@ export default function OrderChat({ orderId, currentUserId, currentUserRole, sho
 
   useEffect(() => {
     if (!isOpen) return
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
     async function subscribeToChat() {
       const res = await fetch(`/api/order-messages?orderId=${orderId}`)
       const data = await res.json()
       if (!data.conversationId) return
-      const channel = supabase
+      channel = supabase
         .channel(`order-chat-${data.conversationId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'order_messages',
           filter: `conversation_id=eq.${data.conversationId}`
-        }, async (payload: Record<string, unknown>) => {
+        }, (payload: Record<string, unknown>) => {
           const newMsg = payload.new as Message
-          const { data: fullMsg } = await supabase
+          supabase
             .from('order_messages')
             .select('*, profiles(full_name, role, avatar_url)')
             .eq('id', newMsg.id)
             .single()
-          if (fullMsg) {
-            setMessages((prev: Message[]) => [...prev, fullMsg])
-            if (newMsg.sender_id !== currentUserId) {
-              setUnreadCount((prev: number) => prev + 1)
-            }
-          }
+            .then(({ data: fullMsg }) => {
+              if (fullMsg) {
+                setMessages((prev: Message[]) => [...prev, fullMsg])
+                if (newMsg.sender_id !== currentUserId) {
+                  setUnreadCount((prev: number) => prev + 1)
+                }
+              }
+            })
         })
         .subscribe()
-      return () => { supabase.removeChannel(channel) }
     }
-    return subscribeToChat()
+
+    subscribeToChat()
+
+    return () => {
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [orderId, isOpen, currentUserId, supabase])
 
   useEffect(() => {
