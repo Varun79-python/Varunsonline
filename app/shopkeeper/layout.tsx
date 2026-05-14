@@ -27,35 +27,5 @@ export default async function ShopkeeperLayout({ children }: { children: React.R
     return <>{children}</>
   }
 
-  // ── Enforce Onboarding Flow for Dashboard Pages ──
-
-  // 1. Check if shop exists
-  const { data: shop } = await supabase
-    .from('shops')
-    .select('id, is_approved, is_active')
-    .eq('owner_id', user.id)
-    .maybeSingle()
-
-  if (!shop) {
-    redirect('/shopkeeper/register')
-  }
-
-  // 2. Check if documents are uploaded
-  const { data: docs } = await supabase
-    .from('shop_documents')
-    .select('id')
-    .eq('shop_id', shop.id)
-    .maybeSingle()
-
-  if (!docs) {
-    redirect('/login/shopkeeper/register/documents')
-  }
-
-  // 3. Check if approved and active
-  if (!shop.is_approved || !shop.is_active) {
-    redirect('/login/status')
-  }
-
-  // If all checks pass, render the dashboard shell
   return <ShopkeeperShell>{children}</ShopkeeperShell>
 }

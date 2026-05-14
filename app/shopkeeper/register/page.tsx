@@ -152,40 +152,32 @@ export default function ShopRegisterPage() {
     setSaving(true)
     
     try {
-      let userId = ''
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (session?.user) {
-        userId = session.user.id
-      } else {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: form.email.trim(),
-          password: form.password,
-          options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
-        })
-        
-        if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            alert('An account with this email already exists. Please login.')
-            setSaving(false)
-            return
-          }
-          alert('Registration failed: ' + signUpError.message)
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+      })
+      
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+          alert('An account with this email already exists. Please login.')
           setSaving(false)
           return
         }
-
-        if (!signUpData.user) {
-          alert('Failed to create account')
-          setSaving(false)
-          return
-        }
-        userId = signUpData.user.id
+        alert('Registration failed: ' + signUpError.message)
+        setSaving(false)
+        return
       }
 
-      // Create or update profile
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: userId,
+      if (!signUpData.user) {
+        alert('Failed to create account')
+        setSaving(false)
+        return
+      }
+
+      // Create profile first
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: signUpData.user.id,
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
         role: 'shopkeeper',
@@ -193,10 +185,11 @@ export default function ShopRegisterPage() {
 
       if (profileError) {
         console.error('Profile error:', profileError)
+        // Continue anyway - profile is not critical
       }
 
       const { data: shopData, error: shopError } = await supabase.from('shops').insert({
-        owner_id: userId,
+        owner_id: signUpData.user.id,
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
         email: form.email.trim(),
@@ -208,14 +201,7 @@ export default function ShopRegisterPage() {
 
       if (shopError) { alert(shopError.message); setSaving(false); return }
 
-      if (session?.user) {
-        // Already logged in, go straight to documents
-        router.push('/login/shopkeeper/register/documents')
-      } else {
-        // New user: force sign out so they MUST login explicitly
-        await supabase.auth.signOut()
-        setShowLoginPopup(true)
-      }
+      setShowLoginPopup(true)
     } catch (err: any) {
       alert('Error: ' + err.message)
     } finally {
