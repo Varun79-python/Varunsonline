@@ -29,8 +29,8 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session on every request
-  await supabase.auth.getUser()
+  // Refresh session on every request (getUser is more reliable than getSession for cookie-based auth)
+  const { data: { session } } = await supabase.auth.getSession()
 
   // Add security headers
   supabaseResponse.headers.set('X-Frame-Options', 'DENY')
@@ -46,7 +46,6 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     if (pathname === '/admin/login') return supabaseResponse
 
-    const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
@@ -74,7 +73,7 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow /shopkeeper/register and /login/shopkeeper/register/documents (unauthenticated registration flow)
+    // Allow login pages — never redirect authenticated users back to login
     if (
       pathname === '/shopkeeper/register' ||
       pathname === '/login/shopkeeper' ||
@@ -83,7 +82,6 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse
     }
 
-    const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
     }
@@ -91,10 +89,8 @@ export async function middleware(request: NextRequest) {
     const user = session.user
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
-    // Quick check via metadata
     if (metaRole === 'shopkeeper') return supabaseResponse
 
-    // Deeper check via profiles table
     try {
       const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
         auth: { persistSession: false, autoRefreshToken: false }
@@ -105,13 +101,11 @@ export async function middleware(request: NextRequest) {
       console.error('Profile check error in shopkeeper middleware:', profileError)
     }
 
-    // Not a shopkeeper → redirect to login
     return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
   }
 
   // ── Protect /delivery and /delivery/* routes ──────────────────────────
   if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
-    const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
     }
@@ -128,7 +122,7 @@ export async function middleware(request: NextRequest) {
       const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role === 'delivery_agent') return supabaseResponse
     } catch {
-      // fall through to redirect
+      return NextResponse.redirect(new URL('/login/delivery', request.url))
     }
 
     return NextResponse.redirect(new URL('/login/delivery', request.url))
@@ -136,7 +130,6 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /customer and /customer/* routes ────────────────────────
   if (pathname.startsWith('/customer') && !pathname.startsWith('/login/customer')) {
-    const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -153,7 +146,7 @@ export async function middleware(request: NextRequest) {
       const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role === 'customer') return supabaseResponse
     } catch {
-      // fall through to redirect
+      return NextResponse.redirect(new URL('/login', request.url))
     }
 
     return NextResponse.redirect(new URL('/login', request.url))
