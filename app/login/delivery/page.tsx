@@ -95,26 +95,26 @@ export default function DeliveryLoginPage() {
     // Check if agent is approved, active and has documents
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).single()
-      
+      const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).maybeSingle()
+
       if (!agent) {
         router.push('/delivery/register')
         return
       }
 
-      // Check documents uploaded
+      // No docs yet → go to documents upload
       if (!agent.aadhar_url) {
         router.push('/login/delivery/register/documents')
         return
       }
 
-      // Admin approved → go to dashboard
+      // Approved + active + has docs → dashboard
       if (agent.is_approved && agent.is_active) {
         router.push('/delivery')
         return
       }
 
-      // Docs uploaded but still pending approval
+      // Docs uploaded but still pending approval → status page
       router.push('/login/status')
       return
     }
