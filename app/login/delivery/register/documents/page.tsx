@@ -89,7 +89,10 @@ export default function DeliveryDocumentsPage() {
       const path = `${userId}/${docType}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('agent-documents').upload(path, file)
       if (uploadError) {
-        alert('Upload failed: ' + uploadError.message)
+        const msg = uploadError.message.includes('row-level security') 
+          ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
+          : uploadError.message
+        alert('Upload failed: ' + msg)
         setUploading(false)
         return null
       }
@@ -97,7 +100,10 @@ export default function DeliveryDocumentsPage() {
       setUploading(false)
       return publicUrl
     } catch (err: any) {
-      alert('Upload failed: ' + err.message)
+      const msg = err.message?.includes('row-level security') 
+        ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
+        : err.message
+      alert('Upload failed: ' + msg)
       setUploading(false)
       return null
     }
