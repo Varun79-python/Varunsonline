@@ -291,13 +291,14 @@ function RegisterForm() {
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <div style={{ background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16 }}>✅</div>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Step 1 Complete!</h2>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Registration Complete!</h2>
           <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
-            Your basic details have been saved.<br/><br/>
-            <strong>Please add your documents now</strong> to complete registration.
+            Your registration has been submitted.<br/><br/>
+            <strong>Admin will verify and approve your account.</strong><br/><br/>
+            You'll receive a notification once approved.
           </p>
           <button 
-            onClick={() => { setShowSuccessPopup(false); router.push('/register-documents') }} 
+            onClick={() => { setShowSuccessPopup(false); router.push('/login') }} 
             style={{ 
               width: '100%', 
               padding: '14px', 
@@ -310,7 +311,7 @@ function RegisterForm() {
               fontSize: '1rem'
             }}
           >
-            📄 Add Documents
+            Go to Login
           </button>
         </div>
       </div>
@@ -329,16 +330,11 @@ function RegisterForm() {
       <div style={{ maxWidth: 500, margin: '0 auto 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'white', padding: '12px 20px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 24, height: 24, borderRadius: 12, background: userType ? '#22c55e' : '#e2e8f0', color: 'white', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
-            <span style={{ fontSize: '0.85rem', color: userType ? '#374151' : '#94a3b8', fontWeight: 600 }}>Basic Details</span>
-          </div>
-          <div style={{ width: 30, height: 2, background: '#e2e8f0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 24, height: 24, borderRadius: 12, background: '#e2e8f0', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
-            <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Documents</span>
+            <span style={{ width: 24, height: 24, borderRadius: 12, background: userType ? '#22c55e' : '#e2e8f0', color: 'white', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+            <span style={{ fontSize: '0.85rem', color: userType ? '#374151' : '#94a3b8', fontWeight: 600 }}>Basic Details Only</span>
           </div>
         </div>
-        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>2 Steps to Complete Registration</div>
+        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#64748b' }}>1 Step - Quick Registration</div>
       </div>
 
       {(checkingExisting || existingMessage) && (
@@ -530,7 +526,7 @@ function RegisterForm() {
                 boxShadow: saving ? 'none' : userType === 'shopkeeper' ? '0 4px 16px rgba(249,115,22,0.3)' : '0 4px 16px rgba(34,197,94,0.3)'
               }}
             >
-              {saving ? 'Submitting...' : 'Proceed to Step 2'}
+              {saving ? 'Submitting...' : 'Complete Registration'}
             </button>
 
             <button 
