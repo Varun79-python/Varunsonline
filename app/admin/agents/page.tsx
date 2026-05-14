@@ -119,8 +119,56 @@ export default function AdminAgents() {
     doAction(agent.id, 'deactivate', reason.trim())
   }
 
+  // Signed URL cache for private docs
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+
+  async function getSignedUrl(bucket: string, path: string): Promise<string> {
+    const cacheKey = `${bucket}:${path}`
+    if (signedUrls[cacheKey]) return signedUrls[cacheKey]
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`, { headers: authHeader })
+      const data = await res.json()
+      if (data.url) {
+        setSignedUrls(prev => ({ ...prev, [cacheKey]: data.url }))
+        return data.url
+      }
+    } catch (err) { console.error('Sign URL error:', err) }
+    return ''
+  }
+
   // Document preview component
-  const DocPreview = ({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) => {
+  function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
+    const [displayUrl, setDisplayUrl] = useState<string>('')
+    const [signing, setSigning] = useState(false)
+
+    useEffect(() => {
+      if (!url) { setDisplayUrl(''); return }
+      // If url is a full signed URL already, use it
+      if (url.includes('signed=') || url.includes('?token=')) {
+        setDisplayUrl(url)
+        return
+      }
+      // Extract bucket and path from Supabase storage URL
+      const match = url.match(/storage\.supabase\.co.*\/v1\/object\/(public\/)?([^?]+)/i)
+      if (match) {
+        const bucket = match[2]?.split('/')[0] || ''
+        const path = match[2]?.slice(bucket.length + 1) || ''
+        if (bucket && path) {
+          setSigning(true)
+          getSignedUrl(bucket, path).then(signed => {
+            setDisplayUrl(signed || url)
+            setSigning(false)
+          }).catch(() => { setDisplayUrl(url); setSigning(false) })
+        } else {
+          setDisplayUrl(url)
+        }
+      } else {
+        setDisplayUrl(url)
+      }
+    }, [url])
+
     if (!url) {
       return (
         <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 16, textAlign: 'center', color: '#dc2626', fontSize: '0.8rem' }}>
@@ -128,21 +176,32 @@ export default function AdminAgents() {
         </div>
       )
     }
+
     return (
       <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        <img 
-          src={url} 
-          alt={label}
-          style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
-          onClick={() => setPreviewImage(url)}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none'
-          }}
-        />
+        {signing ? (
+          <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 24, height: 24, border: '2px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontSize: '0.75rem' }}>Loading...</span>
+            </div>
+          </div>
+        ) : (
+          <img
+            src={displayUrl}
+            alt={label}
+            style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
+            onClick={() => displayUrl && setPreviewImage(displayUrl)}
+            onError={() => {
+              setDisplayUrl(url)
+            }}
+          />
+        )}
         <div style={{ padding: '8px 12px', background: '#f8fafc', textAlign: 'center' }}>
-          <button 
-            onClick={() => window.open(url, '_blank')}
-            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+          <button
+            onClick={() => displayUrl && window.open(displayUrl, '_blank')}
+            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: displayUrl ? 'pointer' : 'not-allowed', opacity: displayUrl ? 1 : 0.5 }}
+            disabled={!displayUrl}
           >
             ↗ View Full
           </button>
