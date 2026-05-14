@@ -140,6 +140,12 @@ export default function AdminAgents() {
   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
     const [displayUrl, setDisplayUrl] = useState<string>('')
     const [loading, setLoading] = useState(false)
+    const mountedRef = useRef(true)
+
+    useEffect(() => {
+      mountedRef.current = true
+      return () => { mountedRef.current = false }
+    }, [])
 
     useEffect(() => {
       if (!url) { setDisplayUrl(''); return }
@@ -151,8 +157,6 @@ export default function AdminAgents() {
       }
 
       // Extract bucket and path from Supabase storage URL
-      // Format: https://xxx.supabase.co/storage/v1/object/public/bucket/path
-      // or:     https://xxx.supabase.co/storage/v1/object/bucket/path (private)
       const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
       if (!match) {
         setDisplayUrl(url)
@@ -168,11 +172,15 @@ export default function AdminAgents() {
 
       setLoading(true)
       getSignedUrl(bucket, path).then(signed => {
-        setDisplayUrl(signed || url)
-        setLoading(false)
+        if (mountedRef.current) {
+          setDisplayUrl(signed || url)
+          setLoading(false)
+        }
       }).catch(() => {
-        setDisplayUrl(url)
-        setLoading(false)
+        if (mountedRef.current) {
+          setDisplayUrl(url)
+          setLoading(false)
+        }
       })
     }, [url])
 
