@@ -135,25 +135,33 @@ export default function DeliveryRegisterPage() {
     setSaving(true)
     
     try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
-      })
-      
-      if (signUpError) {
-        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-          setFormError('An account with this email already exists. Please login.')
-          setSaving(false)
-          return
+      let userId = ''
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        userId = session.user.id
+      } else {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+        })
+        
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            setFormError('An account with this email already exists. Please login.')
+            setSaving(false)
+            return
+          }
+          setFormError(signUpError.message); setSaving(false); return
         }
-        setFormError(signUpError.message); setSaving(false); return
+
+        if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
+        userId = signUpData.user.id
       }
 
-      if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
-
       const { error: agentError } = await supabase.from('delivery_agents').upsert({
-        id: signUpData.user.id,
+        id: userId,
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
@@ -167,7 +175,11 @@ export default function DeliveryRegisterPage() {
 
       if (agentError) { setFormError('Failed to submit: ' + agentError.message); setSaving(false); return }
       
-      setShowLoginPopup(true)
+      if (session?.user) {
+        router.push('/login/delivery/register/documents')
+      } else {
+        setShowLoginPopup(true)
+      }
     } catch (err: any) {
       setFormError('Error: ' + err.message)
     } finally {
