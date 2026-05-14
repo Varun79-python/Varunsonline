@@ -119,7 +119,7 @@ export default function ShopkeeperLoginPage() {
 
     if (!shop) {
       // No shop = redirect to register
-      router.push('/shopkeeper/register')
+      window.location.href = '/shopkeeper/register'
       return
     }
 
@@ -134,19 +134,19 @@ export default function ShopkeeperLoginPage() {
 
     if (!hasDocs) {
       // No docs yet → documents upload page
-      router.push('/login/shopkeeper/register/documents')
+      window.location.href = '/login/shopkeeper/register/documents'
       return
     }
 
     // ── Step 3: Check approval status ────────────────────────────
     if (shop.is_approved && shop.is_active) {
       // Fully approved → dashboard
-      router.push('/shopkeeper')
+      window.location.href = '/shopkeeper'
       return
     }
 
     // Pending approval → status page
-    router.push('/login/status')
+    window.location.href = '/login/status'
   }
 
   return (
