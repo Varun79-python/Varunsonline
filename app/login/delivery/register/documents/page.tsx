@@ -13,31 +13,41 @@ export default function DeliveryDocumentsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   
   const [aadharUrl, setAadharUrl] = useState('')
-  const [existingAadhar, setExistingAadhar] = useState('')
   const [error, setError] = useState('')
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        alert('Please login first')
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login/delivery')
+          return
+        }
+
+        const { data: agent } = await supabase
+          .from('delivery_agents')
+          .select('aadhar_url, id')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!agent) {
+          router.push('/delivery/register')
+          return
+        }
+
+        if (agent.aadhar_url) {
+          router.push('/login/status')
+          return
+        }
+
+        setUserId(user.id)
+        setLoading(false)
+      } catch (err) {
+        console.error('Auth check failed:', err)
         router.push('/login/delivery')
-        return
       }
-      
-      // Check if agent exists
-      const { data: agent } = await supabase.from('delivery_agents').select('aadhar_url').eq('id', user.id).single()
-      if (agent?.aadhar_url) {
-        // Already has documents - redirect to status
-        router.push('/login/status')
-        return
-      }
-      
-      setUserId(user.id)
-      setExistingAadhar(agent?.aadhar_url || '')
-      setLoading(false)
     }
     checkAuth()
   }, [router, supabase])
@@ -86,14 +96,16 @@ export default function DeliveryDocumentsPage() {
   }
 
   async function submit() {
-    if (!aadharUrl && !existingAadhar) { setError('Please upload Aadhaar Card'); return }
+    if (!aadharUrl) { setError('Please upload Aadhaar Card'); return }
+    if (!userId) { setError('Session expired. Please login again.'); return }
 
     setSaving(true)
-    const { error: updateError } = await supabase.from('delivery_agents').update({
-      aadhar_url: aadharUrl || existingAadhar
-    }).eq('id', userId)
+    const { error: updateError } = await supabase
+      .from('delivery_agents')
+      .update({ aadhar_url: aadharUrl })
+      .eq('id', userId)
 
-    if (updateError) { 
+    if (updateError) {
       setError('Failed to save: ' + updateError.message)
       setSaving(false)
       return
@@ -104,8 +116,10 @@ export default function DeliveryDocumentsPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
+      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 16 }} />
+      <p style={{ color: '#64748b' }}>Loading...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
