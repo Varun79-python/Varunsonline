@@ -42,61 +42,121 @@ export async function middleware(request: NextRequest) {
     "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.razorpay.com https://garxraczisrnmvvnotyu.supabase.co; frame-src https://checkout.razorpay.com;"
   )
 
-  // Only protect /admin routes
-  if (!pathname.startsWith('/admin')) {
-    return supabaseResponse
-  }
+  // ── Protect /admin routes ──────────────────────────────────────────────────
+  if (pathname.startsWith('/admin')) {
+    if (pathname === '/admin/login') return supabaseResponse
 
-  // Allow access to admin login page
-  if (pathname === '/admin/login') {
-    return supabaseResponse
-  }
-
-  // Get session from supabase server client - it handles cookie names correctly
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-  if (sessionError) {
-    console.error('Session error in middleware:', sessionError)
-  }
-
-  // If no session, redirect to login
-  if (!session?.user) {
-    return NextResponse.redirect(new URL('/admin/login', request.url))
-  }
-
-  const user = session.user
-
-  // Check if admin via email or profile role
-  const isAdminEmail = user.email === ADMIN_EMAIL
-  const metaRole = user.user_metadata?.role || user.app_metadata?.role
-
-  if (isAdminEmail || metaRole === 'admin') {
-    return supabaseResponse
-  }
-
-  // Check profile table for admin role (using service role to bypass RLS)
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const adminSupabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    })
-
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || profile.role !== 'admin') {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
-  } catch (profileError) {
-    console.error('Profile check error:', profileError)
-    // If profile table check fails due to RLS or other issues, allow if email matches
-    if (!isAdminEmail) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
+
+    const user = session.user
+    const isAdminEmail = user.email === ADMIN_EMAIL
+    const metaRole = user.user_metadata?.role || user.app_metadata?.role
+
+    if (isAdminEmail || metaRole === 'admin') return supabaseResponse
+
+    try {
+      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (!profile || profile.role !== 'admin') {
+        return NextResponse.redirect(new URL('/admin/login', request.url))
+      }
+    } catch {
+      if (!isAdminEmail) return NextResponse.redirect(new URL('/admin/login', request.url))
     }
+
+    return supabaseResponse
+  }
+
+  // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
+  if (pathname.startsWith('/shopkeeper')) {
+    // Allow /shopkeeper/register and /login/shopkeeper/register/documents (unauthenticated registration flow)
+    if (
+      pathname === '/shopkeeper/register' ||
+      pathname === '/login/shopkeeper' ||
+      pathname.startsWith('/login/shopkeeper/')
+    ) {
+      return supabaseResponse
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
+    }
+
+    const user = session.user
+    const metaRole = user.user_metadata?.role || user.app_metadata?.role
+
+    // Quick check via metadata
+    if (metaRole === 'shopkeeper') return supabaseResponse
+
+    // Deeper check via profiles table
+    try {
+      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const { data: profile } = await supabaseSvc.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle()
+      if (profile?.role === 'shopkeeper') return supabaseResponse
+    } catch (profileError) {
+      console.error('Profile check error in shopkeeper middleware:', profileError)
+    }
+
+    // Not a shopkeeper → redirect to login
+    return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
+  }
+
+  // ── Protect /delivery and /delivery/* routes ──────────────────────────
+  if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      return NextResponse.redirect(new URL('/login/delivery', request.url))
+    }
+
+    const user = session.user
+    const metaRole = user.user_metadata?.role || user.app_metadata?.role
+
+    if (metaRole === 'delivery_agent') return supabaseResponse
+
+    try {
+      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (profile?.role === 'delivery_agent') return supabaseResponse
+    } catch {
+      // fall through to redirect
+    }
+
+    return NextResponse.redirect(new URL('/login/delivery', request.url))
+  }
+
+  // ── Protect /customer and /customer/* routes ────────────────────────
+  if (pathname.startsWith('/customer') && !pathname.startsWith('/login/customer')) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    const user = session.user
+    const metaRole = user.user_metadata?.role || user.app_metadata?.role
+
+    if (metaRole === 'customer') return supabaseResponse
+
+    try {
+      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (profile?.role === 'customer') return supabaseResponse
+    } catch {
+      // fall through to redirect
+    }
+
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return supabaseResponse

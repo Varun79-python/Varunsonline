@@ -102,3 +102,28 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
   
   return { userId: user.id, agentId: agent.id }
 }
+
+export async function verifyCustomer(request: NextRequest): Promise<{ error?: string; userId?: string }> {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { error: 'No authorization header' }
+  }
+  
+  const token = authHeader.substring(7)
+  const supabase = createServiceClient()
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) {
+    return { error: 'Invalid token' }
+  }
+  
+  const metaRole = user.user_metadata?.role
+  if (metaRole === 'customer') return { userId: user.id }
+  
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'customer') {
+    return { error: 'Not authorized - customer access required' }
+  }
+  
+  return { userId: user.id }
+}
