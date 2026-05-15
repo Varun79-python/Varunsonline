@@ -3,6 +3,40 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+function generateCaptcha(length = 5): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+function CaptchaDisplay({ code }: { code: string }) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      justifyContent: 'center',
+      padding: '12px 16px',
+      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+      borderRadius: 10,
+      marginBottom: 12
+    }}>
+      {code.split('').map((char, i) => (
+        <span key={i} style={{
+          fontSize: '1.5rem',
+          fontWeight: 800,
+          color: ['#f97316', '#22c55e', '#3b82f6', '#f43f5e', '#a855f7'][i % 5],
+          fontFamily: 'monospace',
+          transform: `rotate(${[-5, 5, -3, 8, -2][i % 5]}deg)`,
+          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+        }}>{char}</span>
+      ))}
+    </div>
+  )
+}
+
 export default function ShopRegisterPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -12,8 +46,17 @@ export default function ShopRegisterPage() {
     phone_number: '',
     email: '',
     password: '',
+    shop_name: '',
+    gender: '',
   })
   const [error, setError] = useState('')
+  const [captcha, setCaptcha] = useState(() => generateCaptcha())
+  const [captchaInput, setCaptchaInput] = useState('')
+
+  async function refreshCaptcha() {
+    setCaptcha(generateCaptcha())
+    setCaptchaInput('')
+  }
 
   async function submit() {
     if (!form.full_name.trim()) { setError('Please enter Full Name'); return }
@@ -21,6 +64,14 @@ export default function ShopRegisterPage() {
     if (!form.email.trim()) { setError('Please enter Email'); return }
     if (!form.password.trim()) { setError('Please enter Password'); return }
     if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!form.shop_name.trim()) { setError('Please enter Shop Name'); return }
+    if (!form.gender) { setError('Please select Gender'); return }
+
+    if (captchaInput.toUpperCase() !== captcha) {
+      setError('Incorrect CAPTCHA. Please try again.')
+      refreshCaptcha()
+      return
+    }
 
     setSaving(true)
     setError('')
@@ -30,7 +81,7 @@ export default function ShopRegisterPage() {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper' } }
+        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper', gender: form.gender } }
       })
       
       if (signUpError) {
@@ -52,12 +103,25 @@ export default function ShopRegisterPage() {
 
       const userId = signUpData.user.id
 
-      // Create profile
+      // Create profile with gender
       await supabase.from('profiles').upsert({
         id: userId,
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
         role: 'shopkeeper',
+        gender: form.gender,
+      })
+
+      // Create shop
+      await supabase.from('shops').insert({
+        owner_id: userId,
+        full_name: form.full_name.trim(),
+        phone: form.phone_number.trim(),
+        email: form.email.trim(),
+        name: form.shop_name.trim(),
+        terms_accepted: true,
+        is_approved: false,
+        is_active: false,
       })
 
       // Sign in the user
@@ -67,7 +131,7 @@ export default function ShopRegisterPage() {
       })
 
       // Redirect to document upload page
-      router.push('/login/shopkeeper/documents')
+      router.push('/login/shopkeeper/register/documents')
     } catch (err: any) {
       setError('Error: ' + err.message)
     } finally {
@@ -81,7 +145,6 @@ export default function ShopRegisterPage() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏪</div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>Shopkeeper Registration</h1>
-          <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Register your shop to start selling</p>
         </div>
 
         {error && (
@@ -95,6 +158,16 @@ export default function ShopRegisterPage() {
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name *</label>
               <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Enter your full name" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Gender *</label>
+              <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: 'white' }}>
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
             </div>
 
             <div>
@@ -112,8 +185,29 @@ export default function ShopRegisterPage() {
               <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
 
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Name *</label>
+              <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="e.g. Ravi General Store" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <CaptchaDisplay code={captcha} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Enter CAPTCHA"
+                  value={captchaInput}
+                  onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+                  maxLength={5}
+                  required
+                  style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }}
+                />
+                <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
+              </div>
+            </div>
+
             <button onClick={submit} disabled={saving} style={{ padding: 16, background: saving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-              {saving ? 'Registering...' : 'Register Shop'}
+              {saving ? 'Registering...' : 'Register Shopkeeper'}
             </button>
           </div>
         </div>
