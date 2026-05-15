@@ -64,7 +64,7 @@ export default function AdminShops() {
       
       // Create a map of user_id to documents
       const docsMap = new Map<string, ShopDocument[]>()
-      allDocs?.forEach(doc => {
+      allDocs?.forEach((doc: ShopDocument) => {
         const existing = docsMap.get(doc.user_id) || []
         existing.push(doc)
         docsMap.set(doc.user_id, existing)
