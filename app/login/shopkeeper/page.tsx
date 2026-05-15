@@ -130,7 +130,7 @@ export default function ShopkeeperLoginPage() {
 
     if (!docs) {
       // No docs yet → documents upload page (NEW USER - need to upload docs)
-      window.location.href = '/login/shopkeeper/register/documents'
+      window.location.href = '/login/shopkeeper/documents'
       return
     }
 

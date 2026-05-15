@@ -81,7 +81,7 @@ export default function ShopRegisterPage() {
       })
 
       // Redirect to document upload page
-      router.push('/login/shopkeeper/register/documents')
+      router.push('/login/shopkeeper/documents')
     } catch (err: any) {
       setError('Error: ' + err.message)
     } finally {
