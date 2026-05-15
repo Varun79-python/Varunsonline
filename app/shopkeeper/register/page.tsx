@@ -74,6 +74,12 @@ export default function ShopRegisterPage() {
         is_active: false,
       })
 
+      // Sign in the user after registration
+      await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password,
+      })
+
       // Go directly to documents upload
       router.push('/login/shopkeeper/register/documents')
     } catch (err: any) {
