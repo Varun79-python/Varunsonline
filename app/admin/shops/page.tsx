@@ -71,7 +71,7 @@ export default function AdminShops() {
       })
 
       // Calculate pending (shops with docs but not approved)
-      const pendingShops = allShops?.filter(s => {
+      const pendingShops = allShops?.filter((s: Shop) => {
         const docs = docsMap.get(s.owner_id)
         return docs && docs.length > 0 && !s.is_approved && !s.rejection_reason
       }) || []
@@ -81,9 +81,9 @@ export default function AdminShops() {
       if (tab === 'pending') {
         filteredShops = pendingShops
       } else if (tab === 'active') {
-        filteredShops = allShops?.filter(s => s.is_approved && s.is_active) || []
+        filteredShops = allShops?.filter((s: Shop) => s.is_approved && s.is_active) || []
       } else if (tab === 'rejected') {
-        filteredShops = allShops?.filter(s => !s.is_approved && s.rejection_reason) || []
+        filteredShops = allShops?.filter((s: Shop) => !s.is_approved && s.rejection_reason) || []
       }
       
       if (mountedRef.current) {
