@@ -2,41 +2,35 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Shop {
-  id: string
+interface UnifiedShop {
+  id: string // shop.id or shop_documents.id
+  type: 'document' | 'shop'
+  user_id: string
   name: string
   full_name: string
+  phone: string
   email: string
   category: string
   city: string
-  phone: string
-  owner_id: string
   is_approved: boolean
   is_active: boolean
-  shop_image_url: string
-  terms_accepted: boolean
+  image_url: string
   rejection_reason: string | null
   created_at: string
   rating: number
   total_orders: number
-}
-
-interface ShopDocument {
-  id: string
-  doc_type: string
-  file_url: string
-  file_name: string
+  // Document specific
+  aadhar_url?: string
 }
 
 export default function AdminShops() {
   const supabase = createClient()
-  const [shops, setShops] = useState<Shop[]>([])
+  const [items, setItems] = useState<UnifiedShop[]>([])
   const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
-  const [shopDocs, setShopDocs] = useState<ShopDocument[]>([])
+  const [selectedItem, setSelectedItem] = useState<UnifiedShop | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [stats, setStats] = useState({ pendingShops: 0 })
+  const [stats, setStats] = useState({ pendingDocs: 0 })
   const [processing, setProcessing] = useState(false)
   
   const loadingRef = useRef(false)
@@ -50,28 +44,129 @@ export default function AdminShops() {
     setLoading(true)
     
     try {
-      // Get all shops
-      const { data: allShops } = await supabase
-        .from('shops')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const { count } = await supabase.from('shop_documents').select('id', { count: 'exact', head: true }).eq('status', 'pending')
       
-      // Get pending count (is_approved = false and no rejection reason OR documents not uploaded)
-      const pendingShops = allShops?.filter(s => !s.is_approved && !s.rejection_reason) || []
-      
-      let filteredShops = allShops || []
-      
+      let fetchedItems: UnifiedShop[] = []
+
       if (tab === 'pending') {
-        filteredShops = allShops?.filter(s => !s.is_approved && !s.rejection_reason) || []
-      } else if (tab === 'active') {
-        filteredShops = allShops?.filter(s => s.is_approved && s.is_active) || []
-      } else if (tab === 'rejected') {
-        filteredShops = allShops?.filter(s => !s.is_approved && s.rejection_reason) || []
+        const { data: docs } = await supabase
+          .from('shop_documents')
+          .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          
+        fetchedItems = (docs || []).map((doc: any) => ({
+          id: doc.id,
+          type: 'document',
+          user_id: doc.user_id,
+          name: 'Pending Registration',
+          full_name: doc.profiles?.full_name || 'Unknown',
+          phone: doc.profiles?.phone || 'Unknown',
+          email: '',
+          category: 'N/A',
+          city: 'N/A',
+          is_approved: false,
+          is_active: false,
+          image_url: doc.shop_photo_url,
+          aadhar_url: doc.aadhar_url,
+          rejection_reason: null,
+          created_at: doc.created_at,
+          rating: 0,
+          total_orders: 0
+        }))
+      } else if (tab === 'active' || tab === 'rejected' || tab === 'all') {
+        let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
+        if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
+        if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
+        
+        const { data: shops } = await q
+        
+        // Fetch rejected docs
+        let rejectedDocs: any[] = []
+        if (tab === 'rejected' || tab === 'all') {
+          const { data: rDocs } = await supabase.from('shop_documents')
+            .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
+            .eq('status', 'rejected')
+          rejectedDocs = rDocs || []
+        }
+
+        // Fetch approved docs (that haven't created a shop yet)
+        let approvedDocs: any[] = []
+        if (tab === 'active' || tab === 'all') {
+          const { data: aDocs } = await supabase.from('shop_documents')
+            .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
+            .eq('status', 'approved')
+          
+          // Filter out those who already have a shop
+          const shopOwnerIds = new Set((shops || []).map((s: any) => s.owner_id))
+          approvedDocs = (aDocs || []).filter((d: any) => !shopOwnerIds.has(d.user_id))
+        }
+
+        const mappedShops = (shops || []).map((shop: any) => ({
+          id: shop.id,
+          type: 'shop',
+          user_id: shop.owner_id,
+          name: shop.name,
+          full_name: shop.full_name || 'Unknown',
+          phone: shop.phone || 'Unknown',
+          email: shop.email || '',
+          category: shop.category || 'N/A',
+          city: shop.city || 'N/A',
+          is_approved: shop.is_approved,
+          is_active: shop.is_active,
+          image_url: shop.shop_image_url,
+          rejection_reason: shop.rejection_reason,
+          created_at: shop.created_at,
+          rating: shop.rating || 0,
+          total_orders: shop.total_orders || 0
+        }))
+        
+        const mappedRejectedDocs = rejectedDocs.map((doc: any) => ({
+          id: doc.id,
+          type: 'document',
+          user_id: doc.user_id,
+          name: 'Rejected Registration',
+          full_name: doc.profiles?.full_name || 'Unknown',
+          phone: doc.profiles?.phone || 'Unknown',
+          email: '',
+          category: 'N/A',
+          city: 'N/A',
+          is_approved: false,
+          is_active: false,
+          image_url: doc.shop_photo_url,
+          aadhar_url: doc.aadhar_url,
+          rejection_reason: 'Documents rejected',
+          created_at: doc.created_at,
+          rating: 0,
+          total_orders: 0
+        }))
+
+        const mappedApprovedDocs = approvedDocs.map((doc: any) => ({
+          id: doc.id,
+          type: 'document',
+          user_id: doc.user_id,
+          name: 'Approved (Pending Shop Creation)',
+          full_name: doc.profiles?.full_name || 'Unknown',
+          phone: doc.profiles?.phone || 'Unknown',
+          email: '',
+          category: 'N/A',
+          city: 'N/A',
+          is_approved: true,
+          is_active: true,
+          image_url: doc.shop_photo_url,
+          aadhar_url: doc.aadhar_url,
+          rejection_reason: null,
+          created_at: doc.created_at,
+          rating: 0,
+          total_orders: 0
+        }))
+
+        fetchedItems = [...mappedShops, ...mappedRejectedDocs, ...mappedApprovedDocs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       }
       
       if (mountedRef.current) {
-        setShops(filteredShops)
-        setStats({ pendingShops: pendingShops.length })
+        setItems(fetchedItems as UnifiedShop[])
+        setStats({ pendingDocs: count || 0 })
       }
     } catch (err) {
       console.error('Failed to load shops:', err)
@@ -87,124 +182,114 @@ export default function AdminShops() {
     if (!loadingRef.current) load() 
   }, [tab])
 
-  async function loadShopDocuments(shop: Shop) {
-    // Load documents using user_id (owner_id)
-    const { data } = await supabase
-      .from('shop_documents')
-      .select('*')
-      .eq('user_id', shop.owner_id)
-    setShopDocs(data || [])
-  }
-
-  function handleSelectShop(shop: Shop) {
-    setSelectedShop(shop)
+  function handleSelectShop(item: UnifiedShop) {
+    setSelectedItem(item)
     setRejectReason('')
-    loadShopDocuments(shop)
   }
 
-  async function approve(shopId: string) {
+  async function approve(item: UnifiedShop) {
     setProcessing(true)
-    await supabase.from('shops').update({ is_approved: true, is_active: true }).eq('id', shopId)
-    const shop = shops.find(s => s.id === shopId)
-    if (shop?.owner_id) {
+    if (item.type === 'document') {
+      await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
       await supabase.from('notifications').insert({ 
-        user_id: shop.owner_id, 
+        user_id: item.user_id, 
+        title: '🎉 Documents Approved!', 
+        body: 'Your documents have been approved. You can now access your dashboard and set up your shop!', 
+        type: 'shop_approved' 
+      })
+    } else {
+      await supabase.from('shops').update({ is_approved: true, is_active: true, rejection_reason: null }).eq('id', item.id)
+      await supabase.from('notifications').insert({ 
+        user_id: item.user_id, 
         title: '🎉 Shop Approved!', 
         body: 'Your shop has been approved. Start selling now!', 
         type: 'shop_approved' 
       })
     }
-    setShops(prev => prev.filter(s => s.id !== shopId))
-    setSelectedShop(null)
-    setShopDocs([])
+    setItems(prev => prev.filter(s => s.id !== item.id))
+    setSelectedItem(null)
     setProcessing(false)
+    load()
   }
 
-  async function rejectShop() {
-    if (!selectedShop) return
+  async function rejectItem() {
+    if (!selectedItem) return
     setProcessing(true)
-    await supabase.from('shops').update({ 
-      is_approved: false, 
-      is_active: false, 
-      rejection_reason: rejectReason || 'Your shop registration was rejected by admin.'
-    }).eq('id', selectedShop.id)
+    const reason = rejectReason || 'Your registration was rejected by admin.'
     
-    if (selectedShop.owner_id) {
-      await supabase.from('notifications').insert({ 
-        user_id: selectedShop.owner_id, 
-        title: '❌ Shop Registration Rejected', 
-        body: rejectReason || 'Your shop registration was rejected by admin.', 
-        type: 'shop_rejected' 
-      })
+    if (selectedItem.type === 'document') {
+      await supabase.from('shop_documents').update({ status: 'rejected' }).eq('id', selectedItem.id)
+    } else {
+      await supabase.from('shops').update({ 
+        is_approved: false, 
+        is_active: false, 
+        rejection_reason: reason
+      }).eq('id', selectedItem.id)
     }
     
-    setShops(prev => prev.filter(s => s.id !== selectedShop.id))
-    setSelectedShop(null)
-    setShopDocs([])
+    await supabase.from('notifications').insert({ 
+      user_id: selectedItem.user_id, 
+      title: '❌ Registration Rejected', 
+      body: reason, 
+      type: 'shop_rejected' 
+    })
+    
+    setItems(prev => prev.filter(s => s.id !== selectedItem.id))
+    setSelectedItem(null)
     setRejectReason('')
     setProcessing(false)
+    load()
   }
 
-  async function toggleActive(shop: Shop) {
-    await supabase.from('shops').update({ is_active: !shop.is_active }).eq('id', shop.id)
-    setShops(prev => prev.map(s => s.id === shop.id ? { ...s, is_active: !s.is_active } : s))
+  async function toggleActive(item: UnifiedShop) {
+    if (item.type === 'document') return
+    await supabase.from('shops').update({ is_active: !item.is_active }).eq('id', item.id)
+    setItems(prev => prev.map(s => s.id === item.id ? { ...s, is_active: !s.is_active } : s))
   }
 
-  async function reapproveShop(shop: Shop) {
-    if (!confirm(`Re-approve ${shop.name}? They will be able to start selling again.`)) return
+  async function reapproveShop(item: UnifiedShop) {
+    if (!confirm(`Re-approve ${item.name}?`)) return
     setProcessing(true)
-    await supabase.from('shops').update({ 
-      is_approved: true, 
-      is_active: true,
-      rejection_reason: null 
-    }).eq('id', shop.id)
-    
-    if (shop.owner_id) {
-      await supabase.from('notifications').insert({ 
-        user_id: shop.owner_id, 
-        title: '🎉 Shop Re-approved!', 
-        body: 'Your shop has been re-approved. Start selling now!', 
-        type: 'shop_approved' 
-      })
+    if (item.type === 'document') {
+      await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
+    } else {
+      await supabase.from('shops').update({ 
+        is_approved: true, 
+        is_active: true,
+        rejection_reason: null 
+      }).eq('id', item.id)
     }
+    
+    await supabase.from('notifications').insert({ 
+      user_id: item.user_id, 
+      title: '🎉 Registration Re-approved!', 
+      body: 'Your registration has been re-approved!', 
+      type: 'shop_approved' 
+    })
     
     setProcessing(false)
     load()
-    setSelectedShop(null)
+    setSelectedItem(null)
   }
 
-  async function deleteShopPermanently(shop: Shop) {
-    if (!confirm(`⚠️ PERMANENTLY DELETE ${shop.name}? This will:\n\n• Delete all shop data\n• Delete uploaded documents\n• Allow them to register again\n\nThis cannot be undone!`)) return
+  async function deleteShopPermanently(item: UnifiedShop) {
+    if (!confirm(`⚠️ PERMANENTLY DELETE ${item.name}? This cannot be undone!`)) return
     
     setProcessing(true)
     try {
-      // Delete shop documents from storage
-      const { data: docs } = await supabase.from('shop_documents').select('file_url').eq('shop_id', shop.id)
-      if (docs) {
-        for (const doc of docs) {
-          if (doc.file_url) {
-            try {
-              const pathMatch = doc.file_url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?[^/]+\/(.+)/i)
-              if (pathMatch) {
-                await supabase.storage.from('shop-documents').remove([pathMatch[1]])
-              }
-            } catch (e) { console.error('Delete file error:', e) }
-          }
-        }
+      if (item.type === 'document') {
+        // Delete documents
+        await supabase.from('shop_documents').delete().eq('id', item.id)
+      } else {
+        await supabase.from('shops').delete().eq('id', item.id)
       }
       
-      // Delete shop documents from database
-      await supabase.from('shop_documents').delete().eq('shop_id', shop.id)
-      
-      // Delete shop
-      await supabase.from('shops').delete().eq('id', shop.id)
-      
-      alert(`✅ Shop "${shop.name}" has been permanently deleted. They can now register again.`)
-      setSelectedShop(null)
+      alert(`✅ Deleted successfully.`)
+      setSelectedItem(null)
       load()
     } catch (err) {
       console.error('Delete error:', err)
-      alert('Failed to delete shop. Please try again.')
+      alert('Failed to delete. Please try again.')
     } finally {
       setProcessing(false)
     }
@@ -212,172 +297,118 @@ export default function AdminShops() {
 
   return (
     <div style={{ padding: '0 4px' }}>
-      {selectedShop && (
+      {selectedItem && (
         <div 
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
-          onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }}
+          onClick={() => { setSelectedItem(null); setRejectReason('') }}
         >
           <div 
             style={{ background: 'white', borderRadius: 16, padding: 0, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>📋 Shop Details</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>📋 {selectedItem.type === 'document' ? 'Registration Details' : 'Shop Details'}</h3>
               <button 
-                onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }}
+                onClick={() => { setSelectedItem(null); setRejectReason('') }}
                 style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
               >
                 ✕
               </button>
             </div>
             
-            {/* Modal Content */}
             <div style={{ padding: 20 }}>
-              {selectedShop.shop_image_url && (
-                <div style={{ marginBottom: 16 }}>
-                  <img src={selectedShop.shop_image_url} alt="Shop" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 12 }} />
-                </div>
-              )}
-              
-              {/* Documents Section */}
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: 12, color: '#0f172a' }}>📄 Uploaded Documents</h4>
-                {shopDocs.length === 0 ? (
-                  <div style={{ background: '#fef3c7', padding: 12, borderRadius: 8, fontSize: '0.85rem', color: '#92400e' }}>
-                    No documents uploaded yet
-                  </div>
-                ) : (
+              {selectedItem.type === 'document' ? (
+                <div style={{ marginBottom: 20 }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: 12, color: '#0f172a' }}>📄 Uploaded Documents</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {shopDocs.map(doc => (
-                      <div key={doc.id} style={{ background: '#f8fafc', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                        <div style={{ padding: '8px 12px', background: '#f1f5f9', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                          {doc.file_name || doc.doc_type}
-                        </div>
-                        {doc.file_url && (
-                          <div style={{ padding: 8 }}>
-                            <img 
-                              src={doc.file_url} 
-                              alt={doc.doc_type}
-                              style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 6, background: '#fff' }}
-                            />
-                            <a 
-                              href={doc.file_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              style={{ display: 'block', marginTop: 8, fontSize: '0.8rem', color: '#0ea5e9', textDecoration: 'underline' }}
-                            >
-                              🔗 Open Full Image
-                            </a>
-                          </div>
-                        )}
+                    <div style={{ background: '#f8fafc', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <div style={{ padding: '8px 12px', background: '#f1f5f9', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Shop Photo</div>
+                      <div style={{ padding: 8 }}>
+                        <img src={selectedItem.image_url} alt="Shop Photo" style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 6, background: '#fff' }} />
+                        <a href={selectedItem.image_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 8, fontSize: '0.8rem', color: '#0ea5e9', textDecoration: 'underline' }}>🔗 Open Full Image</a>
                       </div>
-                    ))}
+                    </div>
+                    <div style={{ background: '#f8fafc', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <div style={{ padding: '8px 12px', background: '#f1f5f9', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Aadhaar Card</div>
+                      <div style={{ padding: 8 }}>
+                        <img src={selectedItem.aadhar_url} alt="Aadhaar" style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 6, background: '#fff' }} />
+                        <a href={selectedItem.aadhar_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 8, fontSize: '0.8rem', color: '#0ea5e9', textDecoration: 'underline' }}>🔗 Open Full Image</a>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                selectedItem.image_url && (
+                  <div style={{ marginBottom: 16 }}>
+                    <img src={selectedItem.image_url} alt="Shop" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 12 }} />
+                  </div>
+                )
+              )}
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Full Name</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.full_name || '—'}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.full_name || '—'}</div>
                 </div>
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Phone</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.phone || '—'}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.phone || '—'}</div>
                 </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Email</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.email || '—'}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Shop Name</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.name || '—'}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Category</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.category || '—'}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>City</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedShop.city || '—'}</div>
-                </div>
+                {selectedItem.type === 'shop' && (
+                  <>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Shop Name</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.name || '—'}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Category</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.category || '—'}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>City</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.city || '—'}</div>
+                    </div>
+                  </>
+                )}
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Registration Date</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{new Date(selectedShop.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{new Date(selectedItem.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 </div>
               </div>
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Show rejection reason if exists */}
-                {selectedShop.rejection_reason && (
+                {selectedItem.rejection_reason && (
                   <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 8, fontSize: '0.85rem', color: '#dc2626' }}>
-                    ❌ Rejection Reason: <strong>{selectedShop.rejection_reason}</strong>
+                    ❌ Rejection Reason: <strong>{selectedItem.rejection_reason}</strong>
                   </div>
                 )}
                 
-                {/* Show reapprove button for inactive/deactivated shops */}
-                {selectedShop.is_approved && !selectedShop.is_active && (
-                  <button 
-                    onClick={() => reapproveShop(selectedShop)} 
-                    disabled={processing}
-                    style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}
-                  >
+                {selectedItem.is_approved && !selectedItem.is_active && selectedItem.type === 'shop' && (
+                  <button onClick={() => reapproveShop(selectedItem)} disabled={processing} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
                     ✅ Reapprove & Activate
                   </button>
                 )}
                 
-                {/* Show delete button for rejected shops */}
-                {selectedShop.rejection_reason && (
-                  <button 
-                    onClick={() => deleteShopPermanently(selectedShop)} 
-                    disabled={processing}
-                    style={{ padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}
-                  >
+                {selectedItem.rejection_reason && (
+                  <button onClick={() => deleteShopPermanently(selectedItem)} disabled={processing} style={{ padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
                     🗑️ Delete Permanently
                   </button>
                 )}
                 
-                {/* Show approve/reject buttons for pending shops */}
-                {!selectedShop.is_approved && !selectedShop.rejection_reason && (
+                {!selectedItem.is_approved && !selectedItem.rejection_reason && (
                   <>
-                    <button 
-                      onClick={() => approve(selectedShop.id)} 
-                      disabled={processing || shopDocs.length === 0}
-                      style={{ 
-                        padding: 14, 
-                        background: shopDocs.length === 0 ? '#94a3b8' : '#16a34a', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: 10, 
-                        fontWeight: 700, 
-                        cursor: shopDocs.length === 0 ? 'not-allowed' : 'pointer',
-                        opacity: shopDocs.length === 0 ? 0.6 : 1
-                      }}
-                    >
-                      {shopDocs.length === 0 ? '⏳ Waiting for Documents' : '✅ Approve Shop'}
+                    <button onClick={() => approve(selectedItem)} disabled={processing} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                      ✅ Approve
                     </button>
                     <div>
-                      <textarea 
-                        placeholder="Rejection reason (optional)" 
-                        value={rejectReason} 
-                        onChange={e => setRejectReason(e.target.value)} 
-                        style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} 
-                      />
-                      <button 
-                        onClick={rejectShop} 
-                        disabled={processing}
-                        style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        ❌ Reject Shop
+                      <textarea placeholder="Rejection reason (optional)" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', minHeight: 80, boxSizing: 'border-box', marginBottom: 10 }} />
+                      <button onClick={rejectItem} disabled={processing} style={{ width: '100%', padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                        ❌ Reject
                       </button>
                     </div>
                   </>
                 )}
-                <button 
-                  onClick={() => { setSelectedShop(null); setShopDocs([]); setRejectReason('') }} 
-                  style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
-                >
+                <button onClick={() => { setSelectedItem(null); setRejectReason('') }} style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>
               </div>
@@ -386,9 +417,8 @@ export default function AdminShops() {
         </div>
       )}
 
-      <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops</h2>
+      <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops & Registrations</h2>
       
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
         {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ 
@@ -396,71 +426,65 @@ export default function AdminShops() {
             background: tab === t ? '#f97316' : 'white', borderColor: tab === t ? '#f97316' : '#e2e8f0',
             color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
           }}>
-            {t.charAt(0).toUpperCase() + t.slice(1)} {t === 'pending' && stats.pendingShops > 0 && <span style={{ background: 'white', color: '#f97316', padding: '2px 6px', borderRadius: 10, marginLeft: 4 }}>{stats.pendingShops}</span>}
+            {t.charAt(0).toUpperCase() + t.slice(1)} {t === 'pending' && stats.pendingDocs > 0 && <span style={{ background: 'white', color: '#f97316', padding: '2px 6px', borderRadius: 10, marginLeft: 4 }}>{stats.pendingDocs}</span>}
           </button>
         ))}
       </div>
 
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {shops.length === 0 && (
+          {items.length === 0 && (
             <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏪</div>
-              <p style={{ color: '#64748b' }}>No shops found</p>
+              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>📋</div>
+              <p style={{ color: '#64748b' }}>No records found</p>
             </div>
           )}
-          {shops.map(shop => (
-            <div key={shop.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
+          {items.map(item => (
+            <div key={item.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
               <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                {shop.shop_image_url ? (
-                  <img src={shop.shop_image_url} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
+                {item.image_url ? (
+                  <img src={item.image_url} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🏪</div>
+                  <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📋</div>
                 )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{shop.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{shop.category} • {shop.city || 'N/A'}</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{item.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.type === 'document' ? 'Registration' : `${item.category} • ${item.city || 'N/A'}`}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  {!shop.is_approved ? (
+                  {!item.is_approved && !item.rejection_reason ? (
                     <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
-                  ) : shop.is_active ? (
-                    <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Active</span>
+                  ) : item.is_active || (item.type === 'document' && item.is_approved) ? (
+                    <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>{item.type === 'document' ? 'Approved' : 'Active'}</span>
                   ) : (
-                    <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Inactive</span>
+                    <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Inactive / Rejected</span>
                   )}
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                  👤 {shop.full_name || 'N/A'} • 📱 {shop.phone || 'N/A'}
+                  👤 {item.full_name || 'N/A'} • 📱 {item.phone || 'N/A'}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {!shop.is_approved && !shop.rejection_reason && (
-                    <button onClick={() => handleSelectShop(shop)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
+                  {!item.is_approved && !item.rejection_reason && (
+                    <button onClick={() => handleSelectShop(item)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
                   )}
-                  {shop.is_approved && (
-                    <button onClick={() => toggleActive(shop)} style={{ background: shop.is_active ? '#fef3c7' : '#dcfce7', color: shop.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                      {shop.is_active ? '⏸️ Pause' : '▶️ Activate'}
+                  {item.is_approved && item.type === 'shop' && (
+                    <button onClick={() => toggleActive(item)} style={{ background: item.is_active ? '#fef3c7' : '#dcfce7', color: item.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                      {item.is_active ? '⏸️ Pause' : '▶️ Activate'}
                     </button>
                   )}
-                  {/* Reapprove button for inactive/deactivated shops */}
-                  {shop.is_approved && !shop.is_active && (
-                    <button onClick={() => reapproveShop(shop)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                  {item.is_approved && !item.is_active && item.type === 'shop' && (
+                    <button onClick={() => reapproveShop(item)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
                       ✅ Reapprove
                     </button>
                   )}
-                  {/* Delete permanently button for rejected shops */}
-                  {shop.rejection_reason && (
-                    <button onClick={() => deleteShopPermanently(shop)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                  {item.rejection_reason && (
+                    <button onClick={() => deleteShopPermanently(item)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
                       🗑️ Delete
                     </button>
                   )}
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9', fontSize: '0.7rem', color: '#64748b' }}>
-                <span>📦 {shop.total_orders || 0} orders</span>
-                <span>⭐ {shop.rating > 0 ? shop.rating : 'N/A'}</span>
               </div>
             </div>
           ))}
