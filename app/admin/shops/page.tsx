@@ -50,16 +50,28 @@ export default function AdminShops() {
     setLoading(true)
     
     try {
-      const shopsCount = await supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false)
-      let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
-      if (tab === 'pending') q = q.eq('is_approved', false).is('rejection_reason', null)
-      else if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
-      else if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
-      const { data } = await q
+      // Get all shops
+      const { data: allShops } = await supabase
+        .from('shops')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      // Get pending count (is_approved = false and no rejection reason OR documents not uploaded)
+      const pendingShops = allShops?.filter(s => !s.is_approved && !s.rejection_reason) || []
+      
+      let filteredShops = allShops || []
+      
+      if (tab === 'pending') {
+        filteredShops = allShops?.filter(s => !s.is_approved && !s.rejection_reason) || []
+      } else if (tab === 'active') {
+        filteredShops = allShops?.filter(s => s.is_approved && s.is_active) || []
+      } else if (tab === 'rejected') {
+        filteredShops = allShops?.filter(s => !s.is_approved && s.rejection_reason) || []
+      }
       
       if (mountedRef.current) {
-        setShops(data || [])
-        setStats({ pendingShops: shopsCount.count || 0 })
+        setShops(filteredShops)
+        setStats({ pendingShops: pendingShops.length })
       }
     } catch (err) {
       console.error('Failed to load shops:', err)
@@ -75,18 +87,19 @@ export default function AdminShops() {
     if (!loadingRef.current) load() 
   }, [tab])
 
-  async function loadShopDocuments(shopId: string) {
+  async function loadShopDocuments(shop: Shop) {
+    // Load documents using user_id (owner_id)
     const { data } = await supabase
       .from('shop_documents')
       .select('*')
-      .eq('shop_id', shopId)
+      .eq('user_id', shop.owner_id)
     setShopDocs(data || [])
   }
 
   function handleSelectShop(shop: Shop) {
     setSelectedShop(shop)
     setRejectReason('')
-    loadShopDocuments(shop.id)
+    loadShopDocuments(shop)
   }
 
   async function approve(shopId: string) {
