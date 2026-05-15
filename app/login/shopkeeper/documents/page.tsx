@@ -11,7 +11,6 @@ export default function ShopDocumentsPage() {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
-  const [shopId, setShopId] = useState<string | null>(null)
 
   const [shopPhotoUrl, setShopPhotoUrl] = useState('')
   const [aadharUrl, setAadharUrl] = useState('')
@@ -37,29 +36,11 @@ export default function ShopDocumentsPage() {
         return
       }
 
-      const { data: shop, error: shopErr } = await supabase
-        .from('shops')
-        .select('id, name')
-        .eq('owner_id', user.id)
-        .maybeSingle()
-
-      if (shopErr) {
-        console.error('Shop query error:', shopErr)
-        setLoadError('Failed to load profile. Please try again.')
-        setLoading(false)
-        return
-      }
-
-      if (!shop) {
-        router.replace('/shopkeeper/register')
-        return
-      }
-
       // Check if documents already uploaded
       const { data: docs } = await supabase
         .from('shop_documents')
         .select('id')
-        .eq('shop_id', shop.id)
+        .eq('user_id', user.id)
         .maybeSingle()
 
       if (docs) {
@@ -67,7 +48,6 @@ export default function ShopDocumentsPage() {
         return
       }
 
-      setShopId(shop.id)
       setLoading(false)
     } catch (err: any) {
       console.error('Check auth error:', err)
@@ -142,16 +122,22 @@ export default function ShopDocumentsPage() {
   async function submit() {
     if (!shopPhotoUrl) { setError('Please upload Shop Photo'); return }
     if (!aadharUrl) { setError('Please upload Aadhaar Card'); return }
-    if (!shopId) { setError('Session expired. Please login again.'); return }
 
     setSaving(true)
     setError('')
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setError('Session expired. Please login again.')
+      setSaving(false)
+      return
+    }
 
     // Use API to bypass RLS
     const res = await fetch('/api/shopkeeper/update-documents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shopId, shopPhotoUrl, aadharUrl })
+      body: JSON.stringify({ userId: user.id, shopPhotoUrl, aadharUrl })
     })
 
     const data = await res.json()

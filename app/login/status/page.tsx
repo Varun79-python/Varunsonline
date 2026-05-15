@@ -7,7 +7,7 @@ export default function ApprovalStatusPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState<{approved: boolean, role: string, message: string, needsRegistration?: boolean} | null>(null)
+  const [status, setStatus] = useState<{approved: boolean, role: string, message: string, needsRegistration?: boolean, redirectUrl?: string} | null>(null)
 
   const checkApprovalStatus = useCallback(async () => {
     setLoading(true)
@@ -32,22 +32,41 @@ export default function ApprovalStatusPage() {
     }
 
     if (profile.role === 'shopkeeper') {
+      // 1. Check if shop is already created
       const { data: shop } = await supabase
         .from('shops')
         .select('is_approved, is_active, rejection_reason')
         .eq('owner_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!shop) {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'No shop found. Please complete registration.', needsRegistration: true })
-      } else if (shop.is_approved && shop.is_active) {
-        setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
-      } else if (shop.is_approved && !shop.is_active) {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is approved but not yet active. Please contact admin.' })
-      } else if (shop.rejection_reason) {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Registration rejected: ' + shop.rejection_reason })
+      if (shop) {
+        if (shop.is_approved && shop.is_active) {
+          setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
+        } else if (shop.is_approved && !shop.is_active) {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is approved but not yet active. Please contact admin.' })
+        } else if (shop.rejection_reason) {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'Registration rejected: ' + shop.rejection_reason })
+        } else {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is pending final activation.' })
+        }
       } else {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop registration is pending admin approval.' })
+        // 2. No shop yet. Check documents status
+        const { data: docs } = await supabase
+          .from('shop_documents')
+          .select('status')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!docs) {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/documents' })
+        } else if (docs.status === 'approved') {
+          // Allowed to enter dashboard to create shop!
+          setStatus({ approved: true, role: 'shopkeeper', message: 'Documents approved! You can now access your dashboard.' })
+        } else if (docs.status === 'rejected') {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents were rejected. Please contact support.' })
+        } else {
+          setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents are pending admin approval.' })
+        }
       }
     } else if (profile.role === 'delivery_agent') {
       const { data: agent } = await supabase
@@ -120,7 +139,7 @@ export default function ApprovalStatusPage() {
                     You haven't completed your registration yet.
                   </p>
                   <button 
-                    onClick={() => router.push(status.role === 'shopkeeper' ? '/shopkeeper/register' : '/delivery/register')}
+                    onClick={() => router.push(status.redirectUrl || (status.role === 'shopkeeper' ? '/shopkeeper/register' : '/delivery/register'))}
                     style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}
                   >
                     Complete Registration

@@ -106,9 +106,22 @@ export default function ShopkeeperLoginPage() {
       session = retry
     }
 
-    const user = session.user
+const user = session.user
 
-    // ── Step 1: Check if shop exists for this user ──────────────────
+    // ── Step 1: Check documents uploaded using user_id ──────────────────
+    const { data: docs } = await supabase
+      .from('shop_documents')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!docs) {
+      // No docs yet → documents upload page
+      window.location.href = '/login/shopkeeper/register/documents'
+      return
+    }
+
+    // ── Step 2: Check if shop exists and is approved ──────────────────
     const { data: shop } = await supabase
       .from('shops')
       .select('id, is_approved, is_active')
@@ -116,32 +129,19 @@ export default function ShopkeeperLoginPage() {
       .maybeSingle()
 
     if (!shop) {
-      // No shop = redirect to register (NEW USER flow)
+      // No shop yet → redirect to register to create shop
       window.location.href = '/shopkeeper/register'
-      return
-    }
-
-    // ── Step 2: Check documents uploaded ─────────────────────────
-    const { data: docs } = await supabase
-      .from('shop_documents')
-      .select('id')
-      .eq('shop_id', shop.id)
-      .maybeSingle()
-
-    if (!docs) {
-      // No docs yet → documents upload page (NEW USER - need to upload docs)
-      window.location.href = '/login/shopkeeper/documents'
       return
     }
 
     // ── Step 3: Check approval status ────────────────────────────
     if (shop.is_approved && shop.is_active) {
-      // Fully approved → dashboard (EXISTING USER - approved)
+      // Fully approved → dashboard
       window.location.href = '/shopkeeper'
       return
     }
 
-    // Pending approval → status page (EXISTING USER - waiting for approval)
+    // Pending or rejected → status page
     window.location.href = '/login/status'
   }
 

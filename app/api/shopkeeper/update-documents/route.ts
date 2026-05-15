@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { shopId, shopPhotoUrl, aadharUrl } = body
+    const { userId, shopPhotoUrl, aadharUrl } = body
 
-    if (!shopId || !shopPhotoUrl || !aadharUrl) {
+    if (!userId || !shopPhotoUrl || !aadharUrl) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     const { error } = await supabaseAdmin
       .from('shop_documents')
-      .insert({ shop_id: shopId, shop_photo_url: shopPhotoUrl, aadhar_url: aadharUrl })
+      .insert({ user_id: userId, shop_photo_url: shopPhotoUrl, aadhar_url: aadharUrl, status: 'pending' })
 
     if (error) {
       console.error('Insert error:', error)

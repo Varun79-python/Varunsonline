@@ -12,7 +12,6 @@ export default function ShopRegisterPage() {
     phone_number: '',
     email: '',
     password: '',
-    shop_name: '',
   })
   const [error, setError] = useState('')
 
@@ -22,7 +21,6 @@ export default function ShopRegisterPage() {
     if (!form.email.trim()) { setError('Please enter Email'); return }
     if (!form.password.trim()) { setError('Please enter Password'); return }
     if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
-    if (!form.shop_name.trim()) { setError('Please enter Shop Name'); return }
 
     setSaving(true)
     setError('')
@@ -60,18 +58,6 @@ export default function ShopRegisterPage() {
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
         role: 'shopkeeper',
-      })
-
-      // Create shop
-      await supabase.from('shops').insert({
-        owner_id: userId,
-        full_name: form.full_name.trim(),
-        phone: form.phone_number.trim(),
-        email: form.email.trim(),
-        name: form.shop_name.trim(),
-        terms_accepted: true,
-        is_approved: false,
-        is_active: false,
       })
 
       // Sign in the user
@@ -124,11 +110,6 @@ export default function ShopRegisterPage() {
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
               <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Name *</label>
-              <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="e.g. Ravi General Store" style={{ width: '100%', padding: '14px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
 
             <button onClick={submit} disabled={saving} style={{ padding: 16, background: saving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
