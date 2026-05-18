@@ -124,7 +124,10 @@ export async function middleware(request: NextRequest) {
       const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
         auth: { persistSession: false, autoRefreshToken: false }
       })
-      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const { data: profile, error: profileError } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (profileError) {
+        return NextResponse.redirect(new URL('/login/delivery', request.url))
+      }
       if (profile?.role === 'delivery_agent') return supabaseResponse
     } catch {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
