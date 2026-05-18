@@ -111,7 +111,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Protect /delivery and /delivery/* routes ──────────────────────────
-  if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
+  if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery') && pathname !== '/delivery/register') {
     if (!user) {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
     }

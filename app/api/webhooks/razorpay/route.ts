@@ -45,12 +45,11 @@ export async function POST(req: NextRequest) {
         const razorpay_order_id = payment.order_id
 
         // Fetch plan duration based on plan_type
-        const { data: plan } = await supabase.from('subscription_plans').select('price, features').eq('id', planId).single()
+        const { data: plan } = await supabase.from('subscription_plans').select('plan_type, fee_percent, monthly_fee, duration_days').eq('id', planId).single()
         if (!plan) { console.error('Plan not found:', planId); return NextResponse.json({ received: true }) }
 
         const now = new Date()
-        const planFeatures = plan.features || {}
-        const durationDays = planFeatures.duration_days || 30
+        const durationDays = plan.duration_days || 30
         const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
 
         // Check if subscription already activated (idempotency)
