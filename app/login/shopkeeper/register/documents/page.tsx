@@ -126,11 +126,13 @@ export default function ShopDocumentsPage() {
     setSaving(true)
     setError('')
 
-    // Save documents with user_id (not shop_id)
-    await supabase.from('shop_documents').insert([
-      { user_id: userId, doc_type: 'shop_photo', file_url: shopPhotoUrl, file_name: 'Shop Photo' },
-      { user_id: userId, doc_type: 'aadhar', file_url: aadharUrl, file_name: 'Aadhaar Card' },
-    ])
+    // Save documents with user_id (not shop_id) - using column names matching admin query
+    await supabase.from('shop_documents').insert({
+      user_id: userId,
+      shop_photo_url: shopPhotoUrl,
+      aadhar_url: aadharUrl,
+      status: 'pending'
+    })
 
     setDone(true)
     setSaving(false)
