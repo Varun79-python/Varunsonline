@@ -11,7 +11,7 @@
     },
     "openwork-ui": {
       "type": "remote",
-      "url": "http://127.0.0.1:59921/mcp"
+      "url": "http://127.0.0.1:50067/mcp"
     }
   },
   "default_agent": "openwork"

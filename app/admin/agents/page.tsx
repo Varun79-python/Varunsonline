@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getAdminAgents } from '@/app/admin/actions'
 
 interface Agent {
   id: string
@@ -47,10 +48,8 @@ export default function AdminAgents() {
     setLoading(true)
     
     try {
-      const { data } = await supabase
-        .from('delivery_agents')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const { data, error } = await getAdminAgents()
+      if (error) throw error
 
       if (!mountedRef.current) return
       
@@ -72,7 +71,7 @@ export default function AdminAgents() {
         loadingRef.current = false
       }
     }
-  }, [tab, supabase])
+  }, [tab])
 
   useEffect(() => { 
     if (!loadingRef.current) load() 

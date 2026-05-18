@@ -1,32 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getAdminStats } from '@/app/admin/actions'
 
 export default function AdminDashboard() {
-  const supabase = createClient()
   const [stats, setStats] = useState({ shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0, customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, pendingWithdrawals: 0, complaints: 0 })
   const [loading, setLoading] = useState(true)
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
 
   useEffect(() => {
     async function load() {
-      const today = new Date().toISOString().split('T')[0]
-      const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders, complaints] = await Promise.all([
-        supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', true),
-        supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
-        supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', true),
-        supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', false),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
-        supabase.from('orders').select('id', { count: 'exact', head: true }),
-        supabase.from('orders').select('id,admin_earning', { count: 'exact' }).gte('created_at', today).eq('payment_status', 'paid'),
-        supabase.from('withdraw_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(8),
-        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'open')
-      ])
-      const todayRev = (todayOrds.data || []).reduce((s: number, o: { admin_earning: number }) => s + (o.admin_earning || 0), 0)
-      setStats({ shops: shops.count || 0, pendingShops: pendShops.count || 0, agents: agents.count || 0, pendingAgents: pendAgents.count || 0, customers: customers.count || 0, orders: orders.count || 0, todayOrders: todayOrds.count || 0, todayRevenue: todayRev, totalRevenue: 0, pendingWithdrawals: withdrawals.count || 0, complaints: complaints.count || 0 })
-      setRecentOrders(recOrders.data || [])
-      setLoading(false)
+      try {
+        const { stats: fetchedStats, recentOrders: fetchedRecent } = await getAdminStats()
+        setStats(fetchedStats)
+        setRecentOrders(fetchedRecent)
+      } catch (err) {
+        console.error('Failed to load admin stats:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])

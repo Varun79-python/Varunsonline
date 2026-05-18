@@ -1,20 +1,28 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getAdminCustomers } from '@/app/admin/actions'
 
 export default function AdminCustomers() {
-  const supabase = createClient() as any
   const [customers, setCustomers] = useState<Record<string, unknown>[]>([])
   const [search, setSearch] = useState('')
   const [stats, setStats] = useState({ total: 0 })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!supabase) return
-    supabase.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false })
-      .then(({ data }: { data: any[] | null }) => {
+    async function load() {
+      setLoading(true)
+      try {
+        const { data, error } = await getAdminCustomers()
+        if (error) throw error
         setCustomers(data || [])
         setStats({ total: data?.length || 0 })
-      })
+      } catch (err) {
+        console.error('Failed to load customers:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
   const filtered = search ? customers.filter(c => (c.full_name as string)?.toLowerCase().includes(search.toLowerCase()) || (c.email as string)?.toLowerCase().includes(search.toLowerCase()) || (c.phone as string)?.includes(search)) : customers
