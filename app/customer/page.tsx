@@ -109,7 +109,7 @@ export default function CustomerHome() {
         ...s,
         distance: s.latitude && s.longitude
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
-      })).filter((s: Shop) => s.distance !== null && s.distance <= activeRadius)
+      })).filter((s: Shop) => s.distance !== null && (s.distance!) <= activeRadius)
 
       if (withDist.length === 0) {
         setShops([])
