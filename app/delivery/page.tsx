@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getReliableGPSPosition, type GPSLikeError } from '@/lib/gps'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
@@ -17,6 +18,7 @@ interface AvailOrder {
   shops: { name: string; city: string }; addresses: { city: string }
 }
 interface Agent { id: string; is_approved: boolean; is_available: boolean; wallet_balance: number; today_earnings: number; total_deliveries: number }
+type OrderUpdatePayload = { new?: { agent_id?: string }; old?: { agent_id?: string } }
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -88,60 +90,54 @@ export default function DeliveryDashboard() {
   }, [supabase])
 
   // Get agent's live GPS location
-  function refreshGPS(order: Order) {
-    if (!navigator.geolocation) return
+  async function refreshGPS(order: Order) {
     setGpsChecking(true)
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const lat = pos.coords.latitude
-        const lon = pos.coords.longitude
-        const acc = pos.coords.accuracy
-        setAgentLat(lat)
-        setAgentLon(lon)
-        // Distance to CUSTOMER (for delivery proximity lock)
-        if (order.address?.latitude > 0 && order.address?.longitude > 0) {
-          const d = getDistanceKm(lat, lon, order.address.latitude, order.address.longitude)
-          setDistToCustomer(parseFloat(d.toFixed(3)))
-        }
-        // Distance to SHOP (for pickup navigation)
-        if (order.shop?.latitude > 0 && order.shop?.longitude > 0) {
-          const ds = getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude)
-          setDistToShop(parseFloat(ds.toFixed(3)))
-        }
-        setGpsChecking(false)
-        if (acc > 100) {
-          showToast(`⚠️ Your GPS accuracy is poor (±${Math.round(acc)}m). Distance reading may be inaccurate.`, false)
-        }
-      },
-      err => {
-        setGpsChecking(false)
-        showToast('GPS failed: ' + (err.code === 1 ? 'Allow location access.' : 'Position unavailable.'), false)
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    )
+    try {
+      const pos = await getReliableGPSPosition()
+      const lat = pos.coords.latitude
+      const lon = pos.coords.longitude
+      const acc = pos.coords.accuracy
+      setAgentLat(lat)
+      setAgentLon(lon)
+      // Distance to CUSTOMER (for delivery proximity lock)
+      if (order.address?.latitude > 0 && order.address?.longitude > 0) {
+        const d = getDistanceKm(lat, lon, order.address.latitude, order.address.longitude)
+        setDistToCustomer(parseFloat(d.toFixed(3)))
+      }
+      // Distance to SHOP (for pickup navigation)
+      if (order.shop?.latitude > 0 && order.shop?.longitude > 0) {
+        const ds = getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude)
+        setDistToShop(parseFloat(ds.toFixed(3)))
+      }
+      if (acc > 100) {
+        showToast(`⚠️ Your GPS accuracy is poor (±${Math.round(acc)}m). Distance reading may be inaccurate.`, false)
+      }
+    } catch (err: unknown) {
+      const gpsError = err as GPSLikeError
+      showToast('GPS failed: ' + (gpsError.code === 1 ? 'Allow location access.' : 'Position unavailable.'), false)
+    } finally {
+      setGpsChecking(false)
+    }
   }
 
   useEffect(() => {
     if (!agentId) return
-    function pushGPS() {
-      if (!navigator.geolocation) return
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          const { latitude, longitude } = pos.coords
-          supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
-          if (activeOrder) {
-            setAgentLat(latitude); setAgentLon(longitude)
-            if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
-              setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
-            if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
-              setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
-          }
-        },
-        err => {
-          console.warn('Background GPS error:', err.code)
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      )
+    async function pushGPS() {
+      try {
+        const pos = await getReliableGPSPosition()
+        const { latitude, longitude } = pos.coords
+        supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
+        if (activeOrder) {
+          setAgentLat(latitude); setAgentLon(longitude)
+          if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
+            setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
+          if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
+            setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
+        }
+      } catch (err: unknown) {
+        const gpsError = err as GPSLikeError
+        console.warn('Background GPS error:', gpsError.code)
+      }
     }
     pushGPS()
     const interval = setInterval(pushGPS, 30000)
@@ -170,7 +166,7 @@ export default function DeliveryDashboard() {
       if (active) refreshGPS(active)
 
       channel = supabase.channel(`delivery-live-${user.id}`)
-      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload: any) => {
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload: OrderUpdatePayload) => {
         if (!mounted) return
         const act = await fetchActive(user.id)
         setActiveOrder(act)

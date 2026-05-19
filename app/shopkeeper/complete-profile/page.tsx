@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getReliableGPSPosition, type GPSLikeError } from '@/lib/gps'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 
@@ -100,38 +101,30 @@ export default function CompleteProfilePage() {
       setTimeout(() => {
         router.push('/shopkeeper')
       }, 2000)
-    } catch (err: any) {
-      setError('Error: ' + err.message)
+    } catch (err: unknown) {
+      setError('Error: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
       setSaving(false)
     }
   }
 
-  function getGPS() {
+  async function getGPS() {
     setGettingGPS(true)
-    if (!navigator.geolocation) {
-      alert('Geolocation not supported')
+    try {
+      const pos = await getReliableGPSPosition()
+      update('latitude', pos.coords.latitude)
+      update('longitude', pos.coords.longitude)
+      if (pos.coords.accuracy > 100) {
+        alert(`⚠️ GPS accuracy is low (±${Math.round(pos.coords.accuracy)}m). Location may be approximate.`)
+      }
+    } catch (err: unknown) {
+      const gpsError = err as GPSLikeError
+      if (gpsError.code === 1) alert('GPS: Permission denied')
+      else if (gpsError.code === 2) alert('GPS: Position unavailable')
+      else alert('GPS: Request timed out')
+    } finally {
       setGettingGPS(false)
-      return
     }
-    
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        update('latitude', pos.coords.latitude)
-        update('longitude', pos.coords.longitude)
-        setGettingGPS(false)
-        if (pos.coords.accuracy > 100) {
-          alert(`⚠️ GPS accuracy is low (±${Math.round(pos.coords.accuracy)}m). Location may be approximate.`)
-        }
-      },
-      err => {
-        setGettingGPS(false)
-        if (err.code === 1) alert('GPS: Permission denied')
-        else if (err.code === 2) alert('GPS: Position unavailable')
-        else alert('GPS: Request timed out')
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    )
   }
 
   if (loading) return (

@@ -77,6 +77,22 @@ export default function AdminShops() {
     setProcessing(true)
     if (item.type === 'document') {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
+      // Create shop with full approval when admin approves documents
+      const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
+      const existingShop = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
+      if (!existingShop) {
+        await supabase.from('shops').insert({
+          owner_id: item.user_id,
+          name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
+          full_name: profile?.full_name || '',
+          phone: profile?.phone || '',
+          email: profile?.email || '',
+          is_approved: true,
+          is_active: true,
+        })
+      } else {
+        await supabase.from('shops').update({ is_approved: true, is_active: true, rejection_reason: null }).eq('owner_id', item.user_id)
+      }
       await supabase.from('notifications').insert({ 
         user_id: item.user_id, 
         title: '🎉 Documents Approved!', 
@@ -138,6 +154,21 @@ export default function AdminShops() {
     setProcessing(true)
     if (item.type === 'document') {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
+      const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
+      const existingShop = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
+      if (!existingShop) {
+        await supabase.from('shops').insert({
+          owner_id: item.user_id,
+          name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
+          full_name: profile?.full_name || '',
+          phone: profile?.phone || '',
+          email: profile?.email || '',
+          is_approved: true,
+          is_active: true,
+        })
+      } else {
+        await supabase.from('shops').update({ is_approved: true, is_active: true, rejection_reason: null }).eq('owner_id', item.user_id)
+      }
     } else {
       await supabase.from('shops').update({ 
         is_approved: true, 
