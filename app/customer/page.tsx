@@ -75,6 +75,7 @@ export default function CustomerHome() {
       setGpsError(`📍 ${formatCustomerGPSError(error)}`)
       setShops([])
       setFiltered([])
+      setLoading(false)
     }
   }
 
