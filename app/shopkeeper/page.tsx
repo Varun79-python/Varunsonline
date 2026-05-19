@@ -71,29 +71,11 @@ export default function ShopkeeperDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!mounted || !user) return
 
-      const { data: shopData, error: shopError } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
+      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
       if (!mounted) return
-      if (shopError || !shopData) { 
-        // No shop yet — check documents status
-        const { data: docs } = await supabase
-          .from('shop_documents')
-          .select('status')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        
-        if (!docs || docs.status !== 'approved') {
-          // Not fully approved — redirect to status
-          window.location.href = '/login/status'
-          return
-        }
-        // Docs approved but no shop yet — should not happen, redirect
-        window.location.href = '/login/status'
-        return
-      }
       
-      // Check if profile is incomplete — redirect to complete-profile
-      if (!shopData.is_profile_complete) {
-        window.location.href = '/shopkeeper/complete-profile'
+      if (!shopData || !shopData.is_approved || !shopData.is_active) {
+        window.location.href = '/login/status'
         return
       }
       
@@ -105,11 +87,8 @@ export default function ShopkeeperDashboard() {
       if (shopData.subscription_expires_at) {
         const expiry = new Date(shopData.subscription_expires_at)
         if (expiry < new Date() && shopData.is_active) {
-          // Deactivate the shop
           await supabase.from('shops').update({ is_active: false, subscription_plan_id: null, subscription_fee_percent: 0 }).eq('id', shopData.id)
-          // Mark the subscription as inactive
-          await supabase.from('shop_subscriptions').update({ is_active: false })
-            .eq('shop_id', shopData.id).eq('is_active', true)
+          await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopData.id).eq('is_active', true)
           setShop(s => s ? { ...s, is_active: false } : s)
           showToast('⚠️ Your subscription has expired. Please renew to accept orders.', 'error')
         }

@@ -29,14 +29,13 @@ export default function ShopkeeperWallet() {
       
       const { data: shop } = await supabase
         .from('shops')
-        .select('wallet_balance, is_profile_complete')
+        .select('wallet_balance, is_approved, is_active')
         .eq('owner_id', user.id)
         .maybeSingle()
       
-      if (!shop) { router.replace('/login/status'); return }
-      if (!shop.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
       
-      if (shop) setBalance(shop.wallet_balance || 0)
+      setBalance(shop.wallet_balance || 0)
 
       const { data: t } = await supabase
         .from('wallet_transactions')

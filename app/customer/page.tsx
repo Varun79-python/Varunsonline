@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { formatCustomerGPSError, getCustomerGPSPosition } from '@/lib/customerGps'
 
 interface Shop {
   id: string; name: string; category: string; description: string
@@ -62,30 +63,16 @@ export default function CustomerHome() {
     if (data?.[0]) setRadiusKm(Number(data[0].value))
   }
 
-  function requestLocation() {
+  async function requestLocation() {
     setGpsAttempting(true)
     setGpsError(null)
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          setGpsAttempting(false)
-          loadShops(pos.coords.latitude, pos.coords.longitude)
-        },
-        err => {
-          setGpsAttempting(false)
-          let errMsg = '📍 GPS Required'
-          if (err.code === 1) errMsg = '📍 Enable location access in phone settings to see available shops'
-          else if (err.code === 2) errMsg = '📍 Location unavailable. Please try again or enable GPS.'
-          else if (err.code === 3) errMsg = '📍 Location request timed out. Please try again.'
-          setGpsError(errMsg)
-          setShops([])
-          setFiltered([])
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      )
-    } else {
+    try {
+      const pos = await getCustomerGPSPosition()
       setGpsAttempting(false)
-      setGpsError('📍 GPS not supported on this device. Cannot determine delivery area.')
+      loadShops(pos.coords.latitude, pos.coords.longitude)
+    } catch (error) {
+      setGpsAttempting(false)
+      setGpsError(`📍 ${formatCustomerGPSError(error)}`)
       setShops([])
       setFiltered([])
     }
@@ -98,7 +85,7 @@ export default function CustomerHome() {
       const activeRadius = radiusKm || 10
 
       // Only show shops if GPS coordinates are available
-      if (!lat || !lon) {
+      if (lat == null || lon == null) {
         setShops([])
         setFiltered([])
         setLoading(false)
@@ -107,7 +94,7 @@ export default function CustomerHome() {
 
       const withDist = data.map((s: Shop) => ({
         ...s,
-        distance: s.latitude && s.longitude
+        distance: s.latitude != null && s.longitude != null
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
       })).filter((s: Shop) => s.distance !== null && (s.distance!) <= activeRadius)
 

@@ -46,10 +46,9 @@ export default function ShopkeeperPlans() {
 
       const { data: shop } = await supabase
         .from('shops')
-        .select('id, subscription_plan_id, subscription_expires_at, is_profile_complete')
+        .select('id, subscription_plan_id, subscription_expires_at, is_approved, is_active')
         .eq('owner_id', user.id).maybeSingle()
-      if (!shop) { router.replace('/login/status'); return }
-      if (!shop.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
       setShopId(shop.id)
 
       // Load active subscription

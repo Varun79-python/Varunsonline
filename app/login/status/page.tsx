@@ -63,18 +63,7 @@ export default function ApprovalStatusPage() {
 
       if (shop) {
         if (shop.is_approved && shop.is_active) {
-          // Check if profile is complete
-          const { data: shopData } = await supabase
-            .from('shops')
-            .select('is_profile_complete')
-            .eq('owner_id', user.id)
-            .single()
-          
-          if (shopData && !shopData.is_profile_complete) {
-            setStatus({ approved: true, role: 'shopkeeper', message: 'Shop approved! Please complete your profile to start selling.', redirectUrl: '/shopkeeper/complete-profile' })
-          } else {
-            setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
-          }
+          setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
         } else if (shop.is_approved && !shop.is_active) {
           setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is approved but not yet active. Please contact admin.' })
         } else if (shop.rejection_reason) {

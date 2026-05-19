@@ -204,7 +204,15 @@ export default function ShopRegisterPage() {
         gender: form.gender,
       })
 
-      // Registration info collected. Shop creation now happens AFTER admin approves documents.
+      await supabase.from('shops').upsert({
+        owner_id: userId,
+        name: form.full_name.trim() + "'s Shop",
+        full_name: form.full_name.trim(),
+        phone: form.phone_number.trim(),
+        email: form.email.trim(),
+        is_approved: false,
+        is_active: false,
+      }, { onConflict: 'owner_id' })
 
       if (!isExistingUser) {
         setShowLoginPopup(true)

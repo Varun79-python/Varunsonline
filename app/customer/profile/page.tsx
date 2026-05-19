@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/lib/customerGps'
 
 const GENDER_OPTIONS = [
   { value: '', label: 'Select Gender' },
@@ -78,10 +79,20 @@ export default function CustomerProfile() {
     setEditForm({ label: (a.label as string) || 'Home', house_name: (a.house_name as string) || '', street_name: (a.street_name as string) || '', landmark: (a.landmark as string) || '', city: (a.city as string) || '', pincode: (a.pincode as string) || '', phone: (a.phone as string) || '', latitude: (a.latitude as number) || 0, longitude: (a.longitude as number) || 0 })
   }
 
-  function getEditGPS() {
+  async function getEditGPS() {
     setEditGPS(true)
     setEditGpsAccuracy(null)
-    navigator.geolocation.getCurrentPosition(pos => { setEditForm(f => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude })); setEditGpsAccuracy(pos.coords.accuracy); setEditGPS(false); if (pos.coords.accuracy > 100) alert(`⚠️ GPS accuracy is poor (±${Math.round(pos.coords.accuracy)}m)`) }, err => { setEditGPS(false); alert('GPS failed') }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 })
+    try {
+      const pos = await getCustomerGPSPosition()
+      const { latitude, longitude, accuracy } = pos.coords
+      setEditForm(f => ({ ...f, latitude, longitude }))
+      setEditGpsAccuracy(accuracy)
+      if (isPoorCustomerGPSAccuracy(accuracy)) alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m)`)
+    } catch (error) {
+      alert('GPS failed: ' + formatCustomerGPSError(error))
+    } finally {
+      setEditGPS(false)
+    }
   }
 
   async function saveEdit() {

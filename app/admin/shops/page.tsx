@@ -77,23 +77,10 @@ export default function AdminShops() {
     setProcessing(true)
     if (item.type === 'document') {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
-      // Get profile info for shop creation
-      const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).single()
-      // Create minimal shop entry — profile completion happens after approval
-      await supabase.from('shops').insert({
-        owner_id: item.user_id,
-        name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
-        full_name: profile?.full_name || '',
-        phone: profile?.phone || '',
-        email: profile?.email || '',
-        is_approved: true,
-        is_active: true,
-        is_profile_complete: false, // Shop must complete their profile
-      })
       await supabase.from('notifications').insert({ 
         user_id: item.user_id, 
         title: '🎉 Documents Approved!', 
-        body: 'Your documents have been approved. Please complete your shop profile to start selling!', 
+        body: 'Your documents have been approved. You can now access your dashboard and start selling!', 
         type: 'shop_approved' 
       })
     } else {
@@ -151,18 +138,6 @@ export default function AdminShops() {
     setProcessing(true)
     if (item.type === 'document') {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
-      // Auto-create shop on re-approval as well
-      const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).single()
-      await supabase.from('shops').upsert({
-        owner_id: item.user_id,
-        name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
-        full_name: profile?.full_name || '',
-        phone: profile?.phone || '',
-        email: profile?.email || '',
-        is_approved: true,
-        is_active: true,
-        is_profile_complete: false, // Must complete profile after re-approval
-      }, { onConflict: 'owner_id' })
     } else {
       await supabase.from('shops').update({ 
         is_approved: true, 

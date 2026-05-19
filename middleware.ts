@@ -80,11 +80,10 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow login pages and complete-profile — never redirect authenticated users back to login
+    // Allow login pages — never redirect authenticated users back to login
     if (
       pathname === '/login/shopkeeper' ||
-      pathname.startsWith('/login/shopkeeper/') ||
-      pathname === '/shopkeeper/complete-profile'
+      pathname.startsWith('/login/shopkeeper/')
     ) {
       return supabaseResponse
     }

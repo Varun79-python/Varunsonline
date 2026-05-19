@@ -21,9 +21,8 @@ export default function ProductsPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: shopData } = await supabase.from('shops').select('id, category, is_profile_complete').eq('owner_id', user.id).maybeSingle()
-      if (!shopData) { router.replace('/login/status'); return }
-      if (!shopData.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      const { data: shopData } = await supabase.from('shops').select('id, category, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
+      if (!shopData || !shopData.is_approved || !shopData.is_active) { router.replace('/login/status'); return }
       setShop(shopData)
       const { data } = await supabase.from('products').select('*').eq('shop_id', shopData.id).order('name')
       setProducts(data || [])

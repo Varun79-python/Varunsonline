@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/lib/customerGps'
 
 interface Address { id: string; label: string; house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }
 interface CartItem { product_id: string; name: string; price: number; quantity: number; shop_id: string; shop_name: string; image_url: string }
@@ -34,6 +35,21 @@ export default function CheckoutContent() {
   const [paymentMode, setPaymentMode] = useState<'online' | 'cod'>('online')
   const [codLoading, setCodLoading] = useState(false)
 
+  async function loadData() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const [addrRes, settingsRes] = await Promise.all([
+      supabase.from('addresses').select('*').eq('customer_id', user.id),
+      supabase.from('platform_settings').select('key,value').in('key', ['base_delivery_charge', 'platform_fee_percent'])
+    ])
+    setAddresses(addrRes.data || [])
+    if (addrRes.data?.length) setSelectedAddr(addrRes.data[0]?.id || '')
+    settingsRes.data?.forEach((s: { key: string; value: string }) => {
+      if (s.key === 'base_delivery_charge') setDeliveryCharge(Number(s.value))
+      if (s.key === 'platform_fee_percent') setPlatformFeePercent(Number(s.value))
+    })
+  }
+
   useEffect(() => {
     const savedCart = JSON.parse(localStorage.getItem('vo_cart') || '[]')
     setCart(savedCart)
@@ -52,40 +68,22 @@ export default function CheckoutContent() {
     }
   }, [])
 
-  async function loadData() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const [addrRes, settingsRes] = await Promise.all([
-      supabase.from('addresses').select('*').eq('customer_id', user.id),
-      supabase.from('platform_settings').select('key,value').in('key', ['base_delivery_charge', 'platform_fee_percent'])
-    ])
-    setAddresses(addrRes.data || [])
-    if (addrRes.data?.length) setSelectedAddr(addrRes.data[0]?.id || '')
-    settingsRes.data?.forEach((s: { key: string; value: string }) => {
-      if (s.key === 'base_delivery_charge') setDeliveryCharge(Number(s.value))
-      if (s.key === 'platform_fee_percent') setPlatformFeePercent(Number(s.value))
-    })
-  }
-
-  function getGPS() {
+  async function getGPS() {
     setGettingGPS(true)
     setGpsAccuracy(null)
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude, longitude, accuracy } = pos.coords
-        setAddr(a => ({ ...a, latitude, longitude }))
-        setGpsAccuracy(accuracy)
-        setGettingGPS(false)
-        if (accuracy > 100) {
-          alert(`GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
-        }
-      },
-      err => {
-        setGettingGPS(false)
-        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied — please allow location access.' : err.code === 2 ? 'Position unavailable.' : 'Timed out. Try again.'))
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    )
+    try {
+      const pos = await getCustomerGPSPosition()
+      const { latitude, longitude, accuracy } = pos.coords
+      setAddr(a => ({ ...a, latitude, longitude }))
+      setGpsAccuracy(accuracy)
+      if (isPoorCustomerGPSAccuracy(accuracy)) {
+        alert(`GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
+      }
+    } catch (error) {
+      alert('GPS failed: ' + formatCustomerGPSError(error))
+    } finally {
+      setGettingGPS(false)
+    }
   }
 
   async function saveAddress() {
@@ -230,25 +228,22 @@ setLoading(false)
     })
   }
 
-  function updateLocation() {
+  async function updateLocation() {
     setGettingGPS(true)
     setGpsAccuracy(null)
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude, longitude, accuracy } = pos.coords
-        setAddr(a => ({ ...a, latitude, longitude }))
-        setGpsAccuracy(accuracy)
-        setGettingGPS(false)
-        if (accuracy > 100) {
-          alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
-        }
-      },
-      err => {
-        setGettingGPS(false)
-        alert('GPS failed: ' + (err.code === 1 ? 'Permission denied — please allow location access.' : err.code === 2 ? 'Position unavailable.' : 'Timed out. Try again.'))
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-)
+    try {
+      const pos = await getCustomerGPSPosition()
+      const { latitude, longitude, accuracy } = pos.coords
+      setAddr(a => ({ ...a, latitude, longitude }))
+      setGpsAccuracy(accuracy)
+      if (isPoorCustomerGPSAccuracy(accuracy)) {
+        alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m). Move to an open area or near a window and try again for better accuracy.`)
+      }
+    } catch (error) {
+      alert('GPS failed: ' + formatCustomerGPSError(error))
+    } finally {
+      setGettingGPS(false)
+    }
   }
 
   async function createNewAddress(userId: string) {

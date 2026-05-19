@@ -48,9 +48,8 @@ export default function ShopkeeperOrderDetail() {
       if (!user) return
       setCurrentUserId(user.id)
 
-      const { data: shop } = await supabase.from('shops').select('id, owner_id, is_profile_complete').eq('owner_id', user.id).maybeSingle()
-      if (!shop) { router.replace('/login/status'); return }
-      if (!shop.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      const { data: shop } = await supabase.from('shops').select('id, owner_id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
+      if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
       setShopId(shop.id)
 
       const { data: o } = await supabase

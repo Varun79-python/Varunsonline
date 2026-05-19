@@ -142,28 +142,22 @@ const user = session.user
       return
     }
 
-    // ── Step 4: ONLY NOW check shops (docs are approved) ─────────────────
+    // ── Step 4: Check if shop exists ──────────────────────────────
     const { data: shop } = await supabase
       .from('shops')
-      .select('id, is_approved, is_active, is_profile_complete')
+      .select('id, is_approved, is_active')
       .eq('owner_id', user.id)
       .maybeSingle()
 
-    // If no shop yet (edge case) → status page
+    // If no shop yet → documents page
     if (!shop) {
-      window.location.href = '/login/status'
+      window.location.href = '/login/shopkeeper/documents'
       return
     }
 
-    // ── Step 5: Check approval and profile completion ─────────────────
+    // ── Step 5: Check approval ────────────────────────────────────
     if (shop.is_approved && shop.is_active) {
-      // Fully approved → check if profile is complete
-      if (!shop.is_profile_complete) {
-        // Profile not complete → complete profile page
-        window.location.href = '/shopkeeper/complete-profile'
-        return
-      }
-      // Profile complete → dashboard
+      // Fully approved → dashboard
       window.location.href = '/shopkeeper'
       return
     }
