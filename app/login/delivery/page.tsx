@@ -110,7 +110,7 @@ export default function DeliveryLoginPage() {
     const { data: agent } = await supabase.from('delivery_agents').select('is_approved, is_active, aadhar_url').eq('id', user.id).maybeSingle()
 
     if (!agent) {
-      router.push('/delivery/register')
+      router.push('/login/delivery/register')
       return
     }
 

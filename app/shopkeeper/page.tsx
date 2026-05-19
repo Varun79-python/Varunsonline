@@ -200,7 +200,7 @@ export default function ShopkeeperDashboard() {
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>🏪</div>
       <h2 style={{ marginBottom: 8 }}>No Shop Registered</h2>
       <p style={{ marginBottom: 24 }}>Register your shop to start selling online</p>
-      <a className="btn btn-primary" href="/shopkeeper/register">Register Shop →</a>
+      <a className="btn btn-primary" href="/login/shopkeeper/register">Register Shop →</a>
     </div>
   )
 

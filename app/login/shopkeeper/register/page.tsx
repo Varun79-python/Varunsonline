@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -41,6 +41,7 @@ export default function ShopRegisterPage() {
   const router = useRouter()
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
+  const [isExistingUser, setIsExistingUser] = useState(false)
   const [form, setForm] = useState({
     full_name: '',
     phone_number: '',
@@ -55,6 +56,33 @@ export default function ShopRegisterPage() {
   const [showTerms, setShowTerms] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
 
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setIsExistingUser(true)
+        setForm(f => ({
+          ...f,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || '',
+          // phone_number usually needs separate check in profiles if not in auth.users
+        }))
+        
+        // Also fetch from profiles to get phone number if available
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+        if (profile) {
+          setForm(f => ({
+            ...f,
+            full_name: profile.full_name || f.full_name,
+            phone_number: profile.phone || f.phone_number,
+            gender: profile.gender || f.gender,
+          }))
+        }
+      }
+    }
+    checkAuth()
+  }, [])
+
   async function refreshCaptcha() {
     setCaptcha(generateCaptcha())
     setCaptchaInput('')
@@ -64,8 +92,8 @@ export default function ShopRegisterPage() {
     if (!form.full_name.trim()) { setError('Please enter Full Name'); return }
     if (!form.phone_number.trim()) { setError('Please enter Phone Number'); return }
     if (!form.email.trim()) { setError('Please enter Email'); return }
-    if (!form.password.trim()) { setError('Please enter Password'); return }
-    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!isExistingUser && !form.password.trim()) { setError('Please enter Password'); return }
+    if (!isExistingUser && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
     if (!form.shop_name.trim()) { setError('Please enter Shop Name'); return }
     if (!form.gender) { setError('Please select Gender'); return }
     if (!agreedToTerms) { setError('Please agree to Terms & Conditions'); return }
@@ -80,31 +108,42 @@ export default function ShopRegisterPage() {
     setError('')
     
     try {
-      // Sign up user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper', gender: form.gender } }
-      })
+      let userId = ''
       
-      if (signUpError) {
-        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-          setError('An account with this email already exists. Please login.')
+      if (!isExistingUser) {
+        // Sign up user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper', gender: form.gender } }
+        })
+        
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            setError('An account with this email already exists. Please login.')
+            setSaving(false)
+            return
+          }
+          setError('Registration failed: ' + signUpError.message)
           setSaving(false)
           return
         }
-        setError('Registration failed: ' + signUpError.message)
-        setSaving(false)
-        return
-      }
 
-      if (!signUpData.user) {
-        setError('Failed to create account')
-        setSaving(false)
-        return
+        if (!signUpData.user) {
+          setError('Failed to create account')
+          setSaving(false)
+          return
+        }
+        userId = signUpData.user.id
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setError('Session expired. Please login again.')
+          setSaving(false)
+          return
+        }
+        userId = user.id
       }
-
-      const userId = signUpData.user.id
 
       // Create profile with gender
       await supabase.from('profiles').upsert({
@@ -126,11 +165,13 @@ export default function ShopRegisterPage() {
         is_active: false,
       })
 
-      // Sign in the user
-      await supabase.auth.signInWithPassword({
-        email: form.email.trim(),
-        password: form.password,
-      })
+      if (!isExistingUser) {
+        // Sign in the user if they were just created
+        await supabase.auth.signInWithPassword({
+          email: form.email.trim(),
+          password: form.password,
+        })
+      }
 
       // Redirect to document upload page
       router.push('/login/shopkeeper/register/documents')
@@ -170,13 +211,15 @@ export default function ShopRegisterPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
-            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            <input type="email" value={form.email} readOnly={isExistingUser} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: isExistingUser ? '#f1f5f9' : 'white' }} />
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-          </div>
+          {!isExistingUser && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+          )}
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Gender *</label>

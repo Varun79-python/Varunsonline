@@ -19,6 +19,7 @@ export default function DeliveryRegisterPage() {
   const [saving, setSaving] = useState(false)
   const [showLoginPopup, setShowLoginPopup] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isExistingAuth, setIsExistingAuth] = useState(false)
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
@@ -98,7 +99,22 @@ export default function DeliveryRegisterPage() {
     async function prefill() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        setForm(f => ({ ...f, email: user.email || '' }))
+        setIsExistingAuth(true)
+        setForm(f => ({ 
+          ...f, 
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || f.full_name
+        }))
+        
+        // Also fetch from profiles if available
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+        if (profile) {
+          setForm(f => ({
+            ...f,
+            full_name: profile.full_name || f.full_name,
+            phone: profile.phone || f.phone,
+          }))
+        }
       }
       setLoading(false)
     }
@@ -111,8 +127,8 @@ export default function DeliveryRegisterPage() {
 
     if (!form.full_name.trim()) { setFormError('Full Name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
-    if (!form.password.trim()) { setFormError('Password is required'); return }
-    if (form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
+    if (!isExistingAuth && !form.password.trim()) { setFormError('Password is required'); return }
+    if (!isExistingAuth && form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim() && form.vehicle_type !== 'Bicycle') { setFormError('Vehicle Number is required'); return }
@@ -121,26 +137,35 @@ export default function DeliveryRegisterPage() {
     setSaving(true)
     
     try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
-      })
+      let userId = ''
       
-      if (signUpError) {
-        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-          setFormError('An account with this email already exists. Please login.')
-          setSaving(false)
-          return
+      if (!isExistingAuth) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
+        })
+        
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+            setFormError('An account with this email already exists. Please login.')
+            setSaving(false)
+            return
+          }
+          setFormError(signUpError.message); setSaving(false); return
         }
-        setFormError(signUpError.message); setSaving(false); return
+
+        if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
+        userId = signUpData.user.id
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setFormError('Session expired. Please login again.'); setSaving(false); return }
+        userId = user.id
       }
 
-      if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
-
       const { error: agentError } = await supabase.from('delivery_agents').upsert({
-        id: signUpData.user.id,
-full_name: form.full_name.trim(),
+        id: userId,
+        full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
         vehicle_type: form.vehicle_type,
@@ -153,7 +178,11 @@ full_name: form.full_name.trim(),
 
       if (agentError) { setFormError('Failed to submit: ' + agentError.message); setSaving(false); return }
       
-      setShowLoginPopup(true)
+      if (!isExistingAuth) {
+        setShowLoginPopup(true)
+      } else {
+        router.push('/login/delivery/register/documents')
+      }
     } catch (err: any) {
       setFormError('Error: ' + err.message)
     } finally {
@@ -225,13 +254,15 @@ full_name: form.full_name.trim(),
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
-            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            <input type="email" value={form.email} readOnly={isExistingAuth} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: isExistingAuth ? '#f1f5f9' : 'white' }} />
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-          </div>
+          {!isExistingAuth && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+            </div>
+          )}
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Phone Number *</label>

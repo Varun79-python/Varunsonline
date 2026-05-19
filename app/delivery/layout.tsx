@@ -26,7 +26,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
   useEffect(() => {
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (pathname === '/delivery/register') {
+      if (pathname === '/login/delivery/register') {
         if (user) { router.replace('/delivery'); return }
         setChecking(false); return
       }

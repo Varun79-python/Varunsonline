@@ -56,132 +56,185 @@ export async function getAdminStats() {
 }
 
 export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'all') {
-  const supabase = await createAdminClient()
-  
-  // Get pending count for stats
-  const { count: pendingCount } = await supabase
-    .from('shop_documents')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'pending')
-
-  let fetchedItems: any[] = []
-
-  if (tab === 'pending') {
-    const { data: docs, error } = await supabase
+  try {
+    const supabase = await createAdminClient()
+    
+    // Get pending count for stats
+    const { count: pendingCount } = await supabase
       .from('shop_documents')
-      .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
+      .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
 
-    fetchedItems = (docs || []).map((doc: any) => ({
-      id: doc.id,
-      type: 'document',
-      user_id: doc.user_id,
-      name: 'Pending Registration',
-      full_name: doc.profiles?.full_name || 'Unknown',
-      phone: doc.profiles?.phone || 'Unknown',
-      email: '',
-      category: 'N/A',
-      city: 'N/A',
-      is_approved: false,
-      is_active: false,
-      image_url: doc.shop_photo_url,
-      aadhar_url: doc.aadhar_url,
-      rejection_reason: null,
-      created_at: doc.created_at,
-      rating: 0,
-      total_orders: 0
-    }))
-  } else {
-    let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
-    if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
-    if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
-    
-    const { data: shops } = await q
-    
-    // Fetch rejected docs
-    let rejectedDocs: any[] = []
-    if (tab === 'rejected' || tab === 'all') {
-      const { data: rDocs } = await supabase.from('shop_documents')
-        .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
-        .eq('status', 'rejected')
-      rejectedDocs = rDocs || []
-    }
+    let fetchedItems: any[] = []
 
-    // Fetch approved docs (that haven't created a shop yet)
-    let approvedDocs: any[] = []
-    if (tab === 'active' || tab === 'all') {
-      const { data: aDocs } = await supabase.from('shop_documents')
-        .select('id, user_id, status, shop_photo_url, aadhar_url, created_at, profiles(full_name, phone)')
-        .eq('status', 'approved')
+    if (tab === 'pending') {
+      // Get documents without join first
+      const { data: docs, error } = await supabase
+        .from('shop_documents')
+        .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
       
-      const shopOwnerIds = new Set((shops || []).map((s: any) => s.owner_id))
-      approvedDocs = (aDocs || []).filter((d: any) => !shopOwnerIds.has(d.user_id))
+      if (error) throw error
+
+      // Get user IDs to fetch profiles
+      const userIds = docs?.map(d => d.user_id).filter(Boolean) || []
+      let profileMap: Record<string, any> = {}
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone')
+          .in('id', userIds)
+        
+        profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
+      }
+
+      fetchedItems = (docs || []).map((doc: any) => ({
+        id: doc.id,
+        type: 'document',
+        user_id: doc.user_id,
+        name: 'Pending Registration',
+        full_name: profileMap[doc.user_id]?.full_name || 'Unknown',
+        phone: profileMap[doc.user_id]?.phone || 'Unknown',
+        email: '',
+        category: 'N/A',
+        city: 'N/A',
+        is_approved: false,
+        is_active: false,
+        image_url: doc.shop_photo_url,
+        aadhar_url: doc.aadhar_url,
+        rejection_reason: null,
+        created_at: doc.created_at,
+        rating: 0,
+        total_orders: 0
+      }))
+    } else {
+      let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
+      if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
+      if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
+      
+      const { data: shops } = await q
+      
+      // Fetch rejected docs
+      let rejectedDocs: any[] = []
+      if (tab === 'rejected' || tab === 'all') {
+        const { data: rDocs } = await supabase.from('shop_documents')
+          .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
+          .eq('status', 'rejected')
+        
+        // Get profiles for these docs
+        const rejectedUserIds = (rDocs || []).map(d => d.user_id).filter(Boolean)
+        let profileMap: Record<string, any> = {}
+        if (rejectedUserIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', rejectedUserIds)
+          profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
+        }
+        
+        rejectedDocs = (rDocs || []).map((doc: any) => ({
+          ...doc,
+          profiles: profileMap[doc.user_id] || null
+        }))
+      }
+
+      // Fetch approved docs (that haven't created a shop yet)
+      let approvedDocs: any[] = []
+      if (tab === 'active' || tab === 'all') {
+        const { data: aDocs } = await supabase.from('shop_documents')
+          .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
+          .eq('status', 'approved')
+        
+        const shopOwnerIds = new Set((shops || []).map((s: any) => s.owner_id))
+        
+        // Get profiles for remaining docs
+        const approvedUserIds = (aDocs || []).map(d => d.user_id).filter(Boolean)
+        let profileMap: Record<string, any> = {}
+        if (approvedUserIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', approvedUserIds)
+          profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
+        }
+        
+        approvedDocs = (aDocs || []).filter((d: any) => !shopOwnerIds.has(d.user_id)).map((doc: any) => ({
+          ...doc,
+          profiles: profileMap[doc.user_id] || null
+        }))
+      }
+
+      const mappedShops = (shops || []).map((shop: any) => ({
+        id: shop.id,
+        type: 'shop',
+        user_id: shop.owner_id,
+        name: shop.name,
+        full_name: shop.full_name || 'Unknown',
+        phone: shop.phone || 'Unknown',
+        email: shop.email || '',
+        category: shop.category || 'N/A',
+        city: shop.city || 'N/A',
+        is_approved: shop.is_approved,
+        is_active: shop.is_active,
+        image_url: shop.shop_image_url,
+        rejection_reason: shop.rejection_reason,
+        created_at: shop.created_at,
+        rating: shop.rating || 0,
+        total_orders: shop.total_orders || 0
+      }))
+      
+      const mappedRejectedDocs = rejectedDocs.map((doc: any) => {
+        const profile = doc.profiles
+        return {
+          id: doc.id,
+          type: 'document',
+          user_id: doc.user_id,
+          name: 'Rejected Registration',
+          full_name: profile?.full_name || 'Unknown',
+          phone: profile?.phone || 'Unknown',
+          email: '',
+          category: 'N/A',
+          city: 'N/A',
+          is_approved: false,
+          is_active: false,
+          image_url: doc.shop_photo_url,
+          aadhar_url: doc.aadhar_url,
+          rejection_reason: 'Documents rejected',
+          created_at: doc.created_at,
+          rating: 0,
+          total_orders: 0
+        }
+      })
+
+      const mappedApprovedDocs = approvedDocs.map((doc: any) => {
+        const profile = doc.profiles
+        return {
+          id: doc.id,
+          type: 'document',
+          user_id: doc.user_id,
+          name: 'Approved (Pending Shop Creation)',
+          full_name: profile?.full_name || 'Unknown',
+          phone: profile?.phone || 'Unknown',
+          email: '',
+          category: 'N/A',
+          city: 'N/A',
+          is_approved: true,
+          is_active: true,
+          image_url: doc.shop_photo_url,
+          aadhar_url: doc.aadhar_url,
+          rejection_reason: null,
+          created_at: doc.created_at,
+          rating: 0,
+          total_orders: 0
+        }
+      })
+
+      fetchedItems = [...mappedShops, ...mappedRejectedDocs, ...mappedApprovedDocs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     }
 
-    const mappedShops = (shops || []).map((shop: any) => ({
-      id: shop.id,
-      type: 'shop',
-      user_id: shop.owner_id,
-      name: shop.name,
-      full_name: shop.full_name || 'Unknown',
-      phone: shop.phone || 'Unknown',
-      email: shop.email || '',
-      category: shop.category || 'N/A',
-      city: shop.city || 'N/A',
-      is_approved: shop.is_approved,
-      is_active: shop.is_active,
-      image_url: shop.shop_image_url,
-      rejection_reason: shop.rejection_reason,
-      created_at: shop.created_at,
-      rating: shop.rating || 0,
-      total_orders: shop.total_orders || 0
-    }))
-    
-    const mappedRejectedDocs = rejectedDocs.map((doc: any) => ({
-      id: doc.id,
-      type: 'document',
-      user_id: doc.user_id,
-      name: 'Rejected Registration',
-      full_name: doc.profiles?.full_name || 'Unknown',
-      phone: doc.profiles?.phone || 'Unknown',
-      email: '',
-      category: 'N/A',
-      city: 'N/A',
-      is_approved: false,
-      is_active: false,
-      image_url: doc.shop_photo_url,
-      aadhar_url: doc.aadhar_url,
-      rejection_reason: 'Documents rejected',
-      created_at: doc.created_at,
-      rating: 0,
-      total_orders: 0
-    }))
-
-    const mappedApprovedDocs = approvedDocs.map((doc: any) => ({
-      id: doc.id,
-      type: 'document',
-      user_id: doc.user_id,
-      name: 'Approved (Pending Shop Creation)',
-      full_name: doc.profiles?.full_name || 'Unknown',
-      phone: doc.profiles?.phone || 'Unknown',
-      email: '',
-      category: 'N/A',
-      city: 'N/A',
-      is_approved: true,
-      is_active: true,
-      image_url: doc.shop_photo_url,
-      aadhar_url: doc.aadhar_url,
-      rejection_reason: null,
-      created_at: doc.created_at,
-      rating: 0,
-      total_orders: 0
-    }))
-
-    fetchedItems = [...mappedShops, ...mappedRejectedDocs, ...mappedApprovedDocs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    return { items: fetchedItems, pendingDocs: pendingCount || 0 }
+  } catch (error: any) {
+    console.error('Error in getAdminShops:', error)
+    return { 
+      items: [], 
+      pendingDocs: 0, 
+      error: error.message || 'Failed to fetch shops. Please ensure database migrations are applied.' 
+    }
   }
-
-  return { items: fetchedItems, pendingDocs: pendingCount || 0 }
 }

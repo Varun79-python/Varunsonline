@@ -130,7 +130,7 @@ const user = session.user
 
     if (!shop) {
       // No shop yet → redirect to register to create shop
-      window.location.href = '/shopkeeper/register'
+      window.location.href = '/login/shopkeeper/register'
       return
     }
 

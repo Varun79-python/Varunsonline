@@ -63,7 +63,7 @@ export default function DeliveryProfilePage() {
       <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📋</div>
       <h3 style={{ marginBottom: 8 }}>Not Registered</h3>
       <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>You haven&apos;t registered as a delivery agent yet.</p>
-      <a href="/delivery/register" className="btn btn-primary">Register Now →</a>
+      <a href="/login/delivery/register" className="btn btn-primary">Register Now →</a>
     </div>
   )
 

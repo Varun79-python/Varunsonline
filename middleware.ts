@@ -80,9 +80,8 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow login/register pages — never redirect authenticated users back to login
+    // Allow login pages — never redirect authenticated users back to login
     if (
-      pathname === '/shopkeeper/register' ||
       pathname === '/login/shopkeeper' ||
       pathname.startsWith('/login/shopkeeper/')
     ) {
@@ -111,7 +110,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Protect /delivery and /delivery/* routes ──────────────────────────
-  if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery') && pathname !== '/delivery/register') {
+  if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
     if (!user) {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
     }

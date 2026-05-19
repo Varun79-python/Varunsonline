@@ -50,7 +50,7 @@ export default function DeliveryDocumentsPage() {
       }
 
       if (!agent) {
-        router.replace('/delivery/register')
+        router.replace('/login/delivery/register')
         return
       }
 

@@ -58,7 +58,7 @@ export default function ShopkeeperProfile() {
     )
   }
 
-  if (noShop) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><h2 style={{ marginBottom: 16 }}>No Shop Registered</h2><a href="/shopkeeper/register" style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>Register Shop →</a></div>
+  if (noShop) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><h2 style={{ marginBottom: 16 }}>No Shop Registered</h2><a href="/login/shopkeeper/register" style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>Register Shop →</a></div>
   if (!shop) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>
 
   return (
