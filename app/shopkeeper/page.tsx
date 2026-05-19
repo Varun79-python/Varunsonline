@@ -72,9 +72,9 @@ export default function ShopkeeperDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!mounted || !user) return
 
-      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
+      const { data: shopData, error: shopError } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
       if (!mounted) return
-      if (!shopData) { setNoShop(true); setLoading(false); return }
+      if (shopError || !shopData) { setNoShop(true); setLoading(false); return }
       setShop(shopData)
       shopIdRef.current = shopData.id
 

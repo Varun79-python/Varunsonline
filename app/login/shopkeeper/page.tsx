@@ -108,20 +108,7 @@ export default function ShopkeeperLoginPage() {
 
 const user = session.user
 
-    // ── Step 1: Check documents uploaded using user_id ──────────────────
-    const { data: docs } = await supabase
-      .from('shop_documents')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!docs) {
-      // No docs yet → documents upload page
-      window.location.href = '/login/shopkeeper/register/documents'
-      return
-    }
-
-    // ── Step 2: Check if shop exists and is approved ──────────────────
+    // ── Step 1: Check if shop exists (required for all shopkeepers) ──────────────────
     const { data: shop } = await supabase
       .from('shops')
       .select('id, is_approved, is_active')
@@ -131,6 +118,19 @@ const user = session.user
     if (!shop) {
       // No shop yet → redirect to register to create shop
       window.location.href = '/login/shopkeeper/register'
+      return
+    }
+
+    // ── Step 2: Check if documents uploaded ──────────────────────────────
+    const { data: docs } = await supabase
+      .from('shop_documents')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!docs) {
+      // No docs yet → documents upload page
+      window.location.href = '/login/shopkeeper/register/documents'
       return
     }
 
