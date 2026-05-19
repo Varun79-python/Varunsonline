@@ -217,15 +217,6 @@ export default function ShopkeeperDashboard() {
     </div>
   )
 
-  if (noShop) return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>🏪</div>
-      <h2 style={{ marginBottom: 8 }}>Shop Not Found</h2>
-      <p style={{ marginBottom: 24 }}>Your registration may be pending or incomplete.</p>
-      <a className="btn btn-primary" href="/login/status">Check Status →</a>
-    </div>
-  )
-
   if (shop && !shop.is_approved) return (
     <div style={{ textAlign: 'center', padding: '80px 20px' }}>
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>

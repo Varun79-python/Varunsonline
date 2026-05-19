@@ -253,9 +253,9 @@ export default function CompleteProfilePage() {
             >
               {gettingGPS ? '📡 Detecting...' : '📍 Set Location'}
             </button>
-            {shop?.latitude && (
+            {Boolean(shop?.latitude) && (
               <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
-                ✓ {(shop.latitude as number).toFixed(4)}, {(shop.longitude as number).toFixed(4)}
+                ✓ {((shop as {latitude: number}).latitude).toFixed(4)}, {((shop as {longitude: number}).longitude).toFixed(4)}
               </span>
             )}
           </div>
