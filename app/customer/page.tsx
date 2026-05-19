@@ -73,19 +73,21 @@ export default function CustomerHome() {
         },
         err => {
           setGpsAttempting(false)
-          let errMsg = 'GPS unavailable'
-          if (err.code === 1) errMsg = '📍 Enable location access in settings to see nearby shops'
-          else if (err.code === 2) errMsg = '📍 Location unavailable. Showing all shops.'
-          else if (err.code === 3) errMsg = '📍 Location request timed out. Showing all shops.'
+          let errMsg = '📍 GPS Required'
+          if (err.code === 1) errMsg = '📍 Enable location access in phone settings to see available shops'
+          else if (err.code === 2) errMsg = '📍 Location unavailable. Please try again or enable GPS.'
+          else if (err.code === 3) errMsg = '📍 Location request timed out. Please try again.'
           setGpsError(errMsg)
-          loadShops(null, null)
+          setShops([])
+          setFiltered([])
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       )
     } else {
       setGpsAttempting(false)
-      setGpsError('📍 GPS not supported. Showing all available shops.')
-      loadShops(null, null)
+      setGpsError('📍 GPS not supported on this device. Cannot determine delivery area.')
+      setShops([])
+      setFiltered([])
     }
   }
 
@@ -94,11 +96,21 @@ export default function CustomerHome() {
     const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
     if (data) {
       const activeRadius = radiusKm || 10
+
+      // Only show shops if GPS coordinates are available
+      if (!lat || !lon) {
+        setShops([])
+        setFiltered([])
+        setLoading(false)
+        return
+      }
+
       const withDist = data.map((s: Shop) => ({
         ...s,
-        distance: lat && lon && s.latitude && s.longitude
+        distance: s.latitude && s.longitude
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
-      })).filter((s: Shop) => s.distance === null || (s.distance !== undefined && s.distance <= activeRadius))
+      })).filter((s: Shop) => s.distance !== null && s.distance <= activeRadius)
+
       if (withDist.length === 0) {
         setShops([])
         setFiltered([])
@@ -212,9 +224,11 @@ export default function CustomerHome() {
         <span className="ch-section-title">
           {loading
             ? 'Finding shops...'
+            : gpsError
+            ? 'GPS Required'
             : `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`}
         </span>
-        {radiusKm && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
+        {radiusKm && !loading && !gpsError && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
 
       {/* ── GPS Error Banner ── */}
@@ -252,12 +266,34 @@ export default function CustomerHome() {
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
           <div className="ch-empty">
-            <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🏪</div>
-            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No shops near you yet</h3>
-            <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>We&apos;re adding more daily!</p>
-            {category !== 'All' && (
-              <button onClick={() => setCategory('All')} className="ch-show-all-btn">
-                Show All Shops
+            <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>
+              {gpsError ? '📍' : '🏪'}
+            </div>
+            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>
+              {gpsError ? 'Enable Location Access' : 'No Shops Available'}
+            </h3>
+            <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>
+              {gpsError
+                ? 'GPS is required to see shops in your delivery area.'
+                : 'No shops are currently available in your area. Check back soon!'}
+            </p>
+            {gpsError && (
+              <button
+                onClick={requestLocation}
+                disabled={gpsAttempting}
+                style={{
+                  padding: '10px 20px',
+                  background: gpsAttempting ? '#94a3b8' : '#f97316',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: gpsAttempting ? 'not-allowed' : 'pointer',
+                  opacity: gpsAttempting ? 0.6 : 1
+                }}
+              >
+                {gpsAttempting ? '⏳ Enabling...' : '🔄 Enable GPS'}
               </button>
             )}
           </div>
