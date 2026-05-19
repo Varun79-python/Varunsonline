@@ -137,7 +137,9 @@ export default function DeliveryDashboard() {
               setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
           }
         },
-        () => {},
+        err => {
+          console.warn('Background GPS error:', err.code)
+        },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       )
     }

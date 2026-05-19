@@ -54,6 +54,8 @@ export default function CustomerHome() {
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState<string | null>(null)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [gpsAttempting, setGpsAttempting] = useState(false)
 
   async function loadSettings() {
     const { data } = await supabase.from('platform_settings').select('key,value').eq('key', 'shop_radius_km')
@@ -61,13 +63,30 @@ export default function CustomerHome() {
   }
 
   function requestLocation() {
+    setGpsAttempting(true)
+    setGpsError(null)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => loadShops(pos.coords.latitude, pos.coords.longitude),
-        () => loadShops(null, null),
+        pos => {
+          setGpsAttempting(false)
+          loadShops(pos.coords.latitude, pos.coords.longitude)
+        },
+        err => {
+          setGpsAttempting(false)
+          let errMsg = 'GPS unavailable'
+          if (err.code === 1) errMsg = '📍 Enable location access in settings to see nearby shops'
+          else if (err.code === 2) errMsg = '📍 Location unavailable. Showing all shops.'
+          else if (err.code === 3) errMsg = '📍 Location request timed out. Showing all shops.'
+          setGpsError(errMsg)
+          loadShops(null, null)
+        },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       )
-    } else loadShops(null, null)
+    } else {
+      setGpsAttempting(false)
+      setGpsError('📍 GPS not supported. Showing all available shops.')
+      loadShops(null, null)
+    }
   }
 
   async function loadShops(lat: number | null, lon: number | null) {
@@ -197,6 +216,20 @@ export default function CustomerHome() {
         </span>
         {radiusKm && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
+
+      {/* ── GPS Error Banner ── */}
+      {gpsError && (
+        <div style={{ margin: '12px 12px 0', padding: '12px 14px', background: '#fef9c3', border: '1px solid #fcd34d', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: '0.85rem', color: '#92400e', fontWeight: 500 }}>{gpsError}</span>
+          <button
+            onClick={requestLocation}
+            disabled={gpsAttempting}
+            style={{ padding: '6px 12px', background: '#fcd34d', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: gpsAttempting ? 'not-allowed' : 'pointer', opacity: gpsAttempting ? 0.6 : 1 }}
+          >
+            {gpsAttempting ? '⏳...' : '🔄 Retry'}
+          </button>
+        </div>
+      )}
 
       {/* ── Shop grid ── */}
       <div className="ch-grid-wrap">
