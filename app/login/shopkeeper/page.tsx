@@ -193,7 +193,7 @@ const user = session.user
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Don&apos;t have an account? </span>
-          <button onClick={() => router.push('/shopkeeper/register')} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
+          <button onClick={() => router.push('/login/shopkeeper/documents')} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
         </div>
       </div>
 
