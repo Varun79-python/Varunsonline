@@ -71,7 +71,7 @@ export default function ShopkeeperDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!mounted || !user) return
 
-      const { data: shopData, error: shopError } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
+      const { data: shopData, error: shopError } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
       if (!mounted) return
       if (shopError || !shopData) { 
         // No shop yet — check documents status
