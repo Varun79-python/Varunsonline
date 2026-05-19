@@ -169,7 +169,6 @@ export default function DeliveryRegisterPage() {
         vehicle_number: form.vehicle_number.trim().toUpperCase(),
         is_approved: false,
         rejection_reason: null,
-        terms_agreed: true,
         created_at: new Date().toISOString(),
       }, { onConflict: 'id' })
 

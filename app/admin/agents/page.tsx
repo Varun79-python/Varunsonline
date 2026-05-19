@@ -12,7 +12,6 @@ interface Agent {
   is_approved: boolean; is_active: boolean; is_available: boolean
   wallet_balance: number; total_deliveries: number; today_earnings: number
   rejection_reason: string | null; upi_id: string; created_at: string
-  terms_agreed: boolean
 }
 
 export default function AdminAgents() {

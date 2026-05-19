@@ -140,14 +140,14 @@ export default function DeliveryRegisterPage() {
 
       const { error: agentError } = await supabase.from('delivery_agents').upsert({
         id: signUpData.user.id,
-        full_name: form.full_name.trim(),
+full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
         vehicle_type: form.vehicle_type,
         vehicle_number: form.vehicle_number.trim().toUpperCase(),
         is_approved: false,
+        is_active: false,
         rejection_reason: null,
-        terms_agreed: true,
         created_at: new Date().toISOString(),
       }, { onConflict: 'id' })
 
