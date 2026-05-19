@@ -36,15 +36,39 @@ export default function ShopDocumentsPage() {
         return
       }
 
-      // Check if documents already uploaded
+      // Check if documents exist and get status
       const { data: docs } = await supabase
         .from('shop_documents')
-        .select('id')
+        .select('id, status')
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (docs) {
-        router.replace('/login/status')
+        // Documents exist — redirect based on status
+        if (docs.status === 'approved') {
+          // Docs approved — check if shop exists for dashboard access
+          const { data: shop } = await supabase
+            .from('shops')
+            .select('id, is_approved, is_active, is_profile_complete')
+            .eq('owner_id', user.id)
+            .maybeSingle()
+          
+          if (shop && shop.is_approved && shop.is_active) {
+            // Check if profile needs completion
+            if (!shop.is_profile_complete) {
+              router.replace('/shopkeeper/complete-profile')
+            } else {
+              // Fully approved and profile complete — go to dashboard
+              router.replace('/shopkeeper')
+            }
+          } else {
+            // Shop not fully active yet — status page
+            router.replace('/login/status')
+          }
+        } else {
+          // Pending or rejected — status page
+          router.replace('/login/status')
+        }
         return
       }
 

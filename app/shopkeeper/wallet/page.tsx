@@ -1,8 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ShopkeeperWallet() {
+  const router = useRouter()
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [balance, setBalance] = useState(0)
@@ -24,11 +26,16 @@ export default function ShopkeeperWallet() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setUserId(user.id)
+      
       const { data: shop } = await supabase
         .from('shops')
-        .select('wallet_balance')
+        .select('wallet_balance, is_profile_complete')
         .eq('owner_id', user.id)
-        .single()
+        .maybeSingle()
+      
+      if (!shop) { router.replace('/login/status'); return }
+      if (!shop.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      
       if (shop) setBalance(shop.wallet_balance || 0)
 
       const { data: t } = await supabase

@@ -13,7 +13,6 @@ export default function ShopkeeperDashboard() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
   const [todayEarnings, setTodayEarnings] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [noShop, setNoShop] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -74,7 +73,30 @@ export default function ShopkeeperDashboard() {
 
       const { data: shopData, error: shopError } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
       if (!mounted) return
-      if (shopError || !shopData) { setNoShop(true); setLoading(false); return }
+      if (shopError || !shopData) { 
+        // No shop yet — check documents status
+        const { data: docs } = await supabase
+          .from('shop_documents')
+          .select('status')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        
+        if (!docs || docs.status !== 'approved') {
+          // Not fully approved — redirect to status
+          window.location.href = '/login/status'
+          return
+        }
+        // Docs approved but no shop yet — should not happen, redirect
+        window.location.href = '/login/status'
+        return
+      }
+      
+      // Check if profile is incomplete — redirect to complete-profile
+      if (!shopData.is_profile_complete) {
+        window.location.href = '/shopkeeper/complete-profile'
+        return
+      }
+      
       setShop(shopData)
       shopIdRef.current = shopData.id
 
@@ -198,9 +220,9 @@ export default function ShopkeeperDashboard() {
   if (noShop) return (
     <div style={{ textAlign: 'center', padding: '80px 20px' }}>
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>🏪</div>
-      <h2 style={{ marginBottom: 8 }}>No Shop Registered</h2>
-      <p style={{ marginBottom: 24 }}>Register your shop to start selling online</p>
-      <a className="btn btn-primary" href="/login/shopkeeper/register">Register Shop →</a>
+      <h2 style={{ marginBottom: 8 }}>Shop Not Found</h2>
+      <p style={{ marginBottom: 24 }}>Your registration may be pending or incomplete.</p>
+      <a className="btn btn-primary" href="/login/status">Check Status →</a>
     </div>
   )
 

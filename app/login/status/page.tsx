@@ -32,7 +32,29 @@ export default function ApprovalStatusPage() {
     }
 
     if (profile.role === 'shopkeeper') {
-      // 1. Check if shop is already created
+      // 1. Check if documents exist first
+      const { data: docs } = await supabase
+        .from('shop_documents')
+        .select('status')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!docs) {
+        setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/documents' })
+        return
+      }
+
+      if (docs.status === 'rejected') {
+        setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents were rejected. Please contact support.' })
+        return
+      }
+
+      if (docs.status === 'pending') {
+        setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents are pending admin approval. This usually takes 24-48 hours.' })
+        return
+      }
+
+      // 2. Docs are approved — check if shop was auto-created by admin
       const { data: shop } = await supabase
         .from('shops')
         .select('is_approved, is_active, rejection_reason')
@@ -41,7 +63,18 @@ export default function ApprovalStatusPage() {
 
       if (shop) {
         if (shop.is_approved && shop.is_active) {
-          setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
+          // Check if profile is complete
+          const { data: shopData } = await supabase
+            .from('shops')
+            .select('is_profile_complete')
+            .eq('owner_id', user.id)
+            .single()
+          
+          if (shopData && !shopData.is_profile_complete) {
+            setStatus({ approved: true, role: 'shopkeeper', message: 'Shop approved! Please complete your profile to start selling.', redirectUrl: '/shopkeeper/complete-profile' })
+          } else {
+            setStatus({ approved: true, role: 'shopkeeper', message: 'Your shop is approved and active!' })
+          }
         } else if (shop.is_approved && !shop.is_active) {
           setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is approved but not yet active. Please contact admin.' })
         } else if (shop.rejection_reason) {
@@ -50,23 +83,8 @@ export default function ApprovalStatusPage() {
           setStatus({ approved: false, role: 'shopkeeper', message: 'Your shop is pending final activation.' })
         }
       } else {
-        // 2. No shop yet. Check documents status
-        const { data: docs } = await supabase
-          .from('shop_documents')
-          .select('status')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (!docs) {
-          setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/register/documents' })
-        } else if (docs.status === 'approved') {
-          // Allowed to enter dashboard to create shop!
-          setStatus({ approved: true, role: 'shopkeeper', message: 'Documents approved! You can now access your dashboard.' })
-        } else if (docs.status === 'rejected') {
-          setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents were rejected. Please contact support.' })
-        } else {
-          setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents are pending admin approval.' })
-        }
+        // Docs approved but no shop yet — this shouldn't happen but handle it
+        setStatus({ approved: true, role: 'shopkeeper', message: 'Documents approved! Please contact admin to complete setup.' })
       }
     } else if (profile.role === 'delivery_agent') {
       const { data: agent } = await supabase
@@ -139,7 +157,7 @@ export default function ApprovalStatusPage() {
                     You haven't completed your registration yet.
                   </p>
                   <button 
-                    onClick={() => router.push(status.redirectUrl || (status.role === 'shopkeeper' ? '/login/shopkeeper/register/documents' : '/login/delivery/register'))}
+                    onClick={() => router.push(status.redirectUrl || (status.role === 'shopkeeper' ? '/login/shopkeeper/documents' : '/login/delivery/register'))}
                     style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}
                   >
                     Complete Registration

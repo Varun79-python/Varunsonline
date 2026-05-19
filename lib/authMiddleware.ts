@@ -62,13 +62,10 @@ export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: 
     }
   }
   
-  // Get shop ID
-  const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', user.id).single()
-  if (!shop) {
-    return { error: 'No shop found for this user' }
-  }
+  // Get shop ID (may not exist if registration not complete yet — that's OK for APIs)
+  const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', user.id).maybeSingle()
   
-  return { userId: user.id, shopId: shop.id }
+  return { userId: user.id, shopId: shop?.id }
 }
 
 export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error?: string; userId?: string; agentId?: string }> {

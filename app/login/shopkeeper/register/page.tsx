@@ -50,7 +50,6 @@ export default function ShopRegisterPage() {
     phone_number: '',
     email: '',
     password: '',
-    shop_name: '',
     gender: '',
   })
   const [error, setError] = useState('')
@@ -68,25 +67,25 @@ export default function ShopRegisterPage() {
     setExistingUserMessage('')
     
     try {
-      const { data: existingShop } = await supabase
-        .from('shops')
+      const { data: existingProfile } = await supabase
+        .from('profiles')
         .select('*')
+        .eq('role', 'shopkeeper')
         .or(`phone.eq.${phone.trim()},email.eq.${email.trim()}`)
         .maybeSingle()
 
-      if (existingShop) {
-        if (existingShop.is_approved) {
-          setExistingUserMessage('Shop already registered and approved. Redirecting to login...')
+      if (existingProfile) {
+        if (existingProfile.full_name) {
+          setExistingUserMessage('Account already registered. Redirecting to login...')
           setTimeout(() => router.push('/login/shopkeeper'), 1500)
           return
         }
         
         setForm(f => ({
           ...f,
-          full_name: existingShop.full_name || f.full_name,
-          email: existingShop.email || f.email,
-          phone_number: existingShop.phone || f.phone_number,
-          shop_name: existingShop.name || f.shop_name,
+          full_name: existingProfile.full_name || f.full_name,
+          email: existingProfile.email || f.email,
+          phone_number: existingProfile.phone || f.phone_number,
         }))
         setExistingUserMessage('Partial registration found. Please login to continue.')
         setCheckingExisting(false)
@@ -147,7 +146,6 @@ export default function ShopRegisterPage() {
     if (!form.email.trim()) { setError('Please enter Email'); return }
     if (!isExistingUser && !form.password.trim()) { setError('Please enter Password'); return }
     if (!isExistingUser && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
-    if (!form.shop_name.trim()) { setError('Please enter Shop Name'); return }
     if (!form.gender) { setError('Please select Gender'); return }
     if (!agreedToTerms) { setError('Please agree to Terms & Conditions'); return }
 
@@ -201,24 +199,17 @@ export default function ShopRegisterPage() {
         id: userId,
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
+        email: form.email.trim(),
         role: 'shopkeeper',
         gender: form.gender,
       })
 
-      await supabase.from('shops').upsert({
-        owner_id: userId,
-        full_name: form.full_name.trim(),
-        phone: form.phone_number.trim(),
-        email: form.email.trim(),
-        name: form.shop_name.trim(),
-        is_approved: false,
-        is_active: false,
-      }, { onConflict: 'owner_id' })
+      // Registration info collected. Shop creation now happens AFTER admin approves documents.
 
       if (!isExistingUser) {
         setShowLoginPopup(true)
       } else {
-        router.push('/login/shopkeeper/register/documents')
+        router.push('/login/shopkeeper')
       }
     } catch (err: any) {
       setError('Error: ' + err.message)
@@ -316,14 +307,7 @@ export default function ShopRegisterPage() {
           </div>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Shop Details</h3>
-          
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Shop Name *</label>
-            <input value={form.shop_name} onChange={e => setForm(f => ({ ...f, shop_name: e.target.value }))} placeholder="Enter your shop name" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-          </div>
-        </div>
+        
 
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions *</h3>

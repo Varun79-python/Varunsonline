@@ -108,35 +108,62 @@ export default function ShopkeeperLoginPage() {
 
 const user = session.user
 
-    // ── Step 1: Check if shop exists (required for all shopkeepers) ──────────────────
-    const { data: shop } = await supabase
-      .from('shops')
-      .select('id, is_approved, is_active')
-      .eq('owner_id', user.id)
-      .maybeSingle()
+    // ── Step 1: Verify user is a shopkeeper ───────────────────────
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    if (!shop) {
-      // No shop yet → redirect to register to create shop
-      window.location.href = '/login/shopkeeper/register'
+    if (!profile || profile.role !== 'shopkeeper') {
+      setError('Access denied. Please register as a shop owner.')
+      setLoading(false)
+      refreshCaptcha()
       return
     }
 
     // ── Step 2: Check if documents uploaded ──────────────────────────────
     const { data: docs } = await supabase
       .from('shop_documents')
-      .select('id')
+      .select('id, status')
       .eq('user_id', user.id)
       .maybeSingle()
 
     if (!docs) {
       // No docs yet → documents upload page
-      window.location.href = '/login/shopkeeper/register/documents'
+      window.location.href = '/login/shopkeeper/documents'
       return
     }
 
-    // ── Step 3: Check approval status ────────────────────────────
+    // ── Step 3: Check document status ──────────────────────────────
+    if (docs.status !== 'approved') {
+      // Documents pending or rejected → status page
+      window.location.href = '/login/status'
+      return
+    }
+
+    // ── Step 4: ONLY NOW check shops (docs are approved) ─────────────────
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('id, is_approved, is_active, is_profile_complete')
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    // If no shop yet (edge case) → status page
+    if (!shop) {
+      window.location.href = '/login/status'
+      return
+    }
+
+    // ── Step 5: Check approval and profile completion ─────────────────
     if (shop.is_approved && shop.is_active) {
-      // Fully approved → dashboard
+      // Fully approved → check if profile is complete
+      if (!shop.is_profile_complete) {
+        // Profile not complete → complete profile page
+        window.location.href = '/shopkeeper/complete-profile'
+        return
+      }
+      // Profile complete → dashboard
       window.location.href = '/shopkeeper'
       return
     }

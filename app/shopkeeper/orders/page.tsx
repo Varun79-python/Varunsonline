@@ -25,8 +25,9 @@ export default function ShopkeeperOrders() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', user.id).single()
-      if (!shop) return
+      const { data: shop } = await supabase.from('shops').select('id, is_profile_complete').eq('owner_id', user.id).maybeSingle()
+      if (!shop) { router.replace('/login/status'); return }
+      if (!shop.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
       setShopId(shop.id)
       const { data } = await supabase.from('orders').select('*').eq('shop_id', shop.id).order('created_at', { ascending: false })
       setOrders(data || [])

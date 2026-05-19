@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Product { id: string; name: string; category: string; price: number; mrp: number; stock_quantity: number; is_available: boolean; image_url: string }
 interface Shop { id: string; category: string }
 
 export default function ProductsPage() {
+  const router = useRouter()
   const supabase = createClient()
   const [products, setProducts] = useState<Product[]>([])
   const [shop, setShop] = useState<Shop | null>(null)
@@ -19,8 +21,9 @@ export default function ProductsPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: shopData } = await supabase.from('shops').select('id, category').eq('owner_id', user.id).single()
-      if (!shopData) return
+      const { data: shopData } = await supabase.from('shops').select('id, category, is_profile_complete').eq('owner_id', user.id).maybeSingle()
+      if (!shopData) { router.replace('/login/status'); return }
+      if (!shopData.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
       setShop(shopData)
       const { data } = await supabase.from('products').select('*').eq('shop_id', shopData.id).order('name')
       setProducts(data || [])

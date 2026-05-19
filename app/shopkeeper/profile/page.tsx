@@ -1,27 +1,33 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 
 export default function ShopkeeperProfile() {
+  const router = useRouter()
   const supabase = createClient()
   const [shop, setShop] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
   const [gender, setGender] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [gettingGPS, setGettingGPS] = useState(false)
-  const [noShop, setNoShop] = useState(false)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
-      if (!data) { setNoShop(true); return }
-      setShop(data)
+      
+      const { data: shopData } = await supabase.from('shops').select('*, is_profile_complete').eq('owner_id', user.id).maybeSingle()
+      if (!shopData) { router.replace('/login/status'); return }
+      if (!shopData.is_profile_complete) { router.replace('/shopkeeper/complete-profile'); return }
+      
+      setShop(shopData)
       const { data: profile } = await supabase.from('profiles').select('gender').eq('id', user.id).single()
       if (profile?.gender) setGender(profile.gender)
+      setLoading(false)
     }
     load()
   }, [])
@@ -58,8 +64,14 @@ export default function ShopkeeperProfile() {
     )
   }
 
-  if (noShop) return <div style={{ textAlign: 'center', padding: '80px 20px' }}><h2 style={{ marginBottom: 16 }}>No Shop Registered</h2><a href="/login/shopkeeper/register" style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>Register Shop →</a></div>
-  if (!shop) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>
+  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>
+  if (!shop) return (
+    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+      <h2 style={{ marginBottom: 16 }}>Shop Not Found</h2>
+      <p style={{ marginBottom: 24 }}>Your registration may be pending or incomplete.</p>
+      <a href="/login/status" style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>Check Status →</a>
+    </div>
+  )
 
   return (
     <div style={{ padding: '0 12px', maxWidth: 600, margin: '0 auto' }}>
