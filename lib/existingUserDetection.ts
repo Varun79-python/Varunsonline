@@ -144,7 +144,7 @@ async function checkDeliveryAgent(
 ): Promise<ExistingUserResult> {
   const { data: agent, error } = await supabase
     .from('delivery_agents')
-    .select('id, full_name, email, phone, vehicle_type, vehicle_number, is_approved, aadhaar_image_url, license_image_url')
+    .select('id, full_name, email, phone, vehicle_type, vehicle_number, is_approved, aadhar_url, license_url')
     .eq(isPhone ? 'phone' : 'email', searchValue)
     .maybeSingle()
 
@@ -158,7 +158,7 @@ async function checkDeliveryAgent(
   }
 
   const step1Completed = true
-  const step2Completed = !!agent.aadhaar_image_url && !!agent.license_image_url
+  const step2Completed = !!agent.aadhar_url && !!agent.license_url
   const isApproved = agent.is_approved
 
   if (isApproved) {
@@ -224,10 +224,12 @@ async function checkCustomer(
   searchValue: string,
   isPhone: boolean
 ): Promise<ExistingUserResult> {
+  // Customers details are in 'profiles' table with role='customer'
   const { data: customer, error } = await supabase
-    .from('customers')
+    .from('profiles')
     .select('id, full_name, phone, email, created_at')
     .eq(isPhone ? 'phone' : 'email', searchValue)
+    .eq('role', 'customer')
     .maybeSingle()
 
   if (error) {

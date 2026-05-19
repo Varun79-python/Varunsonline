@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -42,6 +42,9 @@ export default function ShopRegisterPage() {
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [isExistingUser, setIsExistingUser] = useState(false)
+  const [showLoginPopup, setShowLoginPopup] = useState(false)
+  const [checkingExisting, setCheckingExisting] = useState(false)
+  const [existingUserMessage, setExistingUserMessage] = useState('')
   const [form, setForm] = useState({
     full_name: '',
     phone_number: '',
@@ -56,6 +59,58 @@ export default function ShopRegisterPage() {
   const [showTerms, setShowTerms] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
 
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const checkExistingUser = useCallback(async (phone: string, email: string) => {
+    if (!phone.trim() && !email.trim()) return
+    
+    setCheckingExisting(true)
+    setExistingUserMessage('')
+    
+    try {
+      const { data: existingShop } = await supabase
+        .from('shops')
+        .select('*')
+        .or(`phone.eq.${phone.trim()},email.eq.${email.trim()}`)
+        .maybeSingle()
+
+      if (existingShop) {
+        if (existingShop.is_approved) {
+          setExistingUserMessage('Shop already registered and approved. Redirecting to login...')
+          setTimeout(() => router.push('/login/shopkeeper'), 1500)
+          return
+        }
+        
+        setForm(f => ({
+          ...f,
+          full_name: existingShop.full_name || f.full_name,
+          email: existingShop.email || f.email,
+          phone_number: existingShop.phone || f.phone_number,
+          shop_name: existingShop.name || f.shop_name,
+        }))
+        setExistingUserMessage('Partial registration found. Please login to continue.')
+        setCheckingExisting(false)
+        return
+      }
+    } catch (err) {
+      console.error('Error checking existing user:', err)
+    } finally {
+      setCheckingExisting(false)
+    }
+  }, [supabase, router])
+
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    
+    debounceTimeout.current = setTimeout(() => {
+      checkExistingUser(form.phone_number, form.email)
+    }, 500)
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [form.phone_number, form.email, checkExistingUser])
+
   useEffect(() => {
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -65,10 +120,8 @@ export default function ShopRegisterPage() {
           ...f,
           email: user.email || '',
           full_name: user.user_metadata?.full_name || '',
-          // phone_number usually needs separate check in profiles if not in auth.users
         }))
         
-        // Also fetch from profiles to get phone number if available
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
         if (profile) {
           setForm(f => ({
@@ -111,7 +164,6 @@ export default function ShopRegisterPage() {
       let userId = ''
       
       if (!isExistingUser) {
-        // Sign up user
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: form.email.trim(),
           password: form.password,
@@ -145,7 +197,6 @@ export default function ShopRegisterPage() {
         userId = user.id
       }
 
-      // Create profile with gender
       await supabase.from('profiles').upsert({
         id: userId,
         full_name: form.full_name.trim(),
@@ -154,8 +205,7 @@ export default function ShopRegisterPage() {
         gender: form.gender,
       })
 
-      // Create shop
-      await supabase.from('shops').insert({
+      await supabase.from('shops').upsert({
         owner_id: userId,
         full_name: form.full_name.trim(),
         phone: form.phone_number.trim(),
@@ -163,24 +213,38 @@ export default function ShopRegisterPage() {
         name: form.shop_name.trim(),
         is_approved: false,
         is_active: false,
-      })
+      }, { onConflict: 'owner_id' })
 
       if (!isExistingUser) {
-        // Sign in the user if they were just created
-        await supabase.auth.signInWithPassword({
-          email: form.email.trim(),
-          password: form.password,
-        })
+        setShowLoginPopup(true)
+      } else {
+        router.push('/login/shopkeeper/register/documents')
       }
-
-      // Redirect to document upload page
-      router.push('/login/shopkeeper/register/documents')
     } catch (err: any) {
       setError('Error: ' + err.message)
     } finally {
       setSaving(false)
     }
   }
+
+  if (showLoginPopup) return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: 400 }}>
+        <div style={{ fontSize: '4rem', marginBottom: 16 }}>🔐</div>
+        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Login to Complete Registration</h2>
+        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+          Your shop details have been saved.<br/>
+          Please login to upload your documents and complete registration.
+        </p>
+        <button 
+          onClick={() => router.push('/login/shopkeeper')} 
+          style={{ padding: '14px 32px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', width: '100%' }}
+        >
+          🔑 Login to Continue
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
@@ -195,6 +259,26 @@ export default function ShopRegisterPage() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Register Your Shop</h1>
           <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Create your shop account to start selling</p>
         </div>
+
+        {(checkingExisting || existingUserMessage) && (
+          <div style={{ 
+            padding: 14, 
+            borderRadius: 12, 
+            marginBottom: 16,
+            background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
+            color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            maxWidth: 500,
+            margin: '0 auto 16px'
+          }}>
+            {checkingExisting ? (
+              <>⏳ Checking...</>
+            ) : (
+              <>✅ {existingUserMessage}</>
+            )}
+          </div>
+        )}
 
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Personal Details</h3>

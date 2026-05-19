@@ -58,7 +58,7 @@ export default function ApprovalStatusPage() {
           .maybeSingle()
 
         if (!docs) {
-          setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/documents' })
+          setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/register/documents' })
         } else if (docs.status === 'approved') {
           // Allowed to enter dashboard to create shop!
           setStatus({ approved: true, role: 'shopkeeper', message: 'Documents approved! You can now access your dashboard.' })

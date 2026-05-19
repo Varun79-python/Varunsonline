@@ -32,7 +32,7 @@ export async function getAdminStats() {
     supabase.from('orders').select('id,admin_earning', { count: 'exact' }).gte('created_at', today).eq('payment_status', 'paid'),
     supabase.from('withdraw_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(8),
-    supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'open')
+    supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'pending')
   ])
 
   const todayRev = (todayOrds.data || []).reduce((s: number, o: { admin_earning: number }) => s + (o.admin_earning || 0), 0)
