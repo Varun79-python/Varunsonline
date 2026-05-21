@@ -80,7 +80,7 @@ export async function middleware(request: NextRequest) {
 
   // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow login pages — never redirect authenticated users back to login
+    // Allow all /login/shopkeeper/* paths — register, documents, login etc.
     if (
       pathname === '/login/shopkeeper' ||
       pathname.startsWith('/login/shopkeeper/')

@@ -79,7 +79,7 @@ export default function AdminShops() {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
       // Create shop with full approval when admin approves documents
       const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
-      const existingShop = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
+      const { data: existingShop } = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
       if (!existingShop) {
         await supabase.from('shops').insert({
           owner_id: item.user_id,
@@ -155,7 +155,7 @@ export default function AdminShops() {
     if (item.type === 'document') {
       await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
       const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
-      const existingShop = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
+      const { data: existingShop } = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
       if (!existingShop) {
         await supabase.from('shops').insert({
           owner_id: item.user_id,

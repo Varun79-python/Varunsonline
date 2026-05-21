@@ -3,46 +3,13 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-function generateCaptcha(length = 5): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
-}
-
-function CaptchaDisplay({ code }: { code: string }) {
-  return (
-    <div style={{
-      display: 'flex',
-      gap: 4,
-      justifyContent: 'center',
-      padding: '12px 16px',
-      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-      borderRadius: 10,
-      marginBottom: 12
-    }}>
-      {code.split('').map((char, i) => (
-        <span key={i} style={{
-          fontSize: '1.5rem',
-          fontWeight: 800,
-          color: ['#f97316', '#22c55e', '#3b82f6', '#f43f5e', '#a855f7'][i % 5],
-          fontFamily: 'monospace',
-          transform: `rotate(${[-5, 5, -3, 8, -2][i % 5]}deg)`,
-          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-        }}>{char}</span>
-      ))}
-    </div>
-  )
-}
-
 export default function ShopRegisterPage() {
   const router = useRouter()
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
-  const [isExistingUser, setIsExistingUser] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [showLoginPopup, setShowLoginPopup] = useState(false)
+  const [isExistingAuth, setIsExistingAuth] = useState(false)
   const [checkingExisting, setCheckingExisting] = useState(false)
   const [existingUserMessage, setExistingUserMessage] = useState('')
   const [form, setForm] = useState({
@@ -53,19 +20,35 @@ export default function ShopRegisterPage() {
     gender: '',
   })
   const [error, setError] = useState('')
-  const [captcha, setCaptcha] = useState(() => generateCaptcha())
-  const [captchaInput, setCaptchaInput] = useState('')
   const [showTerms, setShowTerms] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
 
+  const TERMS = `SHOPKEEPER TERMS & CONDITIONS
+
+1. Shopkeepers must provide genuine business information during registration.
+
+2. Uploading fake shop photos, fake documents, or false business information may lead to permanent account suspension.
+
+3. Shopkeepers are fully responsible for order fulfillment and product quality.
+
+4. Any fraud, counterfeit products, or misuse of platform may result in permanent banning and legal action.
+
+5. Shopkeepers must behave professionally with customers and delivery partners.
+
+6. Misconduct, abusive behavior, or harassment may result in immediate account suspension.
+
+7. Platform has the right to approve, reject, suspend, or terminate shopkeeper account at any time.
+
+8. By registering, shopkeeper confirms all submitted details are true and agrees to platform verification.`
+
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
     if (!phone.trim() && !email.trim()) return
-    
+
     setCheckingExisting(true)
     setExistingUserMessage('')
-    
+
     try {
       const { data: existingProfile } = await supabase
         .from('profiles')
@@ -75,20 +58,8 @@ export default function ShopRegisterPage() {
         .maybeSingle()
 
       if (existingProfile) {
-        if (existingProfile.full_name) {
-          setExistingUserMessage('Account already registered. Redirecting to login...')
-          setTimeout(() => router.push('/login/shopkeeper'), 1500)
-          return
-        }
-        
-        setForm(f => ({
-          ...f,
-          full_name: existingProfile.full_name || f.full_name,
-          email: existingProfile.email || f.email,
-          phone_number: existingProfile.phone || f.phone_number,
-        }))
-        setExistingUserMessage('Partial registration found. Please login to continue.')
-        setCheckingExisting(false)
+        setExistingUserMessage('Account already registered. Redirecting to login...')
+        setTimeout(() => router.push('/login/shopkeeper'), 1500)
         return
       }
     } catch (err) {
@@ -100,27 +71,22 @@ export default function ShopRegisterPage() {
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    
     debounceTimeout.current = setTimeout(() => {
       checkExistingUser(form.phone_number, form.email)
     }, 500)
-
-    return () => {
-      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    }
+    return () => { if (debounceTimeout.current) clearTimeout(debounceTimeout.current) }
   }, [form.phone_number, form.email, checkExistingUser])
 
   useEffect(() => {
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        setIsExistingUser(true)
+        setIsExistingAuth(true)
         setForm(f => ({
           ...f,
           email: user.email || '',
           full_name: user.user_metadata?.full_name || '',
         }))
-        
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
         if (profile) {
           setForm(f => ({
@@ -131,43 +97,34 @@ export default function ShopRegisterPage() {
           }))
         }
       }
+      setLoading(false)
     }
     checkAuth()
   }, [])
-
-  async function refreshCaptcha() {
-    setCaptcha(generateCaptcha())
-    setCaptchaInput('')
-  }
 
   async function submit() {
     if (!form.full_name.trim()) { setError('Please enter Full Name'); return }
     if (!form.phone_number.trim()) { setError('Please enter Phone Number'); return }
     if (!form.email.trim()) { setError('Please enter Email'); return }
-    if (!isExistingUser && !form.password.trim()) { setError('Please enter Password'); return }
-    if (!isExistingUser && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!isExistingAuth && !form.password.trim()) { setError('Please enter Password'); return }
+    if (!isExistingAuth && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
     if (!form.gender) { setError('Please select Gender'); return }
     if (!agreedToTerms) { setError('Please agree to Terms & Conditions'); return }
 
-    if (captchaInput.toUpperCase() !== captcha) {
-      setError('Incorrect CAPTCHA. Please try again.')
-      refreshCaptcha()
-      return
-    }
-
     setSaving(true)
     setError('')
-    
+
     try {
       let userId = ''
-      
-      if (!isExistingUser) {
+      let needsLogin = false
+
+      if (!isExistingAuth) {
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: form.email.trim(),
           password: form.password,
           options: { data: { full_name: form.full_name.trim(), role: 'shopkeeper', gender: form.gender } }
         })
-        
+
         if (signUpError) {
           if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
             setError('An account with this email already exists. Please login.')
@@ -185,6 +142,8 @@ export default function ShopRegisterPage() {
           return
         }
         userId = signUpData.user.id
+        // If no session returned (email confirmation required), user needs to login first
+        needsLogin = !signUpData.session
       } else {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -195,6 +154,7 @@ export default function ShopRegisterPage() {
         userId = user.id
       }
 
+      // Save profile only — shop is created by admin after document approval
       await supabase.from('profiles').upsert({
         id: userId,
         full_name: form.full_name.trim(),
@@ -204,20 +164,12 @@ export default function ShopRegisterPage() {
         gender: form.gender,
       })
 
-      await supabase.from('shops').upsert({
-        owner_id: userId,
-        name: form.full_name.trim() + "'s Shop",
-        full_name: form.full_name.trim(),
-        phone: form.phone_number.trim(),
-        email: form.email.trim(),
-        is_approved: false,
-        is_active: false,
-      }, { onConflict: 'owner_id' })
-
-      if (!isExistingUser) {
+      if (needsLogin) {
+        // Email confirmation or session not returned — show login popup
         setShowLoginPopup(true)
       } else {
-        router.push('/login/shopkeeper')
+        // Already have session → go directly to document upload
+        router.push('/login/shopkeeper/register/documents')
       }
     } catch (err: any) {
       setError('Error: ' + err.message)
@@ -226,18 +178,25 @@ export default function ShopRegisterPage() {
     }
   }
 
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+
   if (showLoginPopup) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: 400 }}>
         <div style={{ fontSize: '4rem', marginBottom: 16 }}>🔐</div>
-        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Login to Complete Registration</h2>
+        <h2 style={{ marginBottom: 12, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>Login to Upload Documents</h2>
         <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
-          Your shop details have been saved.<br/>
-          Please login to upload your documents and complete registration.
+          Your basic details have been saved.<br/>
+          Please login to upload your shop documents and complete registration.
         </p>
-        <button 
-          onClick={() => router.push('/login/shopkeeper')} 
-          style={{ padding: '14px 32px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', width: '100%' }}
+        <button
+          onClick={() => router.push('/login/shopkeeper')}
+          style={{ padding: '14px 32px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', width: '100%' }}
         >
           🔑 Login to Continue
         </button>
@@ -246,42 +205,32 @@ export default function ShopRegisterPage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '0 16px 40px' }}>
+      <div style={{ padding: '20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push('/login/shopkeeper')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
-        <img src="/logo.png" alt="VarunsOnline" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Shop Owner Registration</h2>
       </div>
 
-      <div style={{ flex: 1, padding: '0 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '2rem' }}>🏪</div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Register Your Shop</h1>
-          <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Create your shop account to start selling</p>
+      {(checkingExisting || existingUserMessage) && (
+        <div style={{
+          padding: 14,
+          borderRadius: 12,
+          marginBottom: 16,
+          background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
+          color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          maxWidth: 500,
+          margin: '0 auto 16px'
+        }}>
+          {checkingExisting ? <>⏳ Checking...</> : <>✅ {existingUserMessage}</>}
         </div>
+      )}
 
-        {(checkingExisting || existingUserMessage) && (
-          <div style={{ 
-            padding: 14, 
-            borderRadius: 12, 
-            marginBottom: 16,
-            background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
-            color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            maxWidth: 500,
-            margin: '0 auto 16px'
-          }}>
-            {checkingExisting ? (
-              <>⏳ Checking...</>
-            ) : (
-              <>✅ {existingUserMessage}</>
-            )}
-          </div>
-        )}
-
+      <div style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Personal Details</h3>
-          
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Step 1: Personal Details</h3>
+
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Name *</label>
             <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Enter your full name" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
@@ -294,13 +243,13 @@ export default function ShopRegisterPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
-            <input type="email" value={form.email} readOnly={isExistingUser} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: isExistingUser ? '#f1f5f9' : 'white' }} />
+            <input type="email" value={form.email} readOnly={isExistingAuth} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: isExistingAuth ? '#f1f5f9' : 'white' }} />
           </div>
 
-          {!isExistingUser && (
+          {!isExistingAuth && (
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
-              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
             </div>
           )}
 
@@ -315,15 +264,13 @@ export default function ShopRegisterPage() {
           </div>
         </div>
 
-        
-
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions *</h3>
-          
+
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', marginBottom: 12 }}>
-            <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, accentColor: '#0ea5e9' }} />
+            <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, accentColor: '#f97316' }} />
             <span style={{ fontSize: '0.85rem', color: '#374151', lineHeight: 1.5 }}>
-              I have read and agree to the <button type="button" onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Terms & Conditions</button>
+              I have read and agree to the <button type="button" onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Terms & Conditions</button>
             </span>
           </label>
 
@@ -332,39 +279,36 @@ export default function ShopRegisterPage() {
           </button>
         </div>
 
-        <CaptchaDisplay code={captcha} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
-          <input
-            type="text"
-            placeholder="Enter CAPTCHA"
-            value={captchaInput}
-            onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
-            maxLength={5}
-            style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', background: 'white', letterSpacing: 4, fontWeight: 600, textTransform: 'uppercase' }}
-          />
-          <button type="button" onClick={refreshCaptcha} style={{ padding: '10px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: '1.2rem' }}>🔄</button>
-        </div>
-
         {error && <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 500, marginBottom: 16 }}>{error}</div>}
 
-        <button onClick={submit} disabled={saving} style={{ padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(14,165,233,0.3)' }}>
-          {saving ? 'Please wait...' : 'Register Shop'}
+        <button onClick={submit} disabled={saving} style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(249,115,22,0.3)' }}>
+          {saving ? 'Please wait...' : 'Next Step →'}
         </button>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Already have an account? </span>
-          <button onClick={() => router.push('/login/shopkeeper')} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Login</button>
+          <button onClick={() => router.push('/login/shopkeeper')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Login</button>
         </div>
       </div>
 
       {showTerms && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowTerms(false)}>
-          <div style={{ background: 'white', borderRadius: 20, padding: 24, maxWidth: 500, width: '100%', maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Terms & Conditions</h3>
-            <div style={{ fontSize: '0.85rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-{'SHOPKEEPER TERMS & CONDITIONS\n\n1. Shopkeepers must provide genuine business information during registration.\n\n2. Uploading fake shop photos, fake documents, or false business information may lead to permanent account suspension.\n\n3. Shopkeepers are fully responsible for order fulfillment and product quality.\n\n4. Any fraud, counterfeit products, or misuse of platform may result in permanent banning and legal action.\n\n5. Shopkeepers must behave professionally with customers and delivery partners.\n\n6. Misconduct, abusive behavior, or harassment may result in immediate account suspension.\n\n7. Platform has the right to approve, reject, suspend, or terminate shopkeeper account at any time.\n\n8. By registering, shopkeeper confirms all submitted details are true and agrees to platform verification.'}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowTerms(false)}>
+          <div style={{ background: 'white', width: '100%', maxWidth: 500, margin: '0 auto', borderRadius: '20px 20px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>📋 Terms & Conditions</h3>
+              <button onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>×</button>
             </div>
-            <button onClick={() => setShowTerms(false)} style={{ marginTop: 16, width: '100%', padding: '14px', background: '#0ea5e9', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer' }}>Close</button>
+            <div style={{ flex: 1, overflow: 'auto', padding: 20, whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+              {TERMS}
+            </div>
+            <div style={{ padding: 16, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowTerms(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: 12, color: '#475569', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={() => { setAgreedToTerms(true); setShowTerms(false) }} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer' }}>
+                ✅ I Agree
+              </button>
+            </div>
           </div>
         </div>
       )}

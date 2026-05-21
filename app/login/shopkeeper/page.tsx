@@ -93,36 +93,35 @@ export default function ShopkeeperLoginPage() {
       return
     }
 
-    // After signInWithPassword, Supabase writes session to cookies.
-    // getSession() reads from cookies directly (no cache) so it picks up the new session immediately.
-    // Then refresh to ensure the session is fully active before routing.
-    let { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    // Wait briefly for Supabase to write auth cookies after signIn
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) console.error('Session error:', sessionError)
 
     if (!session?.user) {
       await supabase.auth.refreshSession()
       const { data: { session: retry } } = await supabase.auth.getSession()
       if (!retry?.user) { setError('Session expired. Please login again.'); setLoading(false); return }
-      session = retry
     }
 
-const user = session.user
+    const user = session!.user
 
     // ── Step 1: Verify user is a shopkeeper ───────────────────────
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!profile || profile.role !== 'shopkeeper') {
       setError('Access denied. Please register as a shop owner.')
+      await supabase.auth.signOut()
       setLoading(false)
       refreshCaptcha()
       return
     }
 
-    // ── Step 2: Check if documents uploaded ──────────────────────────────
+    // ── Step 2: Check if documents uploaded ──────────────────────
     const { data: docs } = await supabase
       .from('shop_documents')
       .select('id, status')
@@ -130,40 +129,26 @@ const user = session.user
       .maybeSingle()
 
     if (!docs) {
-      // No docs yet → documents upload page
-      window.location.href = '/login/shopkeeper/documents'
+      // No docs yet → go to document upload page
+      router.push('/login/shopkeeper/register/documents')
       return
     }
 
-    // ── Step 3: Check document status ──────────────────────────────
-    if (docs.status !== 'approved') {
-      // Documents pending or rejected → status page
-      window.location.href = '/login/status'
-      return
-    }
-
-    // ── Step 4: Check if shop exists ──────────────────────────────
+    // ── Step 3: Check if shop is approved and active ─────────────
     const { data: shop } = await supabase
       .from('shops')
       .select('id, is_approved, is_active')
       .eq('owner_id', user.id)
       .maybeSingle()
 
-    // If no shop yet → documents page
-    if (!shop) {
-      window.location.href = '/login/shopkeeper/documents'
-      return
-    }
-
-    // ── Step 5: Check approval ────────────────────────────────────
-    if (shop.is_approved && shop.is_active) {
+    if (shop && shop.is_approved && shop.is_active) {
       // Fully approved → dashboard
-      window.location.href = '/shopkeeper'
+      router.push('/shopkeeper')
       return
     }
 
-    // Pending or rejected → status page
-    window.location.href = '/login/status'
+    // Docs uploaded but still pending/rejected → status page
+    router.push('/login/status')
   }
 
   return (
@@ -175,7 +160,7 @@ const user = session.user
 
       <div style={{ flex: 1, padding: '0 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '2rem' }}>🏪</div>
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '2rem' }}>🏪</div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Shop Owner</h1>
           <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Sign in to manage your shop</p>
         </div>
@@ -205,16 +190,16 @@ const user = session.user
 
           {error && <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 500 }}>{error}</div>}
 
-          <button type="button" onClick={() => { setResetEmail(form.email); setShowReset(true) }} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textAlign: 'center', marginBottom: -4 }}>Forgot Password?</button>
+          <button type="button" onClick={() => { setResetEmail(form.email); setShowReset(true) }} style={{ background: 'none', border: 'none', color: '#f97316', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textAlign: 'center', marginBottom: -4 }}>Forgot Password?</button>
 
-          <button type="submit" disabled={loading} style={{ padding: '16px', background: loading ? '#94a3b8' : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(14,165,233,0.3)' }}>
+          <button type="submit" disabled={loading} style={{ padding: '16px', background: loading ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(249,115,22,0.3)' }}>
             {loading ? 'Please wait...' : 'Login'}
           </button>
         </form>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Don&apos;t have an account? </span>
-          <button onClick={() => router.push('/login/shopkeeper/register')} style={{ background: 'none', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
+          <button onClick={() => router.push('/login/shopkeeper/register')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>Register</button>
         </div>
       </div>
 
@@ -227,7 +212,7 @@ const user = session.user
             {resetMessage && <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, background: resetMessage.includes('sent') ? '#dcfce7' : '#fee2e2', color: resetMessage.includes('sent') ? '#16a34a' : '#dc2626' }}>{resetMessage}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowReset(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: 12, color: '#475569', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleResetPassword} disabled={resetLoading} style={{ flex: 1, padding: '14px', background: resetLoading ? '#94a3b8' : '#0ea5e9', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: resetLoading ? 'not-allowed' : 'pointer' }}>{resetLoading ? 'Sending...' : 'Send Link'}</button>
+              <button onClick={handleResetPassword} disabled={resetLoading} style={{ flex: 1, padding: '14px', background: resetLoading ? '#94a3b8' : '#f97316', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: resetLoading ? 'not-allowed' : 'pointer' }}>{resetLoading ? 'Sending...' : 'Send Link'}</button>
             </div>
           </div>
         </div>

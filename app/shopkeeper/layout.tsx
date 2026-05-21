@@ -1,5 +1,4 @@
 import { cookies, headers } from 'next/headers'
-import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import ShopkeeperShell from '@/components/shopkeeper/ShopkeeperShell'
 
@@ -24,6 +23,19 @@ export default async function ShopkeeperLayout({ children }: { children: React.R
 
   // Allow unauthenticated users to view pages without the dashboard shell
   if (!user) {
+    return <>{children}</>
+  }
+
+  // Check if the shopkeeper's shop is approved and active
+  // Only show the dashboard shell for fully approved & active shops
+  const { data: shop } = await supabase
+    .from('shops')
+    .select('is_approved, is_active')
+    .eq('owner_id', user.id)
+    .maybeSingle()
+
+  if (!shop || !shop.is_approved || !shop.is_active) {
+    // Shop not approved/active yet — render without shell (status page will handle it)
     return <>{children}</>
   }
 

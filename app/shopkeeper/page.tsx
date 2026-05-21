@@ -75,7 +75,8 @@ export default function ShopkeeperDashboard() {
       if (!mounted) return
       
       if (!shopData || !shopData.is_approved || !shopData.is_active) {
-        window.location.href = '/login/status'
+        // Not approved yet — redirect to status page
+        window.location.replace('/login/status')
         return
       }
       
