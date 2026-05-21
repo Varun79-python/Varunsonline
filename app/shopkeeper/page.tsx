@@ -73,10 +73,12 @@ export default function ShopkeeperDashboard() {
 
       const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
       if (!mounted) return
-      
+
       if (!shopData || !shopData.is_approved || !shopData.is_active) {
-        // Not approved yet — redirect to status page
-        window.location.replace('/login/status')
+        // Shop not yet approved — show pending state in dashboard, do NOT redirect
+        // (redirect loop: dashboard→status→dashboard breaks the UX)
+        setShop(shopData)
+        setLoading(false)
         return
       }
       
@@ -197,26 +199,45 @@ export default function ShopkeeperDashboard() {
     </div>
   )
 
-  if (shop && !shop.is_approved) return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>
-        {shop.rejection_reason ? '❌' : '⏳'}
-      </div>
-      <h2 style={{ marginBottom: 8 }}>
-        {shop.rejection_reason ? 'Registration Rejected' : 'Awaiting Admin Approval'}
-      </h2>
-      <p>Your shop <strong>{shop.name}</strong> {shop.rejection_reason ? 'was rejected.' : 'is under review.'}</p>
-      {shop.rejection_reason && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 16, margin: '20px auto', maxWidth: 400, textAlign: 'left' }}>
-          <div style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600, marginBottom: 6 }}>Reason:</div>
-          <div style={{ color: '#7f1d1d', fontSize: '0.9rem' }}>{shop.rejection_reason}</div>
+  // ── Pending / Unapproved State ─────────────────────────────────────────
+  if (!shop || !shop.is_approved || !shop.is_active) {
+    const isRejected = shop?.rejection_reason
+    const isPending = !shop || (!shop.is_approved && !shop.rejection_reason)
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 40, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', maxWidth: 400, width: '100%', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '4rem', marginBottom: 16 }}>{isRejected ? '❌' : '⏳'}</div>
+          <h2 style={{ marginBottom: 8, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>
+            {isRejected ? 'Registration Rejected' : 'Awaiting Admin Approval'}
+          </h2>
+          <p style={{ color: '#64748b', marginBottom: 20, lineHeight: 1.6, fontSize: '0.9rem' }}>
+            {isRejected
+              ? 'Your registration was rejected.'
+              : 'Your documents are being reviewed by admin. This usually takes 24–48 hours.'}
+          </p>
+          {isRejected && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 14, marginBottom: 20, textAlign: 'left' }}>
+              <div style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>Reason:</div>
+              <div style={{ color: '#7f1d1d', fontSize: '0.88rem', lineHeight: 1.5 }}>{shop?.rejection_reason}</div>
+            </div>
+          )}
+          {isPending && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20, fontSize: '0.78rem', color: '#94a3b8' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' }} />
+              Checking automatically...
+              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+            </div>
+          )}
+          <button
+            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login/shopkeeper' }}
+            style={{ width: '100%', padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Logout
+          </button>
         </div>
-      )}
-      <p style={{ marginTop: 20, color: '#64748b', fontSize: '0.85rem' }}>
-        Contact support if you have questions.
-      </p>
-    </div>
-  )
+      </div>
+    )
+  }
 
   return (
     <div className="sk-root">
