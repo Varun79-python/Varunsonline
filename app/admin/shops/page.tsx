@@ -47,15 +47,23 @@ export default function AdminShops() {
     setErrorMsg('')
     
     try {
-      const { items: fetchedItems, pendingDocs } = await getAdminShops(tab)
-      
-      if (mountedRef.current) {
-        setItems(fetchedItems as UnifiedShop[])
-        setStats({ pendingDocs: pendingDocs })
+      const result = await getAdminShops(tab)
+      if (!mountedRef.current) return
+      // Server action may return an error field instead of throwing
+      if ('error' in result && result.error) {
+        setErrorMsg(result.error as string)
+        setItems([])
+        setStats({ pendingDocs: 0 })
+      } else {
+        setItems((result.items || []) as UnifiedShop[])
+        setStats({ pendingDocs: result.pendingDocs || 0 })
       }
     } catch (err: any) {
-      console.error('Failed to load shops:', err)
-      setErrorMsg(err.message || 'An unknown error occurred')
+      if (mountedRef.current) {
+        // Next.js server action errors surface as plain Error objects
+        const msg = err?.message || 'Failed to load data. Check Supabase connection.'
+        setErrorMsg(msg)
+      }
     } finally {
       if (mountedRef.current) {
         setLoading(false)
@@ -349,10 +357,15 @@ export default function AdminShops() {
       </div>
 
       {errorMsg && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '16px', marginBottom: 16, color: '#dc2626' }}>
-          <strong>Error loading data:</strong> {errorMsg}
-          <br/>
-          <small>Make sure you ran the SQL migration `refactor_shop_documents.sql` in Supabase.</small>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '16px', marginBottom: 16 }}>
+          <div style={{ color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>⚠️ Error loading data</div>
+          <div style={{ color: '#7f1d1d', fontSize: '0.85rem', marginBottom: 12 }}>{errorMsg}</div>
+          <button
+            onClick={() => load()}
+            style={{ padding: '8px 16px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}
+          >
+            🔄 Retry
+          </button>
         </div>
       )}
 
@@ -373,7 +386,17 @@ export default function AdminShops() {
                   <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📋</div>
                 )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{item.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{item.name}</span>
+                    {/* ℹ️ Info button — opens detail modal for any shop/registration */}
+                    <button
+                      onClick={() => handleSelectShop(item)}
+                      title="View Details"
+                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, flexShrink: 0 }}
+                    >
+                      ℹ
+                    </button>
+                  </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.type === 'document' ? 'Registration' : `${item.category} • ${item.city || 'N/A'}`}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

@@ -26,13 +26,8 @@ export default function CompleteProfilePage() {
       
       const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
       
-      if (!shopData) {
-        router.replace('/login/status')
-        return
-      }
-      
-      // If already complete, redirect to dashboard
-      if (shopData.is_profile_complete) {
+      if (!shopData || !shopData.is_approved || !shopData.is_active) {
+        // Shop not approved yet — redirect to dashboard which handles this state
         router.replace('/shopkeeper')
         return
       }
@@ -138,13 +133,18 @@ export default function CompleteProfilePage() {
       {/* Header */}
       <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
         <div style={{ fontSize: '3rem', marginBottom: 12 }}>🏪</div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 4 }}>Complete Your Shop Profile</h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Fill in your shop details to start selling online</p>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 4 }}>Shop Setup</h1>
+        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Fill in your shop details so customers can find you</p>
       </div>
 
-      {/* Progress indicator */}
-      <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, textAlign: 'center' }}>
-        ✅ Documents approved — Complete your profile to activate your shop
+      {/* Back to Dashboard */}
+      <div style={{ marginBottom: 16 }}>
+        <a
+          href="/shopkeeper"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 600 }}
+        >
+          ← Back to Dashboard
+        </a>
       </div>
 
       {/* Success message */}

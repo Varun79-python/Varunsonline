@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
-interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
+interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string; items: OrderItem[] }
 
@@ -71,7 +71,7 @@ export default function ShopkeeperDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!mounted || !user) return
 
-      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle()
+      const { data: shopData } = await supabase.from('shops').select('*, is_profile_complete').eq('owner_id', user.id).maybeSingle()
       if (!mounted) return
 
       if (!shopData || !shopData.is_approved || !shopData.is_active) {
@@ -275,6 +275,36 @@ export default function ShopkeeperDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Setup Nudge Banner — shown when shop profile is incomplete */}
+      {shop && !shop.is_profile_complete && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+          border: '1.5px solid #fed7aa',
+          borderRadius: 12,
+          padding: '14px 18px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '1.5rem' }}>🛠️</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#9a3412' }}>Complete your shop setup</div>
+              <div style={{ fontSize: '0.75rem', color: '#c2410c' }}>Add shop name, address, category & more to attract customers</div>
+            </div>
+          </div>
+          <a
+            href="/shopkeeper/complete-profile"
+            style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            Setup Now →
+          </a>
+        </div>
+      )}
 
       {/* Shop Open/Closed Status Toggle — prominent card */}
       {shop?.is_active && (
