@@ -25,9 +25,13 @@ export default async function ShopkeeperLayout({ children }: { children: React.R
 
   const { data: shop } = await adminClient
     .from('shops')
-    .select('is_approved, is_active')
+    .select('is_approved, is_active, rejection_reason')
     .eq('owner_id', user.id)
     .maybeSingle()
+
+  if (shop?.rejection_reason === 'BLOCKED') {
+    redirect('/login/status')
+  }
 
   if (shop?.is_approved && shop?.is_active) {
     return <ShopkeeperShell>{children}</ShopkeeperShell>

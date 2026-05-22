@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getAdminShops, approveShopkeeperDocuments, rejectShopkeeperDocuments } from '@/app/admin/actions'
+import { getAdminShops, approveShopkeeperDocuments, rejectShopkeeperDocuments, deleteShopkeeperShop, blockShopkeeperShop, unblockShopkeeperShop } from '@/app/admin/actions'
 
 interface UnifiedShop {
   id: string // shop.id or shop_documents.id
@@ -181,27 +181,46 @@ export default function AdminShops() {
     setSelectedItem(null)
   }
 
-  async function deleteShopPermanently(item: UnifiedShop) {
-    if (!confirm(`⚠️ PERMANENTLY DELETE ${item.name}? This cannot be undone!`)) return
-    
+  async function handleBlockShop(item: UnifiedShop) {
+    if (!confirm(`Are you sure you want to BLOCK ${item.name}?`)) return
     setProcessing(true)
-    try {
-      if (item.type === 'document') {
-        // Delete documents
-        await supabase.from('shop_documents').delete().eq('id', item.id)
-      } else {
-        await supabase.from('shops').delete().eq('id', item.id)
-      }
-      
-      alert(`✅ Deleted successfully.`)
+    const res = await blockShopkeeperShop(item.user_id)
+    if (res.error) {
+      alert('Block failed: ' + res.error)
+    } else {
+      alert('Shop blocked successfully.')
       setSelectedItem(null)
       load()
-    } catch (err) {
-      console.error('Delete error:', err)
-      alert('Failed to delete. Please try again.')
-    } finally {
-      setProcessing(false)
     }
+    setProcessing(false)
+  }
+
+  async function handleUnblockShop(item: UnifiedShop) {
+    if (!confirm(`Are you sure you want to UNBLOCK ${item.name}?`)) return
+    setProcessing(true)
+    const res = await unblockShopkeeperShop(item.user_id)
+    if (res.error) {
+      alert('Unblock failed: ' + res.error)
+    } else {
+      alert('Shop unblocked successfully.')
+      setSelectedItem(null)
+      load()
+    }
+    setProcessing(false)
+  }
+
+  async function handleDeleteShop(item: UnifiedShop) {
+    if (!confirm(`⚠️ WARNING: Are you sure you want to delete ${item.name}'s registration?\nThis will permanently delete their shop and documents. They will have to register again from the start.`)) return
+    setProcessing(true)
+    const res = await deleteShopkeeperShop(item.user_id)
+    if (res.error) {
+      alert('Delete failed: ' + res.error)
+    } else {
+      alert('Shop registration deleted successfully.')
+      setSelectedItem(null)
+      load()
+    }
+    setProcessing(false)
   }
 
   return (
@@ -286,23 +305,38 @@ export default function AdminShops() {
               </div>
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {selectedItem.rejection_reason && (
+                {selectedItem.rejection_reason && selectedItem.rejection_reason !== 'BLOCKED' && (
                   <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 8, fontSize: '0.85rem', color: '#dc2626' }}>
                     ❌ Rejection Reason: <strong>{selectedItem.rejection_reason}</strong>
                   </div>
                 )}
+                {selectedItem.rejection_reason === 'BLOCKED' && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 8, fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>
+                    🚫 This shop has been Blocked by the Admin.
+                  </div>
+                )}
                 
-                {selectedItem.is_approved && !selectedItem.is_active && selectedItem.type === 'shop' && (
+                {selectedItem.is_approved && !selectedItem.is_active && selectedItem.type === 'shop' && selectedItem.rejection_reason !== 'BLOCKED' && (
                   <button onClick={() => reapproveShop(selectedItem)} disabled={processing} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
                     ✅ Reapprove & Activate
                   </button>
                 )}
-                
-                {selectedItem.rejection_reason && (
-                  <button onClick={() => deleteShopPermanently(selectedItem)} disabled={processing} style={{ padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                    🗑️ Delete Permanently
-                  </button>
+
+                {selectedItem.type === 'shop' && selectedItem.is_approved && (
+                  selectedItem.rejection_reason === 'BLOCKED' ? (
+                    <button onClick={() => handleUnblockShop(selectedItem)} disabled={processing} style={{ padding: 14, background: '#16a34a', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                      🔓 Unblock Shop
+                    </button>
+                  ) : (
+                    <button onClick={() => handleBlockShop(selectedItem)} disabled={processing} style={{ padding: 14, background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                      🚫 Block Shop
+                    </button>
+                  )
                 )}
+
+                <button onClick={() => handleDeleteShop(selectedItem)} disabled={processing} style={{ padding: 14, background: '#be123c', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                  🗑️ Delete Shopkeeper Registration
+                </button>
                 
                 {!selectedItem.is_approved && !selectedItem.rejection_reason && (
                   <>
@@ -386,6 +420,8 @@ export default function AdminShops() {
                 <div style={{ textAlign: 'right' }}>
                   {!item.is_approved && !item.rejection_reason ? (
                     <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
+                  ) : item.rejection_reason === 'BLOCKED' ? (
+                    <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Blocked</span>
                   ) : item.is_active || (item.type === 'document' && item.is_approved) ? (
                     <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>{item.type === 'document' ? 'Approved' : 'Active'}</span>
                   ) : (
@@ -402,20 +438,29 @@ export default function AdminShops() {
                     <button onClick={() => handleSelectShop(item)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
                   )}
                   {item.is_approved && item.type === 'shop' && (
-                    <button onClick={() => toggleActive(item)} style={{ background: item.is_active ? '#fef3c7' : '#dcfce7', color: item.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                      {item.is_active ? '⏸️ Pause' : '▶️ Activate'}
-                    </button>
+                    item.rejection_reason === 'BLOCKED' ? (
+                      <button onClick={() => handleUnblockShop(item)} style={{ background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                        🔓 Unblock
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => toggleActive(item)} style={{ background: item.is_active ? '#fef3c7' : '#dcfce7', color: item.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                          {item.is_active ? '⏸️ Pause' : '▶️ Activate'}
+                        </button>
+                        <button onClick={() => handleBlockShop(item)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                          🚫 Block
+                        </button>
+                      </>
+                    )
                   )}
-                  {item.is_approved && !item.is_active && item.type === 'shop' && (
+                  {item.is_approved && !item.is_active && item.type === 'shop' && item.rejection_reason !== 'BLOCKED' && (
                     <button onClick={() => reapproveShop(item)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
                       ✅ Reapprove
                     </button>
                   )}
-                  {item.rejection_reason && (
-                    <button onClick={() => deleteShopPermanently(item)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                      🗑️ Delete
-                    </button>
-                  )}
+                  <button onClick={() => handleDeleteShop(item)} style={{ background: '#be123c', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                    🗑️ Delete
+                  </button>
                 </div>
               </div>
             </div>

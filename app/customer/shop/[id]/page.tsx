@@ -77,9 +77,13 @@ export default function ShopPage() {
         supabase.from('shops').select('*').eq('id', id).single(),
         supabase.from('products').select('*').eq('shop_id', id).eq('is_available', true).order('created_at', { ascending: false })
       ])
-      setShop(shopData)
-      setProducts(prodData || [])
-      setFiltered(prodData || [])
+      if (shopData && shopData.is_approved && shopData.is_active) {
+        setShop(shopData)
+        setProducts(prodData || [])
+        setFiltered(prodData || [])
+      } else {
+        setShop(null)
+      }
       setLoading(false)
     }
     load()

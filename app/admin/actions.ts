@@ -30,6 +30,7 @@ export async function checkShopkeeperStatus() {
       .eq('owner_id', user.id)
       .maybeSingle()
 
+    if (shop?.rejection_reason === 'BLOCKED') return { status: 'blocked' }
     if (shop?.is_approved && shop?.is_active) return { status: 'approved' }
     if (shop?.rejection_reason) return { status: 'rejected', reason: shop.rejection_reason }
 
@@ -113,7 +114,6 @@ export async function submitShopkeeperDocuments(payload: {
       const { error: shopErr } = await supabase.from('shops').insert({
         owner_id: user.id,
         name: payload.shopName,
-        full_name: payload.ownerName,
         phone: profile?.phone || '',
         email: profile?.email || '',
         category: payload.category,
@@ -158,7 +158,6 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
       await supabase.from('shops').insert({
         owner_id: userId,
         name: doc?.shop_name || 'My Shop',
-        full_name: doc?.owner_name || '',
         phone: profile?.phone || '',
         email: profile?.email || '',
         category: doc?.category || '',
@@ -434,5 +433,113 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
       pendingDocs: 0, 
       error: error.message || 'Failed to fetch shops. Please ensure database migrations are applied.' 
     }
+  }
+}
+
+export async function deleteShopkeeperShop(userId: string) {
+  try {
+    const supabase = await createAdminClient()
+    
+    // Find the shop
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('id')
+      .eq('owner_id', userId)
+      .maybeSingle()
+
+    if (shop) {
+      const shopId = shop.id
+
+      // Get all orders for this shop
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('shop_id', shopId)
+
+      const orderIds = orders?.map(o => o.id) || []
+
+      if (orderIds.length > 0) {
+        // Nullify order references in wallet transactions
+        await supabase.from('wallet_transactions').update({ order_id: null }).in('order_id', orderIds)
+        // Delete reviews referencing these orders
+        await supabase.from('reviews').delete().in('order_id', orderIds)
+        // Delete order items
+        await supabase.from('order_items').delete().in('order_id', orderIds)
+        // Delete status history
+        await supabase.from('order_status_history').delete().in('order_id', orderIds)
+        // Delete conversations
+        await supabase.from('order_conversations').delete().in('order_id', orderIds)
+        // Delete payments
+        await supabase.from('payments').delete().in('order_id', orderIds)
+        // Delete orders
+        await supabase.from('orders').delete().in('id', orderIds)
+      }
+
+      // Delete reviews
+      await supabase.from('reviews').delete().eq('shop_id', shopId)
+      // Delete coupons
+      await supabase.from('coupons').delete().eq('shop_id', shopId)
+      // Delete products
+      await supabase.from('products').delete().eq('shop_id', shopId)
+      // Delete shop
+      await supabase.from('shops').delete().eq('id', shopId)
+    }
+
+    // Delete documents
+    await supabase.from('shop_documents').delete().eq('user_id', userId)
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+export async function blockShopkeeperShop(userId: string) {
+  try {
+    const supabase = await createAdminClient()
+    
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_active: false, rejection_reason: 'BLOCKED' })
+      .eq('owner_id', userId)
+
+    if (error) return { error: error.message }
+
+    // Notify shopkeeper
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '🚫 Shop Blocked',
+      body: 'Your shop has been blocked by the admin. Please contact support.',
+      type: 'shop_rejected'
+    })
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+export async function unblockShopkeeperShop(userId: string) {
+  try {
+    const supabase = await createAdminClient()
+    
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_active: true, rejection_reason: null })
+      .eq('owner_id', userId)
+
+    if (error) return { error: error.message }
+
+    // Notify shopkeeper
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '🎉 Shop Unblocked',
+      body: 'Your shop has been unblocked by the admin. You can resume your business now!',
+      type: 'shop_approved'
+    })
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
   }
 }

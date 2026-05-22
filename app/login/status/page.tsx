@@ -53,6 +53,15 @@ export default function ApprovalStatusPage() {
         return
       }
 
+      if (result.status === 'blocked') {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        setIsRejected(true)
+        setIcon('🚫')
+        setMessage('Your shop has been blocked by the admin. Please contact support.')
+        setLoading(false)
+        return
+      }
+
       if (result.status === 'rejected') {
         if (pollingRef.current) clearInterval(pollingRef.current)
         setIsRejected(true)
