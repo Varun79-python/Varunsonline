@@ -11,6 +11,7 @@ interface Shop {
   shop_rating?: number | null
   delivery_rating?: number | null
   total_ratings?: number | null
+  is_open?: boolean | null
 }
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
