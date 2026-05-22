@@ -9,5 +9,11 @@ export function createClient() {
     return null as any
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey)
+  return createBrowserClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      detectSessionInUrl: true,
+      storageKey: 'varunsonline-auth',
+    }
+  })
 }

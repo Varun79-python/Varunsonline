@@ -6,7 +6,24 @@ import { getShopkeeperShopData } from '@/app/admin/actions'
 
 interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
-interface Order { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string; items: OrderItem[] }
+interface Order {
+  id: string; order_number: string; status: string; total_amount: number
+  shopkeeper_earning: number; subtotal: number; created_at: string
+  items: OrderItem[]; agent_id?: string | null; agent_name?: string | null
+  rejection_reason?: string | null
+}
+
+const STATUS_BADGE: Record<string, { label: string; icon: string; bg: string; color: string; border: string }> = {
+  payment_confirmed: { label: 'New Order', icon: '🔔', bg: '#fef3c7', color: '#d97706', border: '#fde68a' },
+  shop_accepted:     { label: 'Accepted', icon: '✅', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
+  order_packed:      { label: 'Packed', icon: '📦', bg: '#ffedd5', color: '#ea580c', border: '#fed7aa' },
+  agent_assigned:    { label: 'Agent Assigned', icon: '🛵', bg: '#e0e7ff', color: '#4f46e5', border: '#c7d2fe' },
+  picked_up:         { label: 'Picked Up', icon: '🏃', bg: '#e0e7ff', color: '#4f46e5', border: '#c7d2fe' },
+  out_for_delivery:  { label: 'Out for Delivery', icon: '🚴', bg: '#dbeafe', color: '#2563eb', border: '#bfdbfe' },
+  delivered:         { label: 'Delivered', icon: '🎉', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
+  rejected:          { label: 'Rejected', icon: '❌', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+  cancelled:         { label: 'Cancelled', icon: '🚫', bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' },
+}
 
 export default function ShopkeeperDashboard() {
   const supabase = createClient()
@@ -402,105 +419,120 @@ export default function ShopkeeperDashboard() {
         ))}
       </div>
 
-      {/* Pending Orders */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h3 style={{ fontSize: '1.1rem' }}>
-          🔔 Incoming Orders{' '}
-          {pendingOrders.length > 0 && (
-            <span style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, marginLeft: 6 }}>{pendingOrders.length}</span>
-          )}
-        </h3>
-        <button onClick={() => shopIdRef.current && fetchPending(shopIdRef.current)}
-          style={{ border: 'none', cursor: 'pointer', color: '#f97316', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(249,115,22,0.1)', padding: '6px 12px', borderRadius: 8 }}>
-          🔄 Refresh
-        </button>
-      </div>
+      {/* Orders Dashboard */}
+      {(() => {
+        const incoming = pendingOrders.filter(o => o.status === 'payment_confirmed')
+        const active = pendingOrders.filter(o => ['shop_accepted','order_packed','agent_assigned','picked_up','out_for_delivery'].includes(o.status))
+        const history = pendingOrders.filter(o => ['delivered','rejected','cancelled'].includes(o.status))
 
-{pendingOrders.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 16 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
-          <p style={{ color: '#64748b', fontWeight: 600 }}>No pending orders</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {pendingOrders.map((order, idx) => {
-            const isExpanded = expanded.has(order.id)
-            const itemCount = order.items?.length || 0
-            const isProcessing = actionLoading === order.id
-            const isNew = alertingOrderIds.has(order.id) || idx === 0 && alertingOrderIds.size > 0
-
-            return (
-              <div key={order.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', overflow: 'hidden' }}>
-                {isNew && (
-                  <div style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '6px 12px' }}>🔔 NEW ORDER</div>
-                )}
-
-                <div style={{ padding: '14px 14px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{order.order_number}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>
-                        {new Date(order.created_at).toLocaleTimeString('en-IN')}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 800, color: '#f97316', fontSize: '1.1rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
-                    </div>
+        function renderOrder(order: Order, idx: number) {
+          const badge = STATUS_BADGE[order.status] || STATUS_BADGE.payment_confirmed
+          const itemCount = order.items?.length || 0
+          const isProcessing = actionLoading === order.id
+          const isNew = order.status === 'payment_confirmed' && (alertingOrderIds.has(order.id) || idx === 0 && alertingOrderIds.size > 0)
+          return (
+            <div key={order.id} style={{ background: 'white', borderRadius: 12, border: `1.5px solid ${badge.border}`, overflow: 'hidden', marginBottom: 10 }}>
+              {isNew && <div style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '5px 12px' }}>🔔 NEW ORDER</div>}
+              <div style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>{order.order_number}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 1 }}>{new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <span style={{ background: badge.bg, color: badge.color, fontSize: '0.65rem', fontWeight: 800, padding: '3px 9px', borderRadius: 99, border: `1px solid ${badge.border}` }}>
+                      {badge.icon} {badge.label}
+                    </span>
+                    <span style={{ fontWeight: 800, color: '#f97316', fontSize: '1rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
                   </div>
                 </div>
 
-                {/* Product list */}
-                <div style={{ padding: '0 14px 12px' }}>
-                  {itemCount === 0 ? (
-                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', padding: '8px 0' }}>Loading items...</div>
-                  ) : (
-                    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
-                      {order.items.map((item, idx) => (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: idx % 2 === 0 ? '#f8fafc' : 'white', borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none' }}>
-                          {item.product_image_url ? (
-                            <img src={item.product_image_url} alt={item.product_name} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
-                          ) : (
-                            <div style={{ width: 36, height: 36, background: '#e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🛍️</div>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.product_name}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>₹{item.unit_price} × {item.quantity}</div>
-                          </div>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#f97316' }}>₹{item.total_price}</div>
-                        </div>
-                      ))}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#fff7ed', borderTop: '1px solid #e2e8f0' }}>
-                        <span style={{ fontWeight: 700, color: '#0f172a' }}>Your Earnings</span>
-                        <span style={{ fontWeight: 800, color: '#f97316' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {order.agent_name && (
+                  <div style={{ background: '#f0f9ff', borderRadius: 7, padding: '5px 10px', fontSize: '0.75rem', color: '#0369a1', marginBottom: 8, fontWeight: 600 }}>
+                    🛵 Agent: {order.agent_name}
+                  </div>
+                )}
+                {order.rejection_reason && order.status === 'rejected' && (
+                  <div style={{ background: '#fef2f2', borderRadius: 7, padding: '5px 10px', fontSize: '0.75rem', color: '#dc2626', marginBottom: 8 }}>
+                    ❌ Rejected: {order.rejection_reason}
+                  </div>
+                )}
 
-                {/* Action buttons */}
-                <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
-                  <button
-                    onClick={() => doOrderAction(order.id, order.order_number, 'accept')}
-                    disabled={isProcessing}
-                    style={{ flex: 1, background: isProcessing ? '#dcfce7' : '#16a34a', color: isProcessing ? '#16a34a' : 'white', border: 'none', borderRadius: 10, padding: '12px 16px', fontWeight: 800, fontSize: '0.85rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
-                  >
-                    {isProcessing ? '⏳...' : '✓ Accept'}
-                  </button>
-                  <button
-                    onClick={() => doOrderAction(order.id, order.order_number, 'reject')}
-                    disabled={isProcessing}
-                    style={{ background: isProcessing ? '#fee2e2' : '#dc2626', color: isProcessing ? '#dc2626' : 'white', border: 'none', borderRadius: 10, padding: '12px 16px', fontWeight: 700, fontSize: '0.85rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
-                  >
-                    ✕ Reject
-                  </button>
-                  <a href={`/shopkeeper/orders/${order.id}`} style={{ background: '#f1f5f9', color: '#475569', borderRadius: 10, padding: '12px 14px', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none' }}>Details</a>
-                </div>
+                {itemCount > 0 && (
+                  <div style={{ border: '1px solid #f1f5f9', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+                    {order.items.slice(0, 3).map((item, i) => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: i % 2 === 0 ? '#f8fafc' : 'white', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
+                        {item.product_image_url
+                          ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                          : <div style={{ width: 30, height: 30, background: '#e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>🛍️</div>
+                        }
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>₹{item.unit_price} × {item.quantity}</div>
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#f97316' }}>₹{item.total_price}</div>
+                      </div>
+                    ))}
+                    {itemCount > 3 && (
+                      <div style={{ padding: '6px 10px', background: '#f8fafc', fontSize: '0.7rem', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>+{itemCount - 3} more items</div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: '#fff7ed', borderTop: '1px solid #f1f5f9' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>Your Earnings</span>
+                      <span style={{ fontWeight: 800, color: '#f97316', fontSize: '0.8rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons — only for incoming orders */}
+                {order.status === 'payment_confirmed' && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => doOrderAction(order.id, order.order_number, 'accept')} disabled={isProcessing}
+                      style={{ flex: 1, background: isProcessing ? '#dcfce7' : '#16a34a', color: isProcessing ? '#16a34a' : 'white', border: 'none', borderRadius: 9, padding: '11px', fontWeight: 800, fontSize: '0.82rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
+                      {isProcessing ? '⏳...' : '✓ Accept'}
+                    </button>
+                    <button onClick={() => doOrderAction(order.id, order.order_number, 'reject')} disabled={isProcessing}
+                      style={{ background: isProcessing ? '#fee2e2' : '#dc2626', color: isProcessing ? '#dc2626' : 'white', border: 'none', borderRadius: 9, padding: '11px 16px', fontWeight: 700, fontSize: '0.82rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
-            )
-          })}
-        </div>
-      )}
+            </div>
+          )
+        }
+
+        return (
+          <div>
+            {/* Section: Incoming — needs action */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>
+                🔔 Incoming{incoming.length > 0 && <span style={{ background: '#f97316', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 10, marginLeft: 6 }}>{incoming.length}</span>}
+              </h3>
+              <button onClick={() => shopIdRef.current && fetchPending(shopIdRef.current)}
+                style={{ border: 'none', cursor: 'pointer', color: '#f97316', fontSize: '0.75rem', fontWeight: 600, background: 'rgba(249,115,22,0.1)', padding: '5px 10px', borderRadius: 7 }}>🔄 Refresh</button>
+            </div>
+            {incoming.length === 0
+              ? <div style={{ textAlign: 'center', padding: '24px 16px', background: '#f8fafc', borderRadius: 12, marginBottom: 16 }}><div style={{ fontSize: '2rem', marginBottom: 6 }}>✅</div><p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>No new orders</p></div>
+              : incoming.map((o, i) => renderOrder(o, i))}
+
+            {/* Section: Active orders */}
+            {active.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📋 Active Orders ({active.length})</h3>
+                {active.map((o, i) => renderOrder(o, i))}
+              </div>
+            )}
+
+            {/* Section: History */}
+            {history.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📅 Today's History</h3>
+                {history.map((o, i) => renderOrder(o, i))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       <style>{`
         .sk-root { min-height: 100%; }

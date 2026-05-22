@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Script from 'next/script'
 
 interface Plan {
   id: string; name: string; description: string
@@ -177,7 +178,7 @@ export default function ShopkeeperPlans() {
 
   return (
     <div style={{ padding: '0 12px', maxWidth: 640, margin: '0 auto' }}>
-      <script src="https://checkout.razorpay.com/v1/checkout.js" async />
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
       <h2 style={{ marginBottom: 6, fontSize: '1.2rem' }}>📋 Subscription Plan</h2>
       <p style={{ color: '#64748b', marginBottom: 20, fontSize: '0.85rem' }}>

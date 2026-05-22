@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
     const agentLat = agentRow?.last_lat as number | null
     const agentLon = agentRow?.last_lon as number | null
 
+    // No GPS on record — block immediately, return gpsRequired signal
+    if (!agentLat || !agentLon) {
+      console.log(`[Orders/API] Agent ${auth.agentId} has no GPS — returning empty order list`)
+      return NextResponse.json({ orders: [], gpsRequired: true })
+    }
+
+    // Only fetch orders that are packed and unassigned (shop accepted → auto-packed)
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -51,21 +58,14 @@ export async function GET(req: NextRequest) {
       const distShopToCustomer = (shop?.latitude && shop?.longitude && addr?.latitude && addr?.longitude)
         ? haversineKm(shop.latitude, shop.longitude, addr.latitude, addr.longitude)
         : null
-      // Distance from agent to shop (for proximity filter)
-      const distAgentToShop = (agentLat && agentLon && shop?.latitude && shop?.longitude)
+      const distAgentToShop = (shop?.latitude && shop?.longitude)
         ? haversineKm(agentLat, agentLon, shop.latitude, shop.longitude)
         : null
       return { ...o, distShopToCustomer, distAgentToShop }
     })
 
-    // No GPS on record — return empty list and signal the UI
-    if (!agentLat || !agentLon) {
-      console.log(`[Orders/API] Agent ${auth.agentId} has no GPS — returning empty order list`)
-      return NextResponse.json({ orders: [], gpsRequired: true })
-    }
-
     // Filter: only show orders whose shop is within 5km of agent
-    const filtered = enriched.filter(o => o.distAgentToShop === null || o.distAgentToShop <= 5)
+    const filtered = enriched.filter(o => o.distAgentToShop !== null && o.distAgentToShop <= 5)
 
     return NextResponse.json({ orders: filtered })
   } catch (err) {

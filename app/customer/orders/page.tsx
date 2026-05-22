@@ -62,6 +62,27 @@ export default function OrdersPage() {
   const [deliveryRating, setDeliveryRating] = useState(0)
   const [ratingSubmitting, setRatingSubmitting] = useState(false)
   const [ratedOrders, setRatedOrders] = useState<Set<string>>(new Set())
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
+
+  const CANCELLABLE = ['placed', 'payment_pending', 'payment_confirmed', 'shop_accepted', 'order_packed']
+
+  async function cancelOrder(e: React.MouseEvent, orderId: string) {
+    e.stopPropagation()
+    if (!window.confirm('Cancel this order? This cannot be undone.')) return
+    setCancellingId(orderId)
+    try {
+      const res = await fetch('/api/orders/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error || 'Could not cancel order.'); return }
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o))
+    } finally {
+      setCancellingId(null)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -298,9 +319,20 @@ export default function OrdersPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{date} · {time}</span>
-                        <button style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-                          Track Order →
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {CANCELLABLE.includes(order.status) && (
+                            <button
+                              onClick={(e) => cancelOrder(e, order.id)}
+                              disabled={cancellingId === order.id}
+                              style={{ background: '#fee2e2', border: 'none', color: '#dc2626', padding: '8px 14px', borderRadius: 10, fontSize: '0.75rem', fontWeight: 700, cursor: cancellingId === order.id ? 'not-allowed' : 'pointer', opacity: cancellingId === order.id ? 0.6 : 1 }}
+                            >
+                              {cancellingId === order.id ? '⏳' : '✕ Cancel'}
+                            </button>
+                          )}
+                          <button style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                            Track Order →
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
