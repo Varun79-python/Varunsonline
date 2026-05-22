@@ -3,6 +3,15 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
+// Auto-reloads the page every 3s (used when shop record is being set up after approval)
+function AutoRetry() {
+  useEffect(() => {
+    const t = setTimeout(() => window.location.reload(), 3000)
+    return () => clearTimeout(t)
+  }, [])
+  return null
+}
+
 interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order { id: string; order_number: string; status: string; total_amount: number; shopkeeper_earning: number; subtotal: number; created_at: string; items: OrderItem[] }
@@ -201,39 +210,54 @@ export default function ShopkeeperDashboard() {
 
   // ── Pending / Unapproved State ─────────────────────────────────────────
   if (!shop || !shop.is_approved || !shop.is_active) {
-    const isRejected = shop?.rejection_reason
-    const isPending = !shop || (!shop.is_approved && !shop.rejection_reason)
+    const isRejected = !!shop?.rejection_reason
+    // If shop is null, it means admin just approved and the record is being set up
+    const isJustApproved = !shop && !isRejected
     return (
       <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 40, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', maxWidth: 400, width: '100%', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '4rem', marginBottom: 16 }}>{isRejected ? '❌' : '⏳'}</div>
+          <div style={{ fontSize: '4rem', marginBottom: 16 }}>{isRejected ? '❌' : isJustApproved ? '🎉' : '⏳'}</div>
           <h2 style={{ marginBottom: 8, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>
-            {isRejected ? 'Registration Rejected' : 'Awaiting Admin Approval'}
+            {isRejected ? 'Registration Rejected' : isJustApproved ? 'Almost Ready!' : 'Awaiting Admin Approval'}
           </h2>
           <p style={{ color: '#64748b', marginBottom: 20, lineHeight: 1.6, fontSize: '0.9rem' }}>
             {isRejected
               ? 'Your registration was rejected.'
-              : 'Your documents are being reviewed by admin. This usually takes 24–48 hours.'}
+              : isJustApproved
+                ? 'Your account is approved! Setting up your dashboard — please wait a moment.'
+                : 'Your documents are being reviewed by admin. This usually takes 24–48 hours.'}
           </p>
-          {isRejected && (
+          {isRejected && shop?.rejection_reason && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 14, marginBottom: 20, textAlign: 'left' }}>
               <div style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>Reason:</div>
-              <div style={{ color: '#7f1d1d', fontSize: '0.88rem', lineHeight: 1.5 }}>{shop?.rejection_reason}</div>
+              <div style={{ color: '#7f1d1d', fontSize: '0.88rem', lineHeight: 1.5 }}>{shop.rejection_reason}</div>
             </div>
           )}
-          {isPending && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20, fontSize: '0.78rem', color: '#94a3b8' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' }} />
-              Checking automatically...
-              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
-            </div>
+          {/* Auto-retry when just approved — reload page every 3s until shop is ready */}
+          {isJustApproved && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20, fontSize: '0.78rem', color: '#94a3b8' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' }} />
+                Loading your dashboard...
+                <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+              </div>
+              <AutoRetry />
+            </>
           )}
-          <button
-            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login/shopkeeper' }}
-            style={{ width: '100%', padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
-          >
-            Logout
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ width: '100%', padding: '12px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}
+            >
+              🔄 Refresh Dashboard
+            </button>
+            <button
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login/shopkeeper' }}
+              style={{ width: '100%', padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     )

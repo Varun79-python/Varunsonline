@@ -3,274 +3,363 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const SHOP_CATEGORIES = [
+  'Grocery', 'Vegetables & Fruits', 'Dairy & Eggs', 'Bakery',
+  'Meat & Seafood', 'Pharmacy', 'Electronics', 'Clothing & Apparel',
+  'Stationery', 'Home & Kitchen', 'Beauty & Personal Care',
+  'Restaurants & Food', 'Hardware', 'Books', 'Other'
+]
+
 export default function ShopDocumentsPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-
-  const [shopPhotoUrl, setShopPhotoUrl] = useState('')
-  const [aadharUrl, setAadharUrl] = useState('')
   const [error, setError] = useState('')
+
+  // Shop info fields
+  const [shopName, setShopName] = useState('')
+  const [ownerName, setOwnerName] = useState('')
+  const [category, setCategory] = useState('')
+
+  // File state — local preview + uploaded URL
+  const [shopImageFile, setShopImageFile] = useState<File | null>(null)
+  const [shopImagePreview, setShopImagePreview] = useState('')
+  const [shopImageUrl, setShopImageUrl] = useState('')
+  const [shopImageUploading, setShopImageUploading] = useState(false)
+
+  const [aadharFile, setAadharFile] = useState<File | null>(null)
+  const [aadharPreview, setAadharPreview] = useState('')
+  const [aadharUrl, setAadharUrl] = useState('')
+  const [aadharUploading, setAadharUploading] = useState(false)
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024
 
   const checkAuth = useCallback(async () => {
-    if (!supabase) {
-      setLoadError('Supabase not configured. Please try again later.')
-      setLoading(false)
-      return
-    }
-
     setLoading(true)
     setLoadError('')
-
     try {
       const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.replace('/login/shopkeeper'); return }
 
-      if (!user) {
-        // Not logged in → redirect to login
-        router.replace('/login/shopkeeper')
-        return
-      }
-
-      // User is logged in - set user ID
       setUserId(user.id)
 
-      // Check if documents already uploaded for this user
+      // Pre-fill owner name from profile
+      const { data: profile } = await supabase
+        .from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+      if (profile?.full_name) setOwnerName(profile.full_name)
+
+      // Already submitted? → go to status
       const { data: existingDocs } = await supabase
-        .from('shop_documents')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle()
+        .from('shop_documents').select('id').eq('user_id', user.id).maybeSingle()
+      if (existingDocs) { router.replace('/login/status'); return }
 
-      if (existingDocs) {
-        // Documents already uploaded → redirect to status
-        router.replace('/login/status')
-        return
-      }
-
-      // Not uploaded → stay on this page
       setLoading(false)
     } catch (err: any) {
-      console.error('Check auth error:', err)
-      setLoadError(err.message || 'Something went wrong. Please try again.')
+      setLoadError(err.message || 'Something went wrong.')
       setLoading(false)
     }
   }, [router, supabase])
 
-  useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
+  useEffect(() => { checkAuth() }, [checkAuth])
 
   useEffect(() => {
     if (done) {
-      const timer = setTimeout(() => {
-        router.replace('/login/status')
-      }, 2000)
-      return () => clearTimeout(timer)
+      const t = setTimeout(() => router.replace('/login/status'), 2000)
+      return () => clearTimeout(t)
     }
   }, [done, router])
 
-  async function uploadFile(file: File, docType: string): Promise<string | null> {
+  // ── Upload helpers ──────────────────────────────────────────────────────────
+  async function uploadToStorage(file: File, bucket: string, docType: string): Promise<string | null> {
     if (!userId) return null
-    setUploading(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `${userId}/${docType}_${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('shop-documents').upload(path, file)
-      if (uploadError) {
-        const msg = uploadError.message.includes('row-level security') 
-          ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
-          : uploadError.message
-        alert('Upload failed: ' + msg)
-        setUploading(false)
-        return null
-      }
-      const { data: { publicUrl } } = supabase.storage.from('shop-documents').getPublicUrl(path)
-      setUploading(false)
-      return publicUrl
-    } catch (err: any) {
-      const msg = err.message?.includes('row-level security') 
-        ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
-        : err.message
-      alert('Upload failed: ' + msg)
-      setUploading(false)
+    const ext = file.name.split('.').pop()
+    const path = `${userId}/${docType}_${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file)
+    if (uploadError) {
+      const msg = uploadError.message.includes('row-level security')
+        ? 'Storage permissions denied. Please contact support.'
+        : uploadError.message
+      setError('Upload failed: ' + msg)
       return null
     }
+    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+    return publicUrl
   }
 
-  function handleShopPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleShopImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
-    uploadFile(file, 'shop_photo').then(url => { if (url) setShopPhotoUrl(url) })
+    if (file.size > MAX_FILE_SIZE) { setError('Shop image too large. Max 5MB.'); return }
+    setShopImageFile(file)
+    setShopImagePreview(URL.createObjectURL(file))
+    setShopImageUrl('') // reset previously uploaded URL
+    setError('')
+
+    // Upload immediately
+    setShopImageUploading(true)
+    uploadToStorage(file, 'shop-images', 'shop_image').then(url => {
+      setShopImageUploading(false)
+      if (url) setShopImageUrl(url)
+    })
   }
 
   function handleAadharSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
-    uploadFile(file, 'aadhar').then(url => { if (url) setAadharUrl(url) })
+    if (file.size > MAX_FILE_SIZE) { setError('Aadhaar image too large. Max 5MB.'); return }
+    setAadharFile(file)
+    setAadharPreview(URL.createObjectURL(file))
+    setAadharUrl('')
+    setError('')
+
+    setAadharUploading(true)
+    uploadToStorage(file, 'shop-documents', 'aadhar').then(url => {
+      setAadharUploading(false)
+      if (url) setAadharUrl(url)
+    })
   }
 
+  // ── Submit ──────────────────────────────────────────────────────────────────
   async function submit() {
-    if (!shopPhotoUrl) { setError('Please upload Shop Photo'); return }
-    if (!aadharUrl) { setError('Please upload Aadhaar Card'); return }
+    setError('')
+    if (!shopName.trim()) { setError('Please enter your shop name.'); return }
+    if (!ownerName.trim()) { setError('Please enter the owner name.'); return }
+    if (!category) { setError('Please select a shop category.'); return }
+    if (!shopImageUrl) { setError(shopImageUploading ? 'Shop image still uploading. Please wait.' : 'Please upload a photo of your shop.'); return }
+    if (!aadharUrl) { setError(aadharUploading ? 'Aadhaar still uploading. Please wait.' : 'Please upload your Aadhaar card.'); return }
     if (!userId) { setError('Session expired. Please login again.'); return }
 
     setSaving(true)
-    setError('')
-
-    // Save documents with user_id (not shop_id) - using column names matching admin query
-    await supabase.from('shop_documents').insert({
+    const { error: dbErr } = await supabase.from('shop_documents').insert({
       user_id: userId,
-      shop_photo_url: shopPhotoUrl,
-      aadhar_url: aadharUrl,
-      status: 'pending'
+      shop_photo_url: shopImageUrl,   // shop image (from shop-images bucket)
+      aadhar_url: aadharUrl,          // aadhaar (from shop-documents bucket)
+      status: 'pending',
+      // Shop info sent to admin for review
+      shop_name: shopName.trim(),
+      owner_name: ownerName.trim(),
+      category: category,
     })
+
+    if (dbErr) {
+      setError('Failed to submit: ' + dbErr.message)
+      setSaving(false)
+      return
+    }
 
     setDone(true)
     setSaving(false)
   }
 
-  // Loading state
+  // ── UI States ───────────────────────────────────────────────────────────────
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
-      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 16 }} />
-      <p style={{ color: '#64748b' }}>Loading...</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+        <p style={{ color: '#64748b' }}>Loading...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
     </div>
   )
 
-  // Error state with retry
   if (loadError) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: 400 }}>
+      <div style={{ textAlign: 'center', background: 'white', padding: 40, borderRadius: 20, maxWidth: 400 }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
-        <h2 style={{ marginBottom: 12, fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>Something went wrong</h2>
         <p style={{ color: '#64748b', marginBottom: 24 }}>{loadError}</p>
-        <button
-          onClick={() => checkAuth()}
-          style={{ padding: '12px 24px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer', marginBottom: 12, width: '100%' }}
-        >
-          🔄 Try Again
-        </button>
-        <button
-          onClick={() => router.replace('/login/shopkeeper')}
-          style={{ padding: '12px 24px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', width: '100%' }}
-        >
-          ← Back to Login
-        </button>
+        <button onClick={() => checkAuth()} style={{ padding: '12px 24px', background: '#f97316', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', width: '100%', marginBottom: 10 }}>🔄 Try Again</button>
+        <button onClick={() => router.replace('/login/shopkeeper')} style={{ padding: '12px 24px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', width: '100%' }}>← Back to Login</button>
       </div>
     </div>
   )
 
-  // Done state
   if (done) return (
-    <div style={{ minHeight: '100vh', padding: 24, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, maxWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎉</div>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Documents Submitted!</h2>
-        <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>Your documents have been uploaded.<br/><br/>Redirecting to check status...</p>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Application Submitted!</h2>
+        <p style={{ color: '#64748b', lineHeight: 1.6 }}>
+          Your shop details and documents have been sent to admin for review.<br /><br />
+          You will be notified once approved. Redirecting...
+        </p>
       </div>
     </div>
   )
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px 14px', borderRadius: 10,
+    border: '1.5px solid #e2e8f0', fontSize: '0.95rem',
+    background: 'white', boxSizing: 'border-box', outline: 'none',
+    fontFamily: 'inherit'
+  }
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '0.82rem', fontWeight: 700,
+    color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em'
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '0 16px 40px' }}>
-      <div style={{ padding: '20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.replace('/login/shopkeeper')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Upload Documents</h2>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: 40 }}>
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: '20px 16px 28px' }}>
+        <button onClick={() => router.replace('/login/shopkeeper')} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', marginBottom: 12 }}>← Back</button>
+        <h1 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>🏪 Shop Registration</h1>
+        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.85rem', marginTop: 4, marginBottom: 0 }}>Fill in your shop details and upload documents for admin approval</p>
       </div>
 
-      <div style={{ maxWidth: 500, margin: '0 auto' }}>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Shop Photo * <span style={{ fontSize: '0.75rem', color: '#64748b' }}>(Max 5MB)</span></h3>
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
+
+        {/* ── Shop Info Section ────────────────────────────────────────────── */}
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 20, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>📋</span>
+            Shop Information
+          </h3>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Shop Name *</label>
+            <input
+              type="text"
+              placeholder="e.g. Raju General Store"
+              value={shopName}
+              onChange={e => setShopName(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Owner Name *</label>
+            <input
+              type="text"
+              placeholder="Your full name"
+              value={ownerName}
+              onChange={e => setOwnerName(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: 4 }}>
+            <label style={labelStyle}>Shop Category *</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              style={{ ...inputStyle, color: category ? '#0f172a' : '#94a3b8' }}
+            >
+              <option value="" disabled>Select category...</option>
+              {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* ── Shop Photo Section ───────────────────────────────────────────── */}
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>📸</span>
+            Shop Photo *
+          </h3>
+          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>
+            Take a clear photo of your shop with the shop name board visible. Max 5MB.
+          </p>
 
           <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept="image/*" onChange={handleShopPhotoSelect} style={{ display: 'none' }} />
-            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: shopPhotoUrl ? '#f0fdf4' : '#f8fafc' }}>
-              {uploading ? (
+            <input type="file" accept="image/*" onChange={handleShopImageSelect} style={{ display: 'none' }} />
+            <div style={{
+              border: `2px dashed ${shopImageUrl ? '#22c55e' : '#e2e8f0'}`,
+              borderRadius: 12, padding: shopImagePreview ? 8 : 28,
+              textAlign: 'center',
+              background: shopImageUrl ? '#f0fdf4' : shopImagePreview ? '#fefce8' : '#f8fafc'
+            }}>
+              {shopImagePreview ? (
                 <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
-                  <div style={{ color: '#f97316', fontWeight: 600 }}>Uploading...</div>
-                </div>
-              ) : shopPhotoUrl ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Shop Photo Uploaded</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
+                  <img src={shopImagePreview} alt="Shop" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                  {shopImageUploading ? (
+                    <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
+                  ) : shopImageUrl ? (
+                    <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
+                  ) : (
+                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>
+                  )}
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Shop Photo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
+                  <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>📷</div>
+                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Tap to upload shop photo</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>JPEG / PNG / WebP</div>
                 </div>
               )}
             </div>
           </label>
-
-          {shopPhotoUrl && (
-            <div style={{ marginTop: 12 }}>
-              <img src={shopPhotoUrl} alt="Shop" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
-            </div>
-          )}
         </div>
 
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card * <span style={{ fontSize: '0.75rem', color: '#64748b' }}>(Max 5MB)</span></h3>
+        {/* ── Aadhaar Section ──────────────────────────────────────────────── */}
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>🪪</span>
+            Aadhaar Card *
+          </h3>
+          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>
+            Upload a clear photo of your Aadhaar card (front side). Max 5MB.
+          </p>
 
           <label style={{ display: 'block', cursor: 'pointer' }}>
             <input type="file" accept="image/*" onChange={handleAadharSelect} style={{ display: 'none' }} />
-            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: aadharUrl ? '#f0fdf4' : '#f8fafc' }}>
-              {uploading ? (
+            <div style={{
+              border: `2px dashed ${aadharUrl ? '#22c55e' : '#e2e8f0'}`,
+              borderRadius: 12, padding: aadharPreview ? 8 : 28,
+              textAlign: 'center',
+              background: aadharUrl ? '#f0fdf4' : aadharPreview ? '#fefce8' : '#f8fafc'
+            }}>
+              {aadharPreview ? (
                 <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
-                  <div style={{ color: '#f97316', fontWeight: 600 }}>Uploading...</div>
-                </div>
-              ) : aadharUrl ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Aadhaar Uploaded</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
+                  <img src={aadharPreview} alt="Aadhaar" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                  {aadharUploading ? (
+                    <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
+                  ) : aadharUrl ? (
+                    <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
+                  ) : (
+                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>
+                  )}
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Aadhaar Photo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
+                  <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🪪</div>
+                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Tap to upload Aadhaar photo</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>JPEG / PNG / WebP</div>
                 </div>
               )}
             </div>
           </label>
-
-          {aadharUrl && (
-            <div style={{ marginTop: 12 }}>
-              <img src={aadharUrl} alt="Aadhaar" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
-            </div>
-          )}
         </div>
 
+        {/* ── Error & Submit ───────────────────────────────────────────────── */}
         {error && (
-          <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, color: '#dc2626', fontSize: '0.9rem', fontWeight: 600, marginBottom: 16 }}>
-            {error}
+          <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, color: '#dc2626', fontSize: '0.88rem', fontWeight: 600, marginTop: 16 }}>
+            ⚠️ {error}
           </div>
         )}
 
         <button
           onClick={submit}
-          disabled={saving || uploading}
-          style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(249,115,22,0.3)' }}
+          disabled={saving || shopImageUploading || aadharUploading}
+          style={{
+            width: '100%', marginTop: 20, padding: '16px',
+            background: (saving || shopImageUploading || aadharUploading) ? '#94a3b8' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+            color: 'white', border: 'none', borderRadius: 14,
+            fontSize: '1rem', fontWeight: 700,
+            cursor: (saving || shopImageUploading || aadharUploading) ? 'not-allowed' : 'pointer',
+            boxShadow: '0 4px 16px rgba(249,115,22,0.3)'
+          }}
         >
-          {saving ? 'Saving...' : 'Submit Documents'}
+          {saving ? 'Submitting...' : (shopImageUploading || aadharUploading) ? 'Uploading files...' : 'Submit for Admin Approval →'}
         </button>
+
+        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem', marginTop: 14, lineHeight: 1.5 }}>
+          Your details will be reviewed by admin within 24–48 hours.<br />
+          You will receive a notification once approved.
+        </p>
       </div>
     </div>
   )

@@ -43,7 +43,9 @@ export async function checkShopkeeperStatus() {
     if (!docs) return { status: 'no_documents' }
     if (docs.status === 'rejected') return { status: 'docs_rejected' }
     if (docs.status === 'pending') return { status: 'docs_pending' }
-    return { status: 'docs_approved_shop_pending' }
+    // Docs are approved — admin has approved this shopkeeper, send to dashboard
+    // (shop record creation is handled by approveShopkeeperDocuments; dashboard verifies)
+    return { status: 'approved' }
   } catch (err: any) {
     return { status: 'error', error: err.message }
   }
@@ -55,25 +57,36 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
     const supabase = await createAdminClient()
     await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', docId)
 
+    // Fetch the shop details the shopkeeper submitted during registration
+    const { data: doc } = await supabase
+      .from('shop_documents')
+      .select('shop_name, owner_name, category, shop_photo_url')
+      .eq('id', docId)
+      .maybeSingle()
+
     const { data: profile } = await supabase
       .from('profiles').select('full_name, phone, email').eq('id', userId).maybeSingle()
 
     const { data: existingShop } = await supabase
       .from('shops').select('id').eq('owner_id', userId).maybeSingle()
 
+    const shopPayload = {
+      owner_id: userId,
+      name: doc?.shop_name || profile?.full_name ? `${profile?.full_name}'s Shop` : 'My Shop',
+      full_name: doc?.owner_name || profile?.full_name || '',
+      phone: profile?.phone || '',
+      email: profile?.email || '',
+      category: doc?.category || '',
+      shop_image_url: doc?.shop_photo_url || '',
+      is_approved: true,
+      is_active: true,
+    }
+
     if (!existingShop) {
-      await supabase.from('shops').insert({
-        owner_id: userId,
-        name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
-        full_name: profile?.full_name || '',
-        phone: profile?.phone || '',
-        email: profile?.email || '',
-        is_approved: true,
-        is_active: true,
-      })
+      await supabase.from('shops').insert(shopPayload)
     } else {
       await supabase.from('shops')
-        .update({ is_approved: true, is_active: true, rejection_reason: null })
+        .update({ ...shopPayload, owner_id: undefined, is_approved: true, is_active: true, rejection_reason: null })
         .eq('owner_id', userId)
     }
 
@@ -177,7 +190,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
       // Get documents without join first
       const { data: docs, error } = await supabase
         .from('shop_documents')
-        .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
+        .select('id, user_id, status, shop_photo_url, aadhar_url, shop_name, owner_name, category, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
       
@@ -200,11 +213,11 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         id: doc.id,
         type: 'document',
         user_id: doc.user_id,
-        name: 'Pending Registration',
-        full_name: profileMap[doc.user_id]?.full_name || 'Unknown',
+        name: doc.shop_name || 'Pending Registration',
+        full_name: doc.owner_name || profileMap[doc.user_id]?.full_name || 'Unknown',
         phone: profileMap[doc.user_id]?.phone || 'Unknown',
         email: '',
-        category: 'N/A',
+        category: doc.category || 'N/A',
         city: 'N/A',
         is_approved: false,
         is_active: false,
