@@ -44,52 +44,131 @@ export async function checkShopkeeperStatus() {
     if (docs.status === 'rejected') return { status: 'docs_rejected' }
     if (docs.status === 'pending') return { status: 'docs_pending' }
     // Docs are approved — admin has approved this shopkeeper, send to dashboard
-    // (shop record creation is handled by approveShopkeeperDocuments; dashboard verifies)
     return { status: 'approved' }
   } catch (err: any) {
     return { status: 'error', error: err.message }
   }
 }
 
-// ── Bypasses RLS: admin approves documents & creates shop ─────────────────────
+// ── Bypasses RLS: fetches full shop data for the current shopkeeper ────────────
+export async function getShopkeeperShopData() {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { shop: null, error: 'not_authenticated' }
+
+    const supabase = await createAdminClient()
+    const { data: shop, error } = await supabase
+      .from('shops')
+      .select('*')
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    if (error) return { shop: null, error: error.message }
+    return { shop, userId: user.id }
+  } catch (err: any) {
+    return { shop: null, error: err.message }
+  }
+}
+
+// ── Bypasses RLS: shopkeeper submits documents + creates pending shop ─────────
+export async function submitShopkeeperDocuments(payload: {
+  shopPhotoUrl: string
+  aadharUrl: string
+  shopName: string
+  ownerName: string
+  category: string
+}) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { error: 'not_authenticated' }
+
+    const supabase = await createAdminClient()
+
+    // 1. Check not already submitted
+    const { data: existing } = await supabase
+      .from('shop_documents').select('id').eq('user_id', user.id).maybeSingle()
+    if (existing) return { error: 'already_submitted' }
+
+    // 2. Fetch profile for phone/email
+    const { data: profile } = await supabase
+      .from('profiles').select('phone, email').eq('id', user.id).maybeSingle()
+
+    // 3. Create shop_documents record
+    const { error: docErr } = await supabase.from('shop_documents').insert({
+      user_id: user.id,
+      shop_photo_url: payload.shopPhotoUrl,
+      aadhar_url: payload.aadharUrl,
+      shop_name: payload.shopName,
+      owner_name: payload.ownerName,
+      category: payload.category,
+      status: 'pending',
+    })
+    if (docErr) return { error: docErr.message }
+
+    // 4. Create shops record immediately (pending approval)
+    const { data: existingShop } = await supabase
+      .from('shops').select('id').eq('owner_id', user.id).maybeSingle()
+
+    if (!existingShop) {
+      const { error: shopErr } = await supabase.from('shops').insert({
+        owner_id: user.id,
+        name: payload.shopName,
+        full_name: payload.ownerName,
+        phone: profile?.phone || '',
+        email: profile?.email || '',
+        category: payload.category,
+        shop_image_url: payload.shopPhotoUrl,
+        is_approved: false,
+        is_active: false,
+        is_open: false,
+      })
+      if (shopErr) return { error: shopErr.message }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+// ── Bypasses RLS: admin approves documents — just flips shop to active ─────────
 export async function approveShopkeeperDocuments(docId: string, userId: string) {
   try {
     const supabase = await createAdminClient()
+
+    // 1. Mark documents approved
     await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', docId)
 
-    // Fetch the shop details the shopkeeper submitted during registration
-    const { data: doc } = await supabase
-      .from('shop_documents')
-      .select('shop_name, owner_name, category, shop_photo_url')
-      .eq('id', docId)
-      .maybeSingle()
-
-    const { data: profile } = await supabase
-      .from('profiles').select('full_name, phone, email').eq('id', userId).maybeSingle()
-
+    // 2. Activate the shop (already created when docs were submitted)
     const { data: existingShop } = await supabase
       .from('shops').select('id').eq('owner_id', userId).maybeSingle()
 
-    const shopPayload = {
-      owner_id: userId,
-      name: doc?.shop_name || profile?.full_name ? `${profile?.full_name}'s Shop` : 'My Shop',
-      full_name: doc?.owner_name || profile?.full_name || '',
-      phone: profile?.phone || '',
-      email: profile?.email || '',
-      category: doc?.category || '',
-      shop_image_url: doc?.shop_photo_url || '',
-      is_approved: true,
-      is_active: true,
-    }
-
-    if (!existingShop) {
-      await supabase.from('shops').insert(shopPayload)
-    } else {
+    if (existingShop) {
       await supabase.from('shops')
-        .update({ ...shopPayload, owner_id: undefined, is_approved: true, is_active: true, rejection_reason: null })
+        .update({ is_approved: true, is_active: true, rejection_reason: null })
         .eq('owner_id', userId)
+    } else {
+      // Fallback: shop wasn't pre-created, create it now
+      const { data: doc } = await supabase
+        .from('shop_documents')
+        .select('shop_name, owner_name, category, shop_photo_url')
+        .eq('id', docId).maybeSingle()
+      const { data: profile } = await supabase
+        .from('profiles').select('phone, email').eq('id', userId).maybeSingle()
+      await supabase.from('shops').insert({
+        owner_id: userId,
+        name: doc?.shop_name || 'My Shop',
+        full_name: doc?.owner_name || '',
+        phone: profile?.phone || '',
+        email: profile?.email || '',
+        category: doc?.category || '',
+        shop_image_url: doc?.shop_photo_url || '',
+        is_approved: true,
+        is_active: true,
+      })
     }
 
+    // 3. Notify shopkeeper
     await supabase.from('notifications').insert({
       user_id: userId,
       title: '🎉 Documents Approved!',

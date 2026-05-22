@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { submitShopkeeperDocuments } from '@/app/admin/actions'
 
 const SHOP_CATEGORIES = [
   'Grocery', 'Vegetables & Fruits', 'Dairy & Eggs', 'Bakery',
@@ -131,22 +132,24 @@ export default function ShopDocumentsPage() {
     if (!category) { setError('Please select a shop category.'); return }
     if (!shopImageUrl) { setError(shopImageUploading ? 'Shop image still uploading. Please wait.' : 'Please upload a photo of your shop.'); return }
     if (!aadharUrl) { setError(aadharUploading ? 'Aadhaar still uploading. Please wait.' : 'Please upload your Aadhaar card.'); return }
-    if (!userId) { setError('Session expired. Please login again.'); return }
 
     setSaving(true)
-    const { error: dbErr } = await supabase.from('shop_documents').insert({
-      user_id: userId,
-      shop_photo_url: shopImageUrl,   // shop image (from shop-images bucket)
-      aadhar_url: aadharUrl,          // aadhaar (from shop-documents bucket)
-      status: 'pending',
-      // Shop info sent to admin for review
-      shop_name: shopName.trim(),
-      owner_name: ownerName.trim(),
-      category: category,
+
+    // Server action — bypasses RLS, creates shop_documents + pending shop in one call
+    const result = await submitShopkeeperDocuments({
+      shopPhotoUrl: shopImageUrl,
+      aadharUrl,
+      shopName: shopName.trim(),
+      ownerName: ownerName.trim(),
+      category,
     })
 
-    if (dbErr) {
-      setError('Failed to submit: ' + dbErr.message)
+    if (result.error) {
+      if (result.error === 'already_submitted') {
+        router.replace('/login/status')
+        return
+      }
+      setError('Failed to submit: ' + result.error)
       setSaving(false)
       return
     }
