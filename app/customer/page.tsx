@@ -51,14 +51,14 @@ export default function CustomerHome() {
   const [filtered, setFiltered] = useState<Shop[]>([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState<string | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
+  const [gpsCode, setGpsCode] = useState<number | null>(null)   // 1=denied 2=unavail 3=timeout
+  const [gpsReady, setGpsReady] = useState(false)
   const [gpsAttempting, setGpsAttempting] = useState(false)
-  // 'init' = show permission splash, 'granted' = GPS obtained, 'denied' = show error
-  const [permState, setPermState] = useState<'init' | 'asking' | 'granted' | 'denied'>('init')
 
   async function loadSettings() {
     const { data } = await supabase.from('platform_settings').select('key,value').eq('key', 'shop_radius_km')
@@ -67,24 +67,31 @@ export default function CustomerHome() {
 
   async function requestLocation() {
     if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setGpsError('Location requires a secure (HTTPS) connection. Please contact support.')
-      setPermState('denied')
+      console.error('[GPS] Page is not in a secure context (requires HTTPS).')
+      setGpsError('Location requires a secure (HTTPS) connection.')
+      setGpsCode(null)
       return
     }
+    if (gpsAttempting) return  // Prevent double-calls
+    console.log('[GPS] requestLocation() triggered')
     setGpsAttempting(true)
     setGpsError(null)
-    setPermState('asking')
+    setGpsCode(null)
     try {
       const pos = await getCustomerGPSPosition()
-      setPermState('granted')
+      setGpsReady(true)
       setGpsAttempting(false)
       loadShops(pos.coords.latitude, pos.coords.longitude)
     } catch (error) {
+      const gpsErr = error as { code?: number; message?: string }
+      const code = gpsErr?.code ?? null
+      console.error(`[GPS] requestLocation failed — code=${code}:`, gpsErr?.message)
       setGpsAttempting(false)
-      setPermState('denied')
+      setGpsCode(code)
       setGpsError(formatCustomerGPSError(error))
       setShops([])
       setFiltered([])
+      setLoading(false)
     }
   }
 
@@ -136,21 +143,10 @@ export default function CustomerHome() {
     }
     loadUser()
     loadSettings()
-
-    // Check if permission was already granted — skip splash and load immediately
-    if (typeof navigator !== 'undefined' && navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' }).then(result => {
-        if (result.state === 'granted') {
-          // Already permitted — fetch GPS silently
-          setPermState('asking')
-          requestLocation()
-        }
-        // 'denied' or 'prompt' — show the splash screen
-      }).catch(() => {
-        // Permissions API not available — show splash so user can tap to trigger prompt
-      })
-    }
-  }, [])
+    // Always auto-trigger GPS on mount — the browser prompt will appear if needed.
+    // We do NOT use the Permissions API to gate this, as it can return stale state.
+    requestLocation()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = useCallback(() => {
     let result = [...shops]
@@ -184,26 +180,23 @@ export default function CustomerHome() {
           </button>
         </div>
 
-        {/* Search — only shown after location granted */}
-        {permState === 'granted' && (
-          <div className="ch-search-wrap">
-            <span className="ch-search-icon">🔍</span>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search shops or categories..."
-              className="ch-search-input"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="ch-search-clear">✕</button>
-            )}
-          </div>
-        )}
+        {/* Search — always visible */}
+        <div className="ch-search-wrap">
+          <span className="ch-search-icon">🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search shops or categories..."
+            className="ch-search-input"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="ch-search-clear">✕</button>
+          )}
+        </div>
       </div>
 
-      {/* ── Category strip — only shown after location granted ── */}
-      {permState === 'granted' && (
-        <div className="ch-cats">
+      {/* ── Category strip — always visible ── */}
+      <div className="ch-cats">
         {CATEGORIES.map(cat => {
           const active = category === cat.label
           return (
@@ -231,113 +224,71 @@ export default function CustomerHome() {
           )
         })}
       </div>
+
+      {/* ── GPS Notification Banner — slim, non-intrusive ── */}
+      {gpsError && (
+        <div style={{
+          margin: '8px 12px 0',
+          padding: '10px 14px',
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+          background: gpsCode === 1 ? '#fef2f2' : '#fef9c3',
+          border: `1px solid ${gpsCode === 1 ? '#fca5a5' : '#fcd34d'}`,
+        }}>
+          <span style={{ fontSize: '1.1rem', flexShrink: 0, marginTop: 1 }}>
+            {gpsCode === 1 ? '🚫' : gpsCode === 2 ? '📡' : '⏱️'}
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: gpsCode === 1 ? '#dc2626' : '#92400e', marginBottom: 2 }}>
+              {gpsCode === 1 ? 'Location Access Denied' : gpsCode === 2 ? 'Location Unavailable' : 'Location Timed Out'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: gpsCode === 1 ? '#ef4444' : '#78350f', lineHeight: 1.4 }}>
+              {gpsError}
+            </div>
+          </div>
+          <button
+            onClick={requestLocation}
+            disabled={gpsAttempting}
+            style={{
+              flexShrink: 0,
+              padding: '5px 10px',
+              background: gpsCode === 1 ? '#fca5a5' : '#fcd34d',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: gpsAttempting ? 'not-allowed' : 'pointer',
+              color: gpsCode === 1 ? '#7f1d1d' : '#78350f',
+              opacity: gpsAttempting ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {gpsAttempting ? '⏳' : '🔄 Retry'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Fetching indicator (slim) ── */}
+      {gpsAttempting && !gpsError && (
+        <div style={{ margin: '8px 12px 0', padding: '8px 14px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 14, height: 14, border: '2px solid #fed7aa', borderTopColor: '#f97316', borderRadius: '50%', animation: 'ch-spin 0.8s linear infinite', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 500 }}>Getting your location...</span>
+        </div>
       )}
 
       {/* ── Section label ── */}
       <div className="ch-section-hdr">
         <span className="ch-section-title">
-          {permState === 'init'
-            ? 'Shops Near You'
-            : permState === 'asking' || loading
+          {loading
             ? 'Finding shops...'
-            : permState === 'denied'
-            ? 'Location Required'
-            : `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`}
+            : gpsReady
+            ? `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`
+            : 'Shops Near You'}
         </span>
-        {radiusKm && permState === 'granted' && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
+        {radiusKm && gpsReady && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
-
-      {/* ── GPS Permission Splash — shown when permission not yet asked ── */}
-      {permState === 'init' && (
-        <div style={{
-          margin: '20px 14px',
-          background: 'white',
-          borderRadius: 20,
-          overflow: 'hidden',
-          boxShadow: '0 4px 24px rgba(249,115,22,0.12)',
-          border: '2px solid #fed7aa',
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-            padding: '28px 24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>📍</div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#9a3412', marginBottom: 8 }}>
-              Enable Location Access
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: '#c2410c', lineHeight: 1.5, marginBottom: 0 }}>
-              We need your location to show shops near you within the <strong>{radiusKm} km</strong> delivery area.
-            </p>
-          </div>
-          <div style={{ padding: '20px 24px 24px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {[
-                { icon: '🛒', text: 'See shops open & delivering in your area' },
-                { icon: '📦', text: 'Get accurate delivery time estimates' },
-                { icon: '🔒', text: 'Your location is never stored or shared' },
-              ].map(({ icon, text }) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{icon}</span>
-                  <span style={{ fontSize: '0.82rem', color: '#475569' }}>{text}</span>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={requestLocation}
-              style={{
-                width: '100%', padding: '15px',
-                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                color: 'white', border: 'none', borderRadius: 14,
-                fontWeight: 800, fontSize: '1rem', cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-              }}
-            >
-              📍 Allow Location Access
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Asking / Loading state ── */}
-      {permState === 'asking' && !shops.length && (
-        <div style={{ textAlign: 'center', padding: '50px 24px' }}>
-          <div style={{ width: 48, height: 48, border: '4px solid #fed7aa', borderTopColor: '#f97316', borderRadius: '50%', animation: 'ch-spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-          <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>Getting your location...</p>
-        </div>
-      )}
-
-      {/* ── GPS Denied / Error state ── */}
-      {permState === 'denied' && (
-        <div style={{ margin: '16px 14px', background: 'white', borderRadius: 16, border: '2px solid #fca5a5', overflow: 'hidden' }}>
-          <div style={{ padding: '20px 20px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🚫</div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626', marginBottom: 6 }}>Location Access Denied</h3>
-            {gpsError && <p style={{ fontSize: '0.82rem', color: '#ef4444', lineHeight: 1.5, marginBottom: 14 }}>{gpsError}</p>}
-          </div>
-          <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ background: '#fef2f2', borderRadius: 10, padding: '12px 14px' }}>
-              <p style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600, marginBottom: 6 }}>📱 How to fix on Android:</p>
-              <p style={{ fontSize: '0.75rem', color: '#78350f', lineHeight: 1.5 }}>Settings → Apps → Browser → Permissions → Location → Allow</p>
-            </div>
-            <button
-              onClick={requestLocation}
-              disabled={gpsAttempting}
-              style={{
-                width: '100%', padding: '12px',
-                background: gpsAttempting ? '#94a3b8' : '#f97316',
-                color: 'white', border: 'none', borderRadius: 10,
-                fontWeight: 700, fontSize: '0.9rem',
-                cursor: gpsAttempting ? 'not-allowed' : 'pointer',
-                opacity: gpsAttempting ? 0.6 : 1
-              }}
-            >
-              {gpsAttempting ? '⏳ Trying...' : '🔄 Try Again'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Shop grid ── */}
       <div className="ch-grid-wrap">
@@ -357,12 +308,10 @@ export default function CustomerHome() {
           </div>
         )}
 
-        {/* Empty state — shops loaded but none found nearby */}
-        {!loading && permState === 'granted' && filtered.length === 0 && (
+        {/* Empty state — GPS success but no shops in radius */}
+        {!loading && gpsReady && filtered.length === 0 && (
           <div className="ch-empty">
-            <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>
-              {gpsError ? '📍' : '🏪'}
-            </div>
+            <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🏪</div>
             <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No Shops Available</h3>
             <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>
               No shops are open in your area right now ({radiusKm} km radius). Check back soon!
