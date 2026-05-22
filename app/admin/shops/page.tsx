@@ -100,8 +100,8 @@ export default function AdminShops() {
       setShopOrdersLoading(true)
       supabase.from('orders').select('id,order_number,status,total_amount,shopkeeper_earning,created_at')
         .eq('shop_id', item.id).order('created_at', { ascending: false }).limit(20)
-        .then(({ data }) => {
-          setShopOrders((data || []) as ShopOrder[])
+        .then(({ data }: { data: ShopOrder[] | null }) => {
+          setShopOrders(data || [])
           setShopOrdersLoading(false)
         })
     }

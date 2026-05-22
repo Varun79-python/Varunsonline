@@ -372,7 +372,7 @@ export default function AdminAgents() {
                   setAgentOrdersLoading(true)
                   supabase.from('orders').select('id,order_number,status,agent_earning,created_at')
                     .eq('agent_id', agent.id).order('created_at', { ascending: false }).limit(20)
-                    .then(({ data }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
+                    .then(({ data }: { data: {id:string;order_number:string;status:string;agent_earning:number;created_at:string}[] | null }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
                 }} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>View</button>
                 {!agent.is_approved && !agent.rejection_reason && (
                   <>
