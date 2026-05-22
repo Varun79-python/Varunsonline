@@ -70,10 +70,14 @@ export default function OrderDetailPage() {
   }, [id])
 
   useEffect(() => {
-    supabase.auth.getUser().then(res => { if (res.data.user) setCurrentUserId(res.data.user.id) })
+    void (async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      if (authData.user) setCurrentUserId(authData.user.id)
+    })()
     loadOrder()
     const ch = supabase.channel('order_' + id)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => setOrder(prev => ({ ...prev, ...payload.new }))
       ).subscribe()
     return () => { supabase.removeChannel(ch) }
