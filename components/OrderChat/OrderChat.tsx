@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Message {
@@ -25,300 +25,335 @@ const ROLE_AVATAR: Record<string, string> = {
   customer: '👤',
   shopkeeper: '🏪',
   delivery_agent: '🛵',
-  admin: '👑'
+  admin: '👑',
 }
 
-const ROLE_BUBBLE: Record<string, { bg: string; color: string; align: 'right' | 'left'; radius: string }> = {
-  customer: { bg: '#f97316', color: 'white', align: 'right', radius: '18px 18px 4px 18px' },
-  shopkeeper: { bg: '#ffffff', color: '#1e293b', align: 'left', radius: '18px 18px 18px 4px' },
-  delivery_agent: { bg: '#0ea5e9', color: 'white', align: 'right', radius: '18px 18px 4px 18px' },
-  admin: { bg: '#f1f5f9', color: '#1e293b', align: 'left', radius: '18px 18px 18px 4px' }
+const ROLE_COLOR: Record<string, { bg: string; color: string; border: string }> = {
+  customer:       { bg: '#f97316', color: 'white',   border: '#ea580c' },
+  shopkeeper:     { bg: '#ffffff', color: '#1e293b', border: '#e2e8f0' },
+  delivery_agent: { bg: '#0ea5e9', color: 'white',   border: '#0284c7' },
+  admin:          { bg: '#8b5cf6', color: 'white',   border: '#7c3aed' },
 }
 
-function formatTime(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+function formatTime(d: string) {
+  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
+function formatDate(d: string) {
+  const date = new Date(d)
   const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function OrderChat({ orderId, currentUserId, currentUserRole, shopName, agentName, customerName }: OrderChatProps) {
+function groupByDate(msgs: Message[]) {
+  const groups: { date: string; messages: Message[] }[] = []
+  let lastDate = ''
+  for (const msg of msgs) {
+    const d = new Date(msg.created_at).toDateString()
+    if (d !== lastDate) {
+      lastDate = d
+      groups.push({ date: msg.created_at, messages: [msg] })
+    } else {
+      groups[groups.length - 1].messages.push(msg)
+    }
+  }
+  return groups
+}
+
+export default function OrderChat({
+  orderId, currentUserId, currentUserRole, shopName, agentName, customerName
+}: OrderChatProps) {
   const supabase = createClient()
   const [messages, setMessages] = useState<Message[]>([])
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const myRole = currentUserRole as keyof typeof ROLE_BUBBLE
-
-  useEffect(() => {
-    async function load() {
+  // Load messages
+  const loadMessages = useCallback(async () => {
+    setLoadError(null)
+    try {
       const res = await fetch(`/api/order-messages?orderId=${orderId}`)
-      const data = await res.json()
-      if (data.messages) {
-        setMessages(data.messages)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        setLoadError(json.error || 'Failed to load messages')
+        return
       }
-    }
-    if (isOpen) load()
-  }, [orderId, isOpen])
-
-  useEffect(() => {
-    if (!isOpen) return
-    let channel: ReturnType<typeof supabase.channel> | null = null
-
-    async function subscribeToChat() {
-      const res = await fetch(`/api/order-messages?orderId=${orderId}`)
       const data = await res.json()
-      if (!data.conversationId) return
-      channel = supabase
-        .channel(`order-chat-${data.conversationId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'order_messages',
-          filter: `conversation_id=eq.${data.conversationId}`
-        }, (payload: Record<string, unknown>) => {
-          const newMsg = payload.new as Message
-          supabase
-            .from('order_messages')
-            .select('*, profiles(full_name, role, avatar_url)')
-            .eq('id', newMsg.id)
-            .single()
-            .then(({ data: fullMsg }: { data: Message | null }) => {
-              if (fullMsg) {
-                setMessages((prev: Message[]) => [...prev, fullMsg])
-                if (newMsg.sender_id !== currentUserId) {
-                  setUnreadCount((prev: number) => prev + 1)
-                }
-              }
-            })
-        })
-        .subscribe()
+      setMessages(data.messages || [])
+      setConversationId(data.conversationId || null)
+    } catch {
+      setLoadError('Network error — check your connection')
     }
+  }, [orderId])
 
-    subscribeToChat()
-
-    return () => {
-      if (channel) supabase.removeChannel(channel)
-    }
-  }, [orderId, isOpen, currentUserId, supabase])
-
+  // Load on open
   useEffect(() => {
-    if (isOpen && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    if (isOpen) loadMessages()
+  }, [isOpen, loadMessages])
+
+  // Realtime subscription — runs when we have a conversationId
+  useEffect(() => {
+    if (!isOpen || !conversationId) return
+
+    const channel = supabase
+      .channel(`chat:${conversationId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'order_messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const newMsg = payload.new as Message
+        // Fetch the full message with profile join
+        supabase
+          .from('order_messages')
+          .select('*, profiles(full_name, role, avatar_url)')
+          .eq('id', newMsg.id)
+          .single()
+          .then(({ data: fullMsg }) => {
+            if (fullMsg) {
+              setMessages(prev => {
+                // Prevent duplicates
+                if (prev.some(m => m.id === fullMsg.id)) return prev
+                return [...prev, fullMsg as Message]
+              })
+              if (newMsg.sender_id !== currentUserId) {
+                setUnreadCount(n => n + 1)
+              }
+            }
+          })
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [isOpen, conversationId, currentUserId])
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }, [messages, isOpen])
+
+  // Reset unread when opened
+  useEffect(() => {
+    if (isOpen) setUnreadCount(0)
+  }, [isOpen])
 
   async function sendMessage() {
     if (!input.trim() || sending) return
     setSending(true)
+    const text = input.trim()
+    setInput('')
     try {
       const res = await fetch('/api/order-messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, message: input })
+        body: JSON.stringify({ orderId, message: text }),
       })
       const data = await res.json()
-      if (data.message) {
-        setMessages(prev => [...prev, data.message])
-        setInput('')
-        inputRef.current?.focus()
+      if (res.ok && data.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.message.id)) return prev
+          return [...prev, data.message]
+        })
+        if (data.conversationId && !conversationId) {
+          setConversationId(data.conversationId)
+        }
+      } else {
+        alert(data.error || 'Failed to send message')
+        setInput(text) // restore
       }
-    } catch (err) {
-      console.error('Send error:', err)
+    } catch {
+      alert('Network error')
+      setInput(text)
     } finally {
       setSending(false)
+      setTimeout(() => inputRef.current?.focus(), 50)
     }
   }
 
   function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  function groupMessages(msgs: Message[]) {
-    const groups: { date: string; messages: Message[] }[] = []
-    let lastDate = ''
-    for (const msg of msgs) {
-      const d = new Date(msg.created_at).toDateString()
-      if (d !== lastDate) {
-        lastDate = d
-        groups.push({ date: msg.created_at, messages: [msg] })
-      } else {
-        groups[groups.length - 1].messages.push(msg)
-      }
-    }
-    return groups
-  }
-
-  const groups = groupMessages(messages)
-  const myBubble = ROLE_BUBBLE[myRole] || ROLE_BUBBLE.customer
+  const title = shopName ? `Chat with ${shopName}` : agentName ? `Chat with ${agentName}` : customerName ? `Chat with ${customerName}` : 'Order Chat'
+  const groups = groupByDate(messages)
 
   return (
     <>
       <style>{`
-        .oc-toggle {
-          position: fixed; bottom: 90px; right: 16px; z-index: 200;
-          width: 56px; height: 56px; border-radius: 50%;
+        .oc-fab {
+          position: fixed; bottom: 90px; right: 16px; z-index: 300;
+          width: 58px; height: 58px; border-radius: 50%;
           background: linear-gradient(135deg, #f97316, #ea580c);
-          border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(249,115,22,0.4);
+          border: none; cursor: pointer;
+          box-shadow: 0 4px 20px rgba(249,115,22,0.45);
           display: flex; align-items: center; justify-content: center;
-          font-size: 1.6rem; transition: transform 0.2s;
+          font-size: 1.5rem; transition: transform 0.2s, box-shadow 0.2s;
         }
-        .oc-toggle:hover { transform: scale(1.08); }
-        .oc-toggle:active { transform: scale(0.95); }
+        .oc-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(249,115,22,0.55); }
+        .oc-fab:active { transform: scale(0.94); }
         .oc-badge {
-          position: absolute; top: -2px; right: -2px;
-          background: #dc2626; color: white; font-size: 0.65rem; font-weight: 800;
-          min-width: 18px; height: 18px; border-radius: 99px;
+          position: absolute; top: -3px; right: -3px;
+          background: #dc2626; color: white; font-size: 0.62rem; font-weight: 800;
+          min-width: 19px; height: 19px; border-radius: 99px;
           display: flex; align-items: center; justify-content: center;
           padding: 0 4px; border: 2px solid white;
         }
         .oc-window {
-          position: fixed; bottom: 90px; right: 16px; z-index: 200;
-          width: 360px; max-width: calc(100vw - 32px);
-          height: 520px; max-height: calc(100vh - 200px);
+          position: fixed; bottom: 160px; right: 16px; z-index: 300;
+          width: 360px; max-width: calc(100vw - 24px);
+          height: 500px; max-height: calc(100dvh - 220px);
           background: white; border-radius: 20px;
-          box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+          box-shadow: 0 16px 56px rgba(0,0,0,0.2);
           display: flex; flex-direction: column; overflow: hidden;
           border: 1.5px solid #e2e8f0;
-          animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+          animation: ocSlideUp 0.25s cubic-bezier(0.32,0.72,0,1) forwards;
         }
-        .oc-header {
+        @keyframes ocSlideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .oc-head {
           background: linear-gradient(135deg, #f97316, #ea580c);
-          padding: 14px 16px; display: flex; align-items: center; gap: 10px;
-          flex-shrink: 0;
+          padding: 12px 16px; display: flex; align-items: center; gap: 10; flex-shrink: 0;
         }
-        .oc-messages { flex: 1; overflow-y: auto; padding: 12px 16px; background: #f0f2f5; }
-        .oc-date-divider {
-          text-align: center; margin: 12px 0 8px;
-          font-size: 0.72rem; font-weight: 600; color: #94a3b8;
-          background: #dde2e8; display: inline-block; padding: 3px 12px;
-          border-radius: 99px; width: auto;
+        .oc-msgs {
+          flex: 1; overflow-y: auto; padding: 10px 12px; background: #f0f2f5;
+          display: flex; flex-direction: column; gap: 0;
+          scroll-behavior: smooth;
         }
-        .oc-date-row { display: flex; justify-content: center; margin: 10px 0 6px; }
-        .oc-bubble-wrap { display: flex; flex-direction: column; margin-bottom: 6px; }
-        .oc-bubble-wrap.me { align-items: flex-end; }
-        .oc-bubble-wrap.other { align-items: flex-start; }
-        .oc-bubble {
-          max-width: 75%; padding: 8px 12px;
-          font-size: 0.88rem; line-height: 1.4; word-break: break-word;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        .oc-msgs::-webkit-scrollbar { width: 4px; }
+        .oc-msgs::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .oc-input-row {
+          padding: 10px 12px; border-top: 1px solid #e2e8f0;
+          display: flex; gap: 8px; align-items: center; flex-shrink: 0; background: white;
         }
-        .oc-bubble-meta { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
-        .oc-input-area { padding: 10px 12px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-shrink: 0; background: white; }
         .oc-input {
           flex: 1; background: #f1f5f9; border: 1.5px solid #e2e8f0;
-          border-radius: 99px; padding: 10px 16px; font-size: 0.88rem;
-          color: #1e293b; font-family: inherit; resize: none; min-height: 44px;
-          max-height: 100px; overflow-y: auto;
+          border-radius: 22px; padding: 10px 16px; font-size: 0.87rem;
+          color: #1e293b; font-family: inherit; outline: none;
         }
-        .oc-input:focus { outline: none; border-color: #f97316; background: white; }
+        .oc-input:focus { border-color: #f97316; background: white; }
         .oc-send {
-          width: 44px; height: 44px; border-radius: 50%; background: #f97316;
-          border: none; cursor: pointer; display: flex; align-items: center;
-          justify-content: center; font-size: 1.2rem; flex-shrink: 0;
-          transition: background 0.15s;
+          width: 42px; height: 42px; border-radius: 50%;
+          background: linear-gradient(135deg, #f97316, #ea580c);
+          border: none; cursor: pointer; display: flex;
+          align-items: center; justify-content: center;
+          font-size: 1.1rem; flex-shrink: 0; transition: opacity 0.15s;
         }
-        .oc-send:disabled { background: #94a3b8; cursor: not-allowed; }
-        .oc-send:not(:disabled):active { background: #ea580c; }
-        .oc-participants { display: flex; align-items: center; gap: 6px; flex: 1; }
-        .oc-participant { background: rgba(255,255,255,0.2); border-radius: 99px; padding: 2px 10px; font-size: 0.72rem; color: white; font-weight: 600; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @media only screen and (max-width: 390px) {
+        .oc-send:disabled { opacity: 0.45; cursor: not-allowed; }
+        .oc-date-row { display: flex; justify-content: center; margin: 10px 0 6px; }
+        .oc-date-pill {
+          background: #dde1e8; color: #64748b; font-size: 0.68rem;
+          font-weight: 700; padding: 3px 12px; border-radius: 99px;
+        }
+        .oc-row { display: flex; flex-direction: column; margin-bottom: 5px; }
+        .oc-row.me { align-items: flex-end; }
+        .oc-row.other { align-items: flex-start; }
+        .oc-sender { font-size: 0.63rem; color: #94a3b8; margin-bottom: 2px; padding: 0 4px; }
+        .oc-bubble {
+          max-width: 78%; padding: 9px 13px; border-radius: 16px;
+          font-size: 0.87rem; line-height: 1.45; word-break: break-word;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .oc-time { font-size: 0.62rem; color: #94a3b8; margin-top: 3px; padding: 0 4px; }
+        @media (max-width: 400px) {
           .oc-window { right: 8px; width: calc(100vw - 16px); }
         }
       `}</style>
 
-      <button className="oc-toggle" onClick={() => setIsOpen(!isOpen)}>
-        💬
-        {unreadCount > 0 && !isOpen && (
-          <div className="oc-badge">{unreadCount > 9 ? '9+' : unreadCount}</div>
-        )}
+      {/* FAB */}
+      <button className="oc-fab" onClick={() => setIsOpen(o => !o)} aria-label="Order Chat">
+        {isOpen ? '✕' : '💬'}
+        {unreadCount > 0 && !isOpen && <div className="oc-badge">{unreadCount > 9 ? '9+' : unreadCount}</div>}
       </button>
 
       {isOpen && (
         <div className="oc-window">
-          <div className="oc-header">
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'white' }}>Order Chat</div>
-              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.8)' }}>with {shopName || agentName || customerName || 'participants'}</div>
+          {/* Header */}
+          <div className="oc-head">
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+              {ROLE_AVATAR[currentUserRole] || '💬'}
             </div>
-            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.2rem', padding: 4 }}>✕</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+              <div style={{ fontSize: '0.67rem', color: 'rgba(255,255,255,0.75)' }}>Order messages · all participants</div>
+            </div>
+            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px', opacity: 0.85 }}>✕</button>
           </div>
 
-          <div className="oc-messages">
-            {groups.length === 0 && (
-              <div style={{ textAlign: 'center', marginTop: 60, color: '#94a3b8', fontSize: '0.85rem' }}>
-                <div style={{ fontSize: '2rem', marginBottom: 8 }}>💬</div>
-                <p>No messages yet. Start the conversation!</p>
+          {/* Messages area */}
+          <div className="oc-msgs">
+            {loadError && (
+              <div style={{ textAlign: 'center', padding: '20px 16px', background: '#fef2f2', borderRadius: 10, margin: '10px 0', color: '#dc2626', fontSize: '0.82rem' }}>
+                ⚠️ {loadError}
+                <button onClick={loadMessages} style={{ display: 'block', margin: '8px auto 0', background: 'white', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 14px', color: '#dc2626', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Retry</button>
               </div>
             )}
+
+            {!loadError && messages.length === 0 && (
+              <div style={{ textAlign: 'center', marginTop: 60, color: '#94a3b8', fontSize: '0.83rem' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>💬</div>
+                <p style={{ margin: 0 }}>No messages yet.<br />Start the conversation!</p>
+              </div>
+            )}
+
             {groups.map((group, gi) => (
               <div key={gi}>
                 <div className="oc-date-row">
-                  <div className="oc-date-divider">{formatDate(group.date)}</div>
+                  <span className="oc-date-pill">{formatDate(group.date)}</span>
                 </div>
-                {group.messages.map((msg) => {
+                {group.messages.map(msg => {
                   const isMe = msg.sender_id === currentUserId
-                  const bubble = isMe
-                    ? (myRole === 'customer' ? ROLE_BUBBLE.customer : myRole === 'delivery_agent' ? ROLE_BUBBLE.delivery_agent : ROLE_BUBBLE.admin)
-                    : (msg.sender_role === 'customer' ? ROLE_BUBBLE.shopkeeper : ROLE_BUBBLE[msg.sender_role as keyof typeof ROLE_BUBBLE] || ROLE_BUBBLE.shopkeeper)
-                  const bg = isMe
-                    ? (myRole === 'customer' ? ROLE_BUBBLE.customer.bg : myRole === 'delivery_agent' ? ROLE_BUBBLE.delivery_agent.bg : '#f97316')
-                    : (msg.sender_role === 'customer' ? ROLE_BUBBLE.customer.bg : ROLE_BUBBLE[msg.sender_role as keyof typeof ROLE_BUBBLE]?.bg || 'white')
-                  const color = isMe
-                    ? (myRole === 'customer' ? ROLE_BUBBLE.customer.color : myRole === 'delivery_agent' ? ROLE_BUBBLE.delivery_agent.color : 'white')
-                    : (msg.sender_role === 'customer' ? ROLE_BUBBLE.customer.color : ROLE_BUBBLE[msg.sender_role as keyof typeof ROLE_BUBBLE]?.color || '#1e293b')
-
+                  const roleStyle = ROLE_COLOR[msg.sender_role] || ROLE_COLOR.shopkeeper
+                  const senderName = msg.profiles?.full_name || msg.sender_role
                   return (
-                    <div key={msg.id} className={`oc-bubble-wrap ${isMe ? 'me' : 'other'}`}>
+                    <div key={msg.id} className={`oc-row ${isMe ? 'me' : 'other'}`}>
                       {!isMe && (
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: 2, marginLeft: 4 }}>
-                          {ROLE_AVATAR[msg.sender_role] || '👤'} {msg.profiles?.full_name || msg.sender_role}
+                        <div className="oc-sender">
+                          {ROLE_AVATAR[msg.sender_role] || '👤'} {senderName}
                         </div>
                       )}
-                      <div style={{ background: bg, color, borderRadius: bubble.radius, padding: '8px 12px', maxWidth: '75%', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
+                      <div
+                        className="oc-bubble"
+                        style={{
+                          background: roleStyle.bg,
+                          color: roleStyle.color,
+                          border: `1px solid ${roleStyle.border}`,
+                          borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        }}
+                      >
                         {msg.message}
                       </div>
-                      <div className="oc-bubble-meta">
-                        <span>{formatTime(msg.created_at)}</span>
-                      </div>
+                      <div className="oc-time">{formatTime(msg.created_at)}</div>
                     </div>
                   )
                 })}
               </div>
             ))}
-            <div ref={messagesEndRef} />
+            <div ref={endRef} />
           </div>
 
-          <div className="oc-input-area">
+          {/* Input */}
+          <div className="oc-input-row">
             <input
               ref={inputRef}
               className="oc-input"
-              placeholder="Type a message..."
+              placeholder="Type a message…"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKey}
+              maxLength={500}
+              autoComplete="off"
             />
-            <button
-              className="oc-send"
-              onClick={sendMessage}
-              disabled={sending || !input.trim()}
-            >
+            <button className="oc-send" onClick={sendMessage} disabled={sending || !input.trim()}>
               {sending ? '⏳' : '➤'}
             </button>
           </div>

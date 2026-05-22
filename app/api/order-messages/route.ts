@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 
+export const dynamic = 'force-dynamic'
+
 function makeUserClient(req: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,26 +17,78 @@ function makeUserClient(req: NextRequest) {
   )
 }
 
+/**
+ * Validate that a user is a legitimate participant in an order.
+ * Participants: the customer, the shop owner, the assigned delivery agent, or an admin.
+ */
+async function validateParticipant(
+  svc: ReturnType<typeof createServiceClient>,
+  userId: string,
+  orderId: string
+): Promise<{ allowed: boolean; role: string }> {
+  const { data: profile } = await svc
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  const role = profile?.role || ''
+
+  // Admins always allowed
+  if (role === 'admin') return { allowed: true, role }
+
+  const { data: order } = await svc
+    .from('orders')
+    .select('customer_id, agent_id, shop_id')
+    .eq('id', orderId)
+    .single()
+
+  if (!order) return { allowed: false, role }
+
+  // Customer — must be the order owner
+  if (role === 'customer') return { allowed: order.customer_id === userId, role }
+
+  // Delivery agent — must be assigned to this order
+  if (role === 'delivery_agent') return { allowed: order.agent_id === userId, role }
+
+  // Shopkeeper — must own the shop that this order is for
+  if (role === 'shopkeeper') {
+    const { data: shop } = await svc
+      .from('shops')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('id', order.shop_id)
+      .maybeSingle()
+    return { allowed: !!shop, role }
+  }
+
+  return { allowed: false, role }
+}
+
 export async function GET(req: NextRequest) {
   const supabase = makeUserClient(req)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const serviceClient = createServiceClient()
+  const svc = createServiceClient()
 
   const { searchParams } = new URL(req.url)
   const orderId = searchParams.get('orderId')
   if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 })
 
-  const { data: conv } = await serviceClient
+  // Validate participant
+  const { allowed } = await validateParticipant(svc, user.id, orderId)
+  if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
+
+  const { data: conv } = await svc
     .from('order_conversations')
     .select('id')
     .eq('order_id', orderId)
-    .single()
+    .maybeSingle()
 
   if (!conv) return NextResponse.json({ messages: [], conversationId: null })
 
-  const { data: messages } = await serviceClient
+  const { data: messages } = await svc
     .from('order_messages')
     .select('*, profiles(full_name, role, avatar_url)')
     .eq('conversation_id', conv.id)
@@ -48,33 +102,30 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const serviceClient = createServiceClient()
+  const svc = createServiceClient()
   const body = await req.json()
   const { orderId, message } = body
+
   if (!orderId || !message?.trim()) {
     return NextResponse.json({ error: 'orderId and message required' }, { status: 400 })
   }
 
-  const { data: profile } = await serviceClient
-    .from('profiles')
-    .select('id, role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  // Validate participant
+  const { allowed, role } = await validateParticipant(svc, user.id, orderId)
+  if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
 
   let convId: string | null = null
 
-  const { data: existingConv } = await serviceClient
+  const { data: existingConv } = await svc
     .from('order_conversations')
     .select('id')
     .eq('order_id', orderId)
-    .single()
+    .maybeSingle()
 
   if (existingConv) {
     convId = existingConv.id
   } else {
-    const { data: newConv, error: convErr } = await serviceClient
+    const { data: newConv, error: convErr } = await svc
       .from('order_conversations')
       .insert({ order_id: orderId })
       .select('id')
@@ -84,20 +135,21 @@ export async function POST(req: NextRequest) {
     convId = newConv.id
   }
 
-  const { data: newMessage, error: msgErr } = await serviceClient
+  const { data: newMessage, error: msgErr } = await svc
     .from('order_messages')
     .insert({
       conversation_id: convId,
       sender_id: user.id,
-      sender_role: profile.role,
-      message: message.trim()
+      sender_role: role,
+      message: message.trim(),
     })
     .select('*, profiles(full_name, role, avatar_url)')
     .single()
 
   if (msgErr || !newMessage) return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
 
-  await serviceClient
+  // Update conversation timestamp
+  await svc
     .from('order_conversations')
     .update({ updated_at: new Date().toISOString() })
     .eq('id', convId)

@@ -126,13 +126,45 @@ export default function ShopkeeperProfile() {
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Address</label><input value={shop.address_line1 as string || ''} onChange={e => update('address_line1', e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Landmark</label><input value={shop.landmark as string || ''} onChange={e => update('landmark', e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>City</label><input value={shop.city as string || ''} onChange={e => update('city', e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button onClick={getGPS} disabled={gettingGPS} style={{ background: gettingGPS ? '#fef3c7' : '#f1f5f9', border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: gettingGPS ? 'not-allowed' : 'pointer' }}>{gettingGPS ? '📡 Detecting...' : '📍 Update GPS'}</button>
-              {shop.latitude && !gpsError ? <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>✓ {(shop.latitude as number).toFixed(4)}, {(shop.longitude as number).toFixed(4)}</span> : null}
-            </div>
-            {gpsError && <div style={{ fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>📍 {gpsError}</div>}
-            {gpsWarning && <div style={{ fontSize: '0.78rem', color: '#92400e', background: '#fef9c3', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>{gpsWarning}</div>}
+
+          {/* GPS Box */}
+          <div style={{ background: '#f8fafc', borderRadius: 10, border: '1.5px solid #e2e8f0', padding: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#374151', marginBottom: 10 }}>📡 GPS Location</div>
+
+            {/* Saved location display */}
+            {shop.latitude ? (
+              <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16a34a', marginBottom: 4 }}>✅ Saved Location</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#374151' }}>
+                  Lat: {(shop.latitude as number).toFixed(6)}<br />
+                  Lon: {(shop.longitude as number).toFixed(6)}
+                </div>
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${shop.latitude}&mlon=${shop.longitude}&zoom=17`}
+                  target="_blank" rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: '0.78rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  🗺️ Check on Map (OpenStreetMap)
+                </a>
+              </div>
+            ) : (
+              <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: '0.78rem', color: '#92400e' }}>
+                ⚠️ No GPS saved — detect your shop location to help customers find you.
+              </div>
+            )}
+
+            {/* Detect button */}
+            <button
+              onClick={getGPS}
+              disabled={gettingGPS}
+              style={{ width: '100%', background: gettingGPS ? '#f1f5f9' : 'linear-gradient(135deg, #f97316, #ea580c)', color: gettingGPS ? '#94a3b8' : 'white', border: 'none', borderRadius: 9, padding: '11px', fontWeight: 700, fontSize: '0.85rem', cursor: gettingGPS ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              {gettingGPS ? '📡 Detecting GPS…' : '📍 Detect Current Location'}
+            </button>
+
+            {/* Error / warning */}
+            {gpsError && <div style={{ marginTop: 10, fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>🚫 {gpsError}</div>}
+            {gpsWarning && <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#92400e', background: '#fef9c3', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>{gpsWarning}</div>}
           </div>
         </div>
       </div>

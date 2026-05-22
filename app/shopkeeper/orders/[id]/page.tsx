@@ -65,7 +65,14 @@ export default function ShopkeeperOrderDetail() {
 
       const ch = supabase.channel('shop-order-' + id)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-          (payload: any) => setOrder(prev => prev ? ({ ...prev, ...payload.new }) : null)
+          async (payload: any) => {
+            setOrder(prev => prev ? ({ ...prev, ...payload.new }) : null)
+            // If customer edited items, reload item list
+            if (payload.new.items_updated_at !== payload.old?.items_updated_at) {
+              const { data: freshItems } = await supabase.from('order_items').select('*').eq('order_id', id)
+              setItems(freshItems || [])
+            }
+          }
         ).subscribe()
       return () => { supabase.removeChannel(ch) }
     }
@@ -192,6 +199,12 @@ export default function ShopkeeperOrderDetail() {
           </div>
         )}
       </div>
+
+      {(order as any).items_updated_at && (
+        <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: '#fef3c7', border: '1.5px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
+          🔔 Customer updated the order items — please review before packing.
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginBottom: 14 }}>🛍️ Order Items ({items.length})</h3>
