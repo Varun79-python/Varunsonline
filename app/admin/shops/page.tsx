@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getAdminShops } from '@/app/admin/actions'
+import { getAdminShops, approveShopkeeperDocuments, rejectShopkeeperDocuments } from '@/app/admin/actions'
 
 interface UnifiedShop {
   id: string // shop.id or shop_documents.id
@@ -84,36 +84,20 @@ export default function AdminShops() {
   async function approve(item: UnifiedShop) {
     setProcessing(true)
     if (item.type === 'document') {
-      await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', item.id)
-      // Create shop with full approval when admin approves documents
-      const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
-      const { data: existingShop } = await supabase.from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
-      if (!existingShop) {
-        await supabase.from('shops').insert({
-          owner_id: item.user_id,
-          name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
-          full_name: profile?.full_name || '',
-          phone: profile?.phone || '',
-          email: profile?.email || '',
-          is_approved: true,
-          is_active: true,
-        })
-      } else {
-        await supabase.from('shops').update({ is_approved: true, is_active: true, rejection_reason: null }).eq('owner_id', item.user_id)
+      // Use server action — bypasses RLS for shop creation
+      const result = await approveShopkeeperDocuments(item.id, item.user_id)
+      if (result.error) {
+        alert('Approval failed: ' + result.error)
+        setProcessing(false)
+        return
       }
-      await supabase.from('notifications').insert({ 
-        user_id: item.user_id, 
-        title: '🎉 Documents Approved!', 
-        body: 'Your documents have been approved. You can now access your dashboard and start selling!', 
-        type: 'shop_approved' 
-      })
     } else {
       await supabase.from('shops').update({ is_approved: true, is_active: true, rejection_reason: null }).eq('id', item.id)
-      await supabase.from('notifications').insert({ 
-        user_id: item.user_id, 
-        title: '🎉 Shop Approved!', 
-        body: 'Your shop has been approved. Start selling now!', 
-        type: 'shop_approved' 
+      await supabase.from('notifications').insert({
+        user_id: item.user_id,
+        title: '🎉 Shop Approved!',
+        body: 'Your shop has been approved. Start selling now!',
+        type: 'shop_approved'
       })
     }
     setItems(prev => prev.filter(s => s.id !== item.id))
@@ -128,21 +112,21 @@ export default function AdminShops() {
     const reason = rejectReason || 'Your registration was rejected by admin.'
     
     if (selectedItem.type === 'document') {
-      await supabase.from('shop_documents').update({ status: 'rejected' }).eq('id', selectedItem.id)
+      // Use server action — bypasses RLS
+      await rejectShopkeeperDocuments(selectedItem.id, selectedItem.user_id, reason)
     } else {
-      await supabase.from('shops').update({ 
-        is_approved: false, 
-        is_active: false, 
+      await supabase.from('shops').update({
+        is_approved: false,
+        is_active: false,
         rejection_reason: reason
       }).eq('id', selectedItem.id)
+      await supabase.from('notifications').insert({
+        user_id: selectedItem.user_id,
+        title: '❌ Registration Rejected',
+        body: reason,
+        type: 'shop_rejected'
+      })
     }
-    
-    await supabase.from('notifications').insert({ 
-      user_id: selectedItem.user_id, 
-      title: '❌ Registration Rejected', 
-      body: reason, 
-      type: 'shop_rejected' 
-    })
     
     setItems(prev => prev.filter(s => s.id !== selectedItem.id))
     setSelectedItem(null)

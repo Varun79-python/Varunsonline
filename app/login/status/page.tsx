@@ -2,20 +2,24 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { checkShopkeeperStatus } from '@/app/admin/actions'
 
 export default function ApprovalStatusPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState<{approved: boolean, role: string, message: string, needsRegistration?: boolean, redirectUrl?: string} | null>(null)
+  const [message, setMessage] = useState('')
+  const [icon, setIcon] = useState('⏳')
+  const [needsDocs, setNeedsDocs] = useState(false)
+  const [isRejected, setIsRejected] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const mountedRef = useRef(true)
 
-  const checkApprovalStatus = useCallback(async (isPolling = false) => {
+  const checkStatus = useCallback(async (isPolling = false) => {
     if (!isPolling) setLoading(true)
 
     const { data: { user } } = await supabase.auth.getUser()
-
     if (!mountedRef.current) return
 
     if (!user) {
@@ -23,74 +27,75 @@ export default function ApprovalStatusPage() {
       return
     }
 
-    // Get user role from profile — fast single query
+    // Get role from profile (anon client can read profiles — usually no RLS issue)
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
+      .from('profiles').select('role').eq('id', user.id).maybeSingle()
 
     if (!mountedRef.current) return
-
     if (!profile) {
-      setStatus({ approved: false, role: 'unknown', message: 'Profile not found. Please contact support.' })
+      setMessage('Profile not found. Please contact support.')
+      setIcon('❌')
       setLoading(false)
       return
     }
 
-    if (profile.role === 'shopkeeper') {
-      // Check shop status directly — single query, fast
-      const { data: shop } = await supabase
-        .from('shops')
-        .select('is_approved, is_active, rejection_reason')
-        .eq('owner_id', user.id)
-        .maybeSingle()
+    setRole(profile.role)
 
+    if (profile.role === 'shopkeeper') {
+      // ✅ Use server action — bypasses RLS on shops table
+      const result = await checkShopkeeperStatus()
       if (!mountedRef.current) return
 
-      if (shop && shop.is_approved && shop.is_active) {
-        // ✅ Approved — stop polling and navigate immediately via hard reload
+      if (result.status === 'approved') {
+        // Approved! Hard navigate to dashboard
         if (pollingRef.current) clearInterval(pollingRef.current)
-        // Use hard navigation so server middleware and layout get fresh cookies
         window.location.href = '/shopkeeper'
         return
       }
 
-      // Check documents only if shop not yet approved
-      const { data: docs } = await supabase
-        .from('shop_documents')
-        .select('status')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!mountedRef.current) return
-
-      if (!docs) {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'No documents found. Please upload them.', needsRegistration: true, redirectUrl: '/login/shopkeeper/register/documents' })
-        setLoading(false)
-        return
-      }
-
-      if (docs.status === 'rejected') {
+      if (result.status === 'rejected') {
         if (pollingRef.current) clearInterval(pollingRef.current)
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents were rejected. Please contact support.' })
+        setIsRejected(true)
+        setIcon('❌')
+        setMessage('Registration rejected: ' + (result.reason || 'Contact support.'))
         setLoading(false)
         return
       }
 
-      if (docs.status === 'pending') {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Your documents are under review. We\'ll notify you once approved.' })
-        setLoading(false)
-        return
-      }
-
-      // Docs approved but shop not ready yet
-      if (shop && shop.rejection_reason) {
+      if (result.status === 'docs_rejected') {
         if (pollingRef.current) clearInterval(pollingRef.current)
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Registration rejected: ' + shop.rejection_reason })
-      } else {
-        setStatus({ approved: false, role: 'shopkeeper', message: 'Documents approved! Your shop is being set up by admin.' })
+        setIsRejected(true)
+        setIcon('❌')
+        setMessage('Your documents were rejected. Please contact support or re-register.')
+        setLoading(false)
+        return
       }
+
+      if (result.status === 'no_documents') {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        setNeedsDocs(true)
+        setIcon('📋')
+        setMessage('No documents found. Please upload your shop documents.')
+        setLoading(false)
+        return
+      }
+
+      if (result.status === 'docs_pending') {
+        setIcon('⏳')
+        setMessage("Your documents are under review by admin. You'll be redirected automatically once approved.")
+        setLoading(false)
+        return
+      }
+
+      if (result.status === 'docs_approved_shop_pending') {
+        setIcon('⏳')
+        setMessage('Documents approved! Admin is activating your shop — please wait a moment.')
+        setLoading(false)
+        return
+      }
+
+      setMessage('Checking your approval status...')
+      setLoading(false)
 
     } else if (profile.role === 'delivery_agent') {
       const { data: agent } = await supabase
@@ -102,109 +107,102 @@ export default function ApprovalStatusPage() {
       if (!mountedRef.current) return
 
       if (!agent) {
-        setStatus({ approved: false, role: 'delivery_agent', message: 'No agent profile found. Please complete registration.', needsRegistration: true })
-      } else if (agent.is_approved && agent.is_active) {
+        setNeedsDocs(true)
+        setMessage('No agent profile found. Please complete registration.')
+        setLoading(false)
+        return
+      }
+      if (agent.is_approved && agent.is_active) {
         if (pollingRef.current) clearInterval(pollingRef.current)
         window.location.href = '/delivery'
         return
-      } else if (agent.is_approved && !agent.is_active) {
-        setStatus({ approved: false, role: 'delivery_agent', message: 'Your account is approved but not yet active. Please contact admin.' })
-      } else if (agent.rejection_reason) {
-        if (pollingRef.current) clearInterval(pollingRef.current)
-        setStatus({ approved: false, role: 'delivery_agent', message: 'Registration rejected: ' + agent.rejection_reason })
-      } else {
-        setStatus({ approved: false, role: 'delivery_agent', message: 'Your agent registration is pending admin approval.' })
       }
+      if (agent.rejection_reason) {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        setIsRejected(true)
+        setIcon('❌')
+        setMessage('Registration rejected: ' + agent.rejection_reason)
+        setLoading(false)
+        return
+      }
+      setIcon('⏳')
+      setMessage('Your agent registration is pending admin approval.')
+      setLoading(false)
     } else {
       if (pollingRef.current) clearInterval(pollingRef.current)
       window.location.href = profile.role === 'shopkeeper' ? '/shopkeeper' : '/delivery'
-      return
     }
-
-    setLoading(false)
   }, [router, supabase])
 
   useEffect(() => {
     mountedRef.current = true
-    checkApprovalStatus(false)
+    checkStatus(false)
 
-    // Poll every 4 seconds — fast enough to feel instant, light on DB
-    pollingRef.current = setInterval(() => {
-      checkApprovalStatus(true)
-    }, 4000)
+    // Poll every 5 seconds
+    pollingRef.current = setInterval(() => checkStatus(true), 5000)
 
     return () => {
       mountedRef.current = false
       if (pollingRef.current) clearInterval(pollingRef.current)
     }
-  }, [checkApprovalStatus])
+  }, [checkStatus])
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-          <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Checking status...</p>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Checking status...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
         <div style={{ background: 'white', borderRadius: 20, padding: 32, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-
-          {/* Animated icon */}
-          <div style={{ fontSize: '4rem', marginBottom: 16 }}>
-            {status?.approved ? '✅' : status?.message?.includes('rejected') ? '❌' : '⏳'}
-          </div>
+          <div style={{ fontSize: '4rem', marginBottom: 16 }}>{icon}</div>
 
           <h2 style={{ marginBottom: 8, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
-            {status?.approved
-              ? 'Approved!'
-              : status?.message?.includes('rejected')
-                ? 'Rejected'
-                : 'Pending Approval'}
+            {icon === '✅' ? 'Approved!' : isRejected ? 'Rejected' : 'Pending Approval'}
           </h2>
 
           <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.6, fontSize: '0.9rem' }}>
-            {status?.message}
+            {message}
           </p>
 
-          {/* Auto-refresh indicator for pending states */}
-          {!status?.approved && !status?.message?.includes('rejected') && (
+          {/* Auto-checking pulse for pending states */}
+          {!isRejected && !needsDocs && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20, fontSize: '0.78rem', color: '#94a3b8' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' }} />
-              Auto-checking every 4 seconds...
+              Auto-checking every 5 seconds...
               <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
             </div>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {status?.needsRegistration && (
+            {needsDocs && (
               <button
                 onClick={() => {
-                  const url = status.redirectUrl || (status.role === 'shopkeeper' ? '/login/shopkeeper/register/documents' : '/login/delivery/register')
+                  const url = role === 'shopkeeper' ? '/login/shopkeeper/register/documents' : '/login/delivery/register'
                   window.location.href = url
                 }}
-                style={{ padding: '14px 32px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}
+                style={{ padding: '14px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}
               >
-                Complete Registration →
+                Upload Documents →
               </button>
             )}
 
             <button
-              onClick={() => checkApprovalStatus(false)}
-              style={{ padding: '12px 24px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
+              onClick={() => checkStatus(false)}
+              style={{ padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
             >
               🔄 Check Now
             </button>
 
             <button
               onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
-              style={{ padding: '12px 24px', background: 'none', color: '#94a3b8', border: 'none', borderRadius: 12, fontWeight: 500, cursor: 'pointer', fontSize: '0.82rem' }}
+              style={{ padding: '10px', background: 'none', color: '#94a3b8', border: 'none', borderRadius: 12, fontWeight: 500, cursor: 'pointer', fontSize: '0.82rem' }}
             >
               Logout
             </button>

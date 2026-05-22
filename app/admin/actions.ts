@@ -1,5 +1,111 @@
 'use server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+// ── Helper: get current authenticated user via session cookie ──────────────
+async function getCurrentUser() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll() } } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
+// ── Bypasses RLS: checks real approval status for current shopkeeper ─────────
+export async function checkShopkeeperStatus() {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { status: 'no_user' }
+
+    const supabase = await createAdminClient()
+
+    // Check shop (bypasses RLS — anon client would return null due to RLS)
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('is_approved, is_active, rejection_reason')
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    if (shop?.is_approved && shop?.is_active) return { status: 'approved' }
+    if (shop?.rejection_reason) return { status: 'rejected', reason: shop.rejection_reason }
+
+    // Check documents
+    const { data: docs } = await supabase
+      .from('shop_documents')
+      .select('status')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!docs) return { status: 'no_documents' }
+    if (docs.status === 'rejected') return { status: 'docs_rejected' }
+    if (docs.status === 'pending') return { status: 'docs_pending' }
+    return { status: 'docs_approved_shop_pending' }
+  } catch (err: any) {
+    return { status: 'error', error: err.message }
+  }
+}
+
+// ── Bypasses RLS: admin approves documents & creates shop ─────────────────────
+export async function approveShopkeeperDocuments(docId: string, userId: string) {
+  try {
+    const supabase = await createAdminClient()
+    await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', docId)
+
+    const { data: profile } = await supabase
+      .from('profiles').select('full_name, phone, email').eq('id', userId).maybeSingle()
+
+    const { data: existingShop } = await supabase
+      .from('shops').select('id').eq('owner_id', userId).maybeSingle()
+
+    if (!existingShop) {
+      await supabase.from('shops').insert({
+        owner_id: userId,
+        name: profile?.full_name ? `${profile.full_name}'s Shop` : 'My Shop',
+        full_name: profile?.full_name || '',
+        phone: profile?.phone || '',
+        email: profile?.email || '',
+        is_approved: true,
+        is_active: true,
+      })
+    } else {
+      await supabase.from('shops')
+        .update({ is_approved: true, is_active: true, rejection_reason: null })
+        .eq('owner_id', userId)
+    }
+
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '🎉 Documents Approved!',
+      body: 'Your documents have been approved. You can now access your shopkeeper dashboard!',
+      type: 'shop_approved',
+    })
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+// ── Bypasses RLS: admin rejects documents ─────────────────────────────────────
+export async function rejectShopkeeperDocuments(docId: string, userId: string, reason: string) {
+  try {
+    const supabase = await createAdminClient()
+    await supabase.from('shop_documents').update({ status: 'rejected' }).eq('id', docId)
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '❌ Registration Rejected',
+      body: reason || 'Your registration was rejected by admin.',
+      type: 'shop_rejected',
+    })
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
 
 export async function getAdminCustomers() {
   const supabase = await createAdminClient()
