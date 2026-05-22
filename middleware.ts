@@ -34,9 +34,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Use getUser() to validate token and refresh cookies — this is the correct approach
-  // getUser() checks the JWT signature, validates expiration, and refreshes if needed.
-  // The updated session (with refreshed cookies) is returned directly — no need for getSession().
+  // Use getUser() to validate token and refresh cookies
   const { data: { user }, error: sessionError } = await supabase.auth.getUser()
   if (sessionError) console.error('Session error in middleware:', sessionError)
 
@@ -83,9 +81,8 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // ── Protect /shopkeeper and /shopkeeper/* routes ──────────────────────
+  // ── Protect /shopkeeper routes ──────────────────────────────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    // Allow all /login/shopkeeper/* paths — register, documents, login etc.
     if (
       pathname === '/login/shopkeeper' ||
       pathname.startsWith('/login/shopkeeper/')
@@ -114,7 +111,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
   }
 
-  // ── Protect /delivery and /delivery/* routes ──────────────────────────
+  // ── Protect /delivery routes ────────────────────────────────────────────────
   if (pathname.startsWith('/delivery') && !pathname.startsWith('/login/delivery')) {
     if (!user) {
       return NextResponse.redirect(new URL('/login/delivery', request.url))
@@ -140,7 +137,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login/delivery', request.url))
   }
 
-  // ── Protect /customer and /customer/* routes ────────────────────────
+  // ── Protect /customer routes ────────────────────────────────────────────────
   if (pathname.startsWith('/customer') && !pathname.startsWith('/login/customer')) {
     if (!user) {
       return NextResponse.redirect(new URL('/login', request.url))

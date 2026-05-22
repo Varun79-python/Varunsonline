@@ -61,9 +61,9 @@ export default function DeliveryDocumentsPage() {
 
       setUserId(user.id)
       setLoading(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Check auth error:', err)
-      setLoadError(err.message || 'Something went wrong. Please try again.')
+      setLoadError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       setLoading(false)
     }
   }, [router, supabase])
@@ -99,10 +99,10 @@ export default function DeliveryDocumentsPage() {
       const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
       setUploading(false)
       return publicUrl
-    } catch (err: any) {
-      const msg = err.message?.includes('row-level security') 
+    } catch (err: unknown) {
+      const msg = err instanceof Error && err.message.includes('row-level security')
         ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
-        : err.message
+        : err instanceof Error ? err.message : 'Upload failed'
       alert('Upload failed: ' + msg)
       setUploading(false)
       return null

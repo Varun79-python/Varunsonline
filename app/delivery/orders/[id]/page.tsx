@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
 const STATUS_STEPS = [
@@ -45,7 +46,8 @@ export default function DeliveryOrderDetail() {
 
       const ch = supabase.channel('dl-order-' + id)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-          (payload: any) => setOrder(prev => prev ? ({ ...prev, ...payload.new }) : null)
+          (payload: RealtimePostgresChangesPayload<Order>) =>
+            setOrder(prev => prev ? ({ ...prev, ...(payload.new as Order) }) : null)
         ).subscribe()
       return () => { supabase.removeChannel(ch) }
     }

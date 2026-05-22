@@ -3,6 +3,30 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+// ── Local row types (Supabase returns untyped rows without a generated schema) ─
+interface RawDocRow {
+  id: string; user_id: string; status: string; shop_photo_url: string | null
+  aadhar_url: string | null; shop_name?: string; owner_name?: string
+  category?: string; created_at: string
+  profiles?: { full_name: string; phone: string } | null
+}
+interface RawShopRow {
+  id: string; owner_id: string; name: string; full_name?: string; phone?: string
+  email?: string; category?: string; city?: string; is_approved: boolean
+  is_active: boolean; shop_image_url?: string; rejection_reason?: string | null
+  created_at: string; rating?: number; total_orders?: number
+}
+interface RawProfileRow { id: string; full_name: string; phone: string }
+
+interface ShopListItem {
+  id: string; type: 'shop' | 'document'; user_id: string; name: string
+  full_name: string; phone: string; email: string; category: string
+  city: string; is_approved: boolean; is_active: boolean
+  image_url?: string | null; aadhar_url?: string | null
+  rejection_reason?: string | null; created_at: string
+  rating: number; total_orders: number
+}
+
 // ── Helper: get current authenticated user via session cookie ──────────────
 async function getCurrentUser() {
   const cookieStore = await cookies()
@@ -46,8 +70,8 @@ export async function checkShopkeeperStatus() {
     if (docs.status === 'pending') return { status: 'docs_pending' }
     // Docs are approved — admin has approved this shopkeeper, send to dashboard
     return { status: 'approved' }
-  } catch (err: any) {
-    return { status: 'error', error: err.message }
+  } catch (err: unknown) {
+    return { status: 'error', error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -66,8 +90,8 @@ export async function getShopkeeperShopData() {
 
     if (error) return { shop: null, error: error.message }
     return { shop, userId: user.id }
-  } catch (err: any) {
-    return { shop: null, error: err.message }
+  } catch (err: unknown) {
+    return { shop: null, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -126,8 +150,8 @@ export async function submitShopkeeperDocuments(payload: {
     }
 
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -175,8 +199,8 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
       type: 'shop_approved',
     })
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -192,8 +216,8 @@ export async function rejectShopkeeperDocuments(docId: string, userId: string, r
       type: 'shop_rejected',
     })
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -262,7 +286,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
 
-    let fetchedItems: any[] = []
+    let fetchedItems: ShopListItem[] = []
 
     if (tab === 'pending') {
       // Get documents without join first
@@ -276,7 +300,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
 
       // Get user IDs to fetch profiles
       const userIds = docs?.map(d => d.user_id).filter(Boolean) || []
-      let profileMap: Record<string, any> = {}
+      let profileMap: Record<string, RawProfileRow> = {}
       
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
@@ -287,9 +311,9 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
       }
 
-      fetchedItems = (docs || []).map((doc: any) => ({
+      fetchedItems = (docs || []).map((doc: RawDocRow) => ({
         id: doc.id,
-        type: 'document',
+        type: 'document' as const,
         user_id: doc.user_id,
         name: doc.shop_name || 'Pending Registration',
         full_name: doc.owner_name || profileMap[doc.user_id]?.full_name || 'Unknown',
@@ -314,7 +338,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
       const { data: shops } = await q
       
       // Fetch rejected docs
-      let rejectedDocs: any[] = []
+      let rejectedDocs: RawDocRow[] = []
       if (tab === 'rejected' || tab === 'all') {
         const { data: rDocs } = await supabase.from('shop_documents')
           .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
@@ -322,44 +346,44 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         
         // Get profiles for these docs
         const rejectedUserIds = (rDocs || []).map(d => d.user_id).filter(Boolean)
-        let profileMap: Record<string, any> = {}
+        let profileMap: Record<string, RawProfileRow> = {}
         if (rejectedUserIds.length > 0) {
           const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', rejectedUserIds)
           profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
         }
         
-        rejectedDocs = (rDocs || []).map((doc: any) => ({
+        rejectedDocs = (rDocs || []).map((doc: RawDocRow) => ({
           ...doc,
           profiles: profileMap[doc.user_id] || null
         }))
       }
 
       // Fetch approved docs (that haven't created a shop yet)
-      let approvedDocs: any[] = []
+      let approvedDocs: RawDocRow[] = []
       if (tab === 'active' || tab === 'all') {
         const { data: aDocs } = await supabase.from('shop_documents')
           .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
           .eq('status', 'approved')
         
-        const shopOwnerIds = new Set((shops || []).map((s: any) => s.owner_id))
+        const shopOwnerIds = new Set((shops || []).map((s: RawShopRow) => s.owner_id))
         
         // Get profiles for remaining docs
         const approvedUserIds = (aDocs || []).map(d => d.user_id).filter(Boolean)
-        let profileMap: Record<string, any> = {}
+        let profileMap: Record<string, RawProfileRow> = {}
         if (approvedUserIds.length > 0) {
           const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', approvedUserIds)
           profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
         }
         
-        approvedDocs = (aDocs || []).filter((d: any) => !shopOwnerIds.has(d.user_id)).map((doc: any) => ({
+        approvedDocs = (aDocs || []).filter((d: RawDocRow) => !shopOwnerIds.has(d.user_id)).map((doc: RawDocRow) => ({
           ...doc,
           profiles: profileMap[doc.user_id] || null
         }))
       }
 
-      const mappedShops = (shops || []).map((shop: any) => ({
+      const mappedShops = (shops || []).map((shop: RawShopRow) => ({
         id: shop.id,
-        type: 'shop',
+        type: 'shop' as const,
         user_id: shop.owner_id,
         name: shop.name,
         full_name: shop.full_name || 'Unknown',
@@ -376,11 +400,11 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         total_orders: shop.total_orders || 0
       }))
       
-      const mappedRejectedDocs = rejectedDocs.map((doc: any) => {
+      const mappedRejectedDocs = rejectedDocs.map((doc: RawDocRow) => {
         const profile = doc.profiles
         return {
           id: doc.id,
-          type: 'document',
+          type: 'document' as const,
           user_id: doc.user_id,
           name: 'Rejected Registration',
           full_name: profile?.full_name || 'Unknown',
@@ -399,11 +423,11 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         }
       })
 
-      const mappedApprovedDocs = approvedDocs.map((doc: any) => {
+      const mappedApprovedDocs = approvedDocs.map((doc: RawDocRow) => {
         const profile = doc.profiles
         return {
           id: doc.id,
-          type: 'document',
+          type: 'document' as const,
           user_id: doc.user_id,
           name: 'Approved (Pending Shop Creation)',
           full_name: profile?.full_name || 'Unknown',
@@ -426,12 +450,12 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
     }
 
     return { items: fetchedItems, pendingDocs: pendingCount || 0 }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in getAdminShops:', error)
     return { 
       items: [], 
       pendingDocs: 0, 
-      error: error.message || 'Failed to fetch shops. Please ensure database migrations are applied.' 
+      error: error instanceof Error ? error.message : 'Failed to fetch shops. Please ensure database migrations are applied.' 
     }
   }
 }
@@ -489,8 +513,8 @@ export async function deleteShopkeeperShop(userId: string) {
     await supabase.from('shop_documents').delete().eq('user_id', userId)
 
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -514,8 +538,8 @@ export async function blockShopkeeperShop(userId: string) {
     })
 
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -539,7 +563,7 @@ export async function unblockShopkeeperShop(userId: string) {
     })
 
     return { success: true }
-  } catch (err: any) {
-    return { error: err.message }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
   }
 }

@@ -52,24 +52,28 @@ export default function AdminComplaintsPage() {
       .order('created_at', { ascending: false })
 
     if (!error && data) {
-      const customerIds = [...new Set(data.map((c: any) => c.customer_id))]
-      const orderIds = [...new Set(data.filter((c: any) => c.order_id).map((c: any) => c.order_id))]
+      const customerIds = [...new Set(data.map((c: { customer_id: string }) => c.customer_id))]
+      const orderIds = [...new Set(data.filter((c: { order_id: string | null }) => c.order_id).map((c: { order_id: string | null }) => c.order_id as string))]
 
       const [customersRes, ordersRes] = await Promise.all([
         customerIds.length > 0 ? supabase.from('profiles').select('id, full_name, email').in('id', customerIds) : Promise.resolve({ data: [] }),
         orderIds.length > 0 ? supabase.from('orders').select('id, order_number').in('id', orderIds) : Promise.resolve({ data: [] })
       ])
 
-      const customersMap = new Map<any, any>((customersRes.data || []).map((c: any) => [c.id, c]))
-      const ordersMap = new Map<any, any>((ordersRes.data || []).map((o: any) => [o.id, o]))
+      const customersMap = new Map<string, { id: string; full_name: string; email: string }>(
+        (customersRes.data || []).map((c: { id: string; full_name: string; email: string }) => [c.id, c])
+      )
+      const ordersMap = new Map<string, { id: string; order_number: string }>(
+        (ordersRes.data || []).map((o: { id: string; order_number: string }) => [o.id, o])
+      )
 
-      const enriched = data.map((c: any) => ({
+      const enriched = data.map((c: { customer_id: string; order_id: string | null } & Record<string, unknown>) => ({
         ...c,
         customer_name: customersMap.get(c.customer_id)?.full_name || 'Unknown',
         customer_email: customersMap.get(c.customer_id)?.email || '',
         order_number: c.order_id ? ordersMap.get(c.order_id)?.order_number : null,
       }))
-      setComplaints(enriched)
+      setComplaints(enriched as Complaint[])
     }
     setLoading(false)
   }

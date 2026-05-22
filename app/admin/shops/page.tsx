@@ -73,10 +73,9 @@ export default function AdminShops() {
         setItems((result.items || []) as UnifiedShop[])
         setStats({ pendingDocs: result.pendingDocs || 0 })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (mountedRef.current) {
-        // Next.js server action errors surface as plain Error objects
-        const msg = err?.message || 'Failed to load data. Check Supabase connection.'
+        const msg = err instanceof Error ? err.message : 'Failed to load data. Check Supabase connection.'
         setErrorMsg(msg)
       }
     } finally {

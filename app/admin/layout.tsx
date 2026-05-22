@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
 
 const navItems = [
   { href: '/admin', icon: '📊', label: 'Dashboard' },
@@ -61,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase, router])
 
-  const validateAdmin = async (user: any) => {
+  const validateAdmin = async (user: User) => {
     if (!mountedRef.current) return
     
     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role

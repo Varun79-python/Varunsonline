@@ -59,8 +59,8 @@ export default function ShopDocumentsPage() {
       if (existingDocs) { router.replace('/login/status'); return }
 
       setLoading(false)
-    } catch (err: any) {
-      setLoadError(err.message || 'Something went wrong.')
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Something went wrong.')
       setLoading(false)
     }
   }, [router, supabase])

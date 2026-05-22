@@ -16,7 +16,7 @@ export async function GET() {
       .limit(1)
 
     return NextResponse.json({ data, error, joinData, joinError })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) })
   }
 }

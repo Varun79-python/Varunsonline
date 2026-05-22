@@ -17,6 +17,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Profile {
@@ -144,7 +145,7 @@ export default function OrderChat({
         schema: 'public',
         table: 'order_messages',
         filter: `conversation_id=eq.${conversationId}`,
-      }, async (payload) => {
+      }, async (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
         const raw = payload.new as Message
         if (seenIds.current.has(raw.id)) return
 

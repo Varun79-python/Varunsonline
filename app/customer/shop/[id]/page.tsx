@@ -67,8 +67,8 @@ export default function ShopPage() {
     
     getCustomerGPSPosition()
       .then(pos => {
-        setUserLat(pos.coords.latitude)
-        setUserLon(pos.coords.longitude)
+        setUserLat(pos.latitude)
+        setUserLon(pos.longitude)
       })
       .catch(error => console.warn('Customer shop GPS unavailable:', error))
     

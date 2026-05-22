@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 import { pushToUser } from '@/lib/pushHelper'
+import { type SupabaseClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,7 +106,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
  * The agent's Supabase user_id IS their delivery_agents.id.
  */
 async function notifyAgent(
-  supabase: any,
+  supabase: SupabaseClient,
   agentId: string,
   orderId: string,
   orderNumber: string,

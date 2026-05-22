@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 import { getShopkeeperShopData } from '@/app/admin/actions'
 
@@ -136,11 +137,11 @@ export default function ShopkeeperDashboard() {
       channel.on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'orders',
         filter: `shop_id=eq.${shopData.id}`
-      }, async (payload: any) => {
+      }, async (payload: RealtimePostgresChangesPayload<Order>) => {
         if (!mounted || !shopIdRef.current) return
         await fetchPending(shopIdRef.current)
         // Start looping alert — track by order id to prevent duplicate sounds
-        const newOrderId = payload.new?.id as string | undefined
+        const newOrderId = (payload.new as Order)?.id as string | undefined
         if (newOrderId && !alertingOrdersRef.current.has(newOrderId)) {
           alertingOrdersRef.current.add(newOrderId)
           startAlert()

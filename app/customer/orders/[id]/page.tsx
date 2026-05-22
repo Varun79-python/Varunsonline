@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
 const STEPS = [
@@ -77,8 +78,8 @@ export default function OrderDetailPage() {
     loadOrder()
     const ch = supabase.channel('order_' + id)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => setOrder(prev => ({ ...prev, ...payload.new }))
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) =>
+          setOrder(prev => ({ ...prev, ...(payload.new as Record<string, unknown>) }))
       ).subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [id])

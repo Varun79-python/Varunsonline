@@ -171,8 +171,8 @@ export default function ShopRegisterPage() {
         // Already have session → go directly to document upload
         router.push('/login/shopkeeper/register/documents')
       }
-    } catch (err: any) {
-      setError('Error: ' + err.message)
+    } catch (err: unknown) {
+      setError('Error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSaving(false)
     }

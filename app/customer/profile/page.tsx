@@ -40,7 +40,6 @@ export default function CustomerProfile() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ ...blankEdit })
   const [editSaving, setEditSaving] = useState(false)
-  const [editGpsAccuracy, setEditGpsAccuracy] = useState<number | null>(null)
   const [personalInfoOpen, setPersonalInfoOpen] = useState(false)
 
   useEffect(() => {
@@ -86,7 +85,6 @@ export default function CustomerProfile() {
       city: f.city || loc.city || f.city,
       pincode: f.pincode || loc.pincode || f.pincode,
     }))
-    if (loc.accuracy) setEditGpsAccuracy(loc.accuracy)
   }
 
   async function saveEdit() {
@@ -166,19 +164,27 @@ export default function CustomerProfile() {
                     saved={editForm.latitude !== 0 ? { latitude: editForm.latitude, longitude: editForm.longitude } : null}
                     onUse={handleAddressGPS}
                   />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : (editingId === 'new' ? 'Add Address' : 'Save Changes')}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
- && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : 'Save Changes'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {editingId === 'new' && (
           <div style={{ marginTop: 16 }}>
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14, border: '1.5px solid #f97316' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', marginBottom: 14 }}>➕ Add New Address</div>
               <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label><select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>{['Home', 'Work', 'Other'].map(l => <option key={l}>{l}</option>)}</select></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>House *</label><input style={inputStyle} placeholder="e.g. Sunrise Apartments" value={editForm.house_name} onChange={e => setEditForm(f => ({ ...f, house_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Street *</label><input style={inputStyle} placeholder="e.g. MG Road" value={editForm.street_name} onChange={e => setEditForm(f => ({ ...f, street_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>City *</label><input style={inputStyle} placeholder="City" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Landmark</label><input style={inputStyle} placeholder="Near City Mall" value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Pincode</label><input style={inputStyle} placeholder="500001" value={editForm.pincode} onChange={e => setEditForm(f => ({ ...f, pincode: e.target.value }))} /></div><div style={{ gridColumn: '1/-1' }}><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Phone (for delivery)</label><input style={inputStyle} placeholder="Mobile number" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div></div>
-                  <LocationPicker
-                    saved={editForm.latitude !== 0 ? { latitude: editForm.latitude, longitude: editForm.longitude } : null}
-                    onUse={handleAddressGPS}
-                  />
+                <LocationPicker
+                  saved={editForm.latitude !== 0 ? { latitude: editForm.latitude, longitude: editForm.longitude } : null}
+                  onUse={handleAddressGPS}
+                />
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Adding...' : 'Add Address'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
-
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <button onClick={() => router.push('/customer/care')} style={{ width: '100%', background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px', color: '#0f172a', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}><HeadsetIcon />Customer Care & Support</button>

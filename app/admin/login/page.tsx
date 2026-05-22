@@ -110,8 +110,8 @@ export default function AdminLoginPage() {
       // Access denied
       setError('Access denied. This account is not an admin.')
       await supabase.auth.signOut()
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
     } finally {
       setLoading(false)
     }

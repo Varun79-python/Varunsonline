@@ -1,4 +1,5 @@
 'use client'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -84,7 +85,7 @@ export default function ResetPasswordPage() {
     }
 
     // Also listen for auth state changes - Supabase sends PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY' && session) {
         if (mounted) setStatus('valid')
       }

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
 const STATUS_STEPS = [
@@ -65,10 +66,12 @@ export default function ShopkeeperOrderDetail() {
 
       const ch = supabase.channel('shop-order-' + id)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-          async (payload: any) => {
-            setOrder(prev => prev ? ({ ...prev, ...payload.new }) : null)
+          async (payload: RealtimePostgresChangesPayload<Order>) => {
+            setOrder(prev => prev ? ({ ...prev, ...(payload.new as Order) }) : null)
             // If customer edited items, reload item list
-            if (payload.new.items_updated_at !== payload.old?.items_updated_at) {
+            const newRow = payload.new as Order & { items_updated_at?: string }
+            const oldRow = payload.old as Order & { items_updated_at?: string }
+            if (newRow.items_updated_at !== oldRow?.items_updated_at) {
               const { data: freshItems } = await supabase.from('order_items').select('*').eq('order_id', id)
               setItems(freshItems || [])
             }

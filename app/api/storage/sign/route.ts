@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ url: data.signedUrl })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Sign URL exception:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
 }

@@ -73,7 +73,7 @@ export default function CheckoutContent() {
     setGpsAccuracy(null)
     try {
       const pos = await getCustomerGPSPosition()
-      const { latitude, longitude, accuracy } = pos.coords
+      const { latitude, longitude, accuracy } = pos
       setAddr(a => ({ ...a, latitude, longitude }))
       setGpsAccuracy(accuracy)
       if (isPoorCustomerGPSAccuracy(accuracy)) {
@@ -233,7 +233,7 @@ setLoading(false)
     setGpsAccuracy(null)
     try {
       const pos = await getCustomerGPSPosition()
-      const { latitude, longitude, accuracy } = pos.coords
+      const { latitude, longitude, accuracy } = pos
       setAddr(a => ({ ...a, latitude, longitude }))
       setGpsAccuracy(accuracy)
       if (isPoorCustomerGPSAccuracy(accuracy)) {

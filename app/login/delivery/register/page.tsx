@@ -183,8 +183,8 @@ export default function DeliveryRegisterPage() {
       } else {
         router.push('/login/delivery/register/documents')
       }
-    } catch (err: any) {
-      setFormError('Error: ' + err.message)
+    } catch (err: unknown) {
+      setFormError('Error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSaving(false)
     }

@@ -35,17 +35,22 @@ export default function CartPage() {
   const [deliveryCharge, setDeliveryCharge] = useState(30)
   const [platformFee, setPlatformFee] = useState(0)
   const [removingId, setRemovingId] = useState<string | null>(null)
-  const supabase = createClient() as any
+  const supabase = createClient()
 
   useEffect(() => {
-    if (!supabase) return
     setCart(JSON.parse(localStorage.getItem('vo_cart') || '[]'))
-    supabase.from('platform_settings').select('key,value').in('key', ['base_delivery_charge', 'platform_fee_percent']).then(({ data }: { data: any[] | null }) => {
-      data?.forEach((s: any) => {
-        if (s.key === 'base_delivery_charge') setDeliveryCharge(Number(s.value))
-        if (s.key === 'platform_fee_percent') setPlatformFee(Number(s.value))
-      })
-    })
+    void (async () => {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key,value')
+        .in('key', ['base_delivery_charge', 'platform_fee_percent'])
+      if (data) {
+        ;(data as { key: string; value: string }[]).forEach(s => {
+          if (s.key === 'base_delivery_charge') setDeliveryCharge(Number(s.value))
+          if (s.key === 'platform_fee_percent') setPlatformFee(Number(s.value))
+        })
+      }
+    })()
   }, [])
 
   function updateQty(pid: string, delta: number) {

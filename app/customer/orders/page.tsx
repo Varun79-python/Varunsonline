@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 interface Order {
   id: string
@@ -18,6 +19,7 @@ interface Order {
 
 interface OrderItem {
   id: string
+  order_id: string
   product_name: string
   quantity: number
   unit_price: number
@@ -102,7 +104,7 @@ export default function OrdersPage() {
 
       if (data) {
         setOrders(data)
-        const orderIds = data.map((o: any) => o.id)
+        const orderIds = data.map((o: Order) => o.id)
         const { data: items } = await supabase
           .from('order_items')
           .select('*')
@@ -110,7 +112,7 @@ export default function OrdersPage() {
 
         if (items && mounted) {
           const grouped: Record<string, OrderItem[]> = {}
-          items.forEach((item: any) => {
+          items.forEach((item: OrderItem) => {
             if (!grouped[item.order_id]) grouped[item.order_id] = []
             grouped[item.order_id].push(item)
           })
@@ -124,8 +126,8 @@ export default function OrdersPage() {
         .on('postgres_changes', {
           event: 'UPDATE', schema: 'public', table: 'orders',
           filter: `customer_id=eq.${user.id}`
-        }, (payload: any) => {
-          setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o))
+        }, (payload: RealtimePostgresChangesPayload<Order>) => {
+          setOrders(prev => prev.map(o => o.id === (payload.new as Order).id ? { ...o, ...(payload.new as Order) } : o))
         })
         .subscribe()
     }
