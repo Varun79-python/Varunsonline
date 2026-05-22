@@ -51,12 +51,14 @@ export default function CustomerHome() {
   const [filtered, setFiltered] = useState<Shop[]>([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState<string | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsAttempting, setGpsAttempting] = useState(false)
+  // 'init' = show permission splash, 'granted' = GPS obtained, 'denied' = show error
+  const [permState, setPermState] = useState<'init' | 'asking' | 'granted' | 'denied'>('init')
 
   async function loadSettings() {
     const { data } = await supabase.from('platform_settings').select('key,value').eq('key', 'shop_radius_km')
@@ -64,24 +66,25 @@ export default function CustomerHome() {
   }
 
   async function requestLocation() {
-    // Geolocation requires HTTPS (or localhost). Show clear message if not available.
     if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setGpsError('📍 Location requires a secure (HTTPS) connection. Please contact support.')
-      setLoading(false)
+      setGpsError('Location requires a secure (HTTPS) connection. Please contact support.')
+      setPermState('denied')
       return
     }
     setGpsAttempting(true)
     setGpsError(null)
+    setPermState('asking')
     try {
       const pos = await getCustomerGPSPosition()
+      setPermState('granted')
       setGpsAttempting(false)
       loadShops(pos.coords.latitude, pos.coords.longitude)
     } catch (error) {
       setGpsAttempting(false)
-      setGpsError(`📍 ${formatCustomerGPSError(error)}`)
+      setPermState('denied')
+      setGpsError(formatCustomerGPSError(error))
       setShops([])
       setFiltered([])
-      setLoading(false)
     }
   }
 
@@ -133,7 +136,20 @@ export default function CustomerHome() {
     }
     loadUser()
     loadSettings()
-    requestLocation()
+
+    // Check if permission was already granted — skip splash and load immediately
+    if (typeof navigator !== 'undefined' && navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'granted') {
+          // Already permitted — fetch GPS silently
+          setPermState('asking')
+          requestLocation()
+        }
+        // 'denied' or 'prompt' — show the splash screen
+      }).catch(() => {
+        // Permissions API not available — show splash so user can tap to trigger prompt
+      })
+    }
   }, [])
 
   const applyFilters = useCallback(() => {
@@ -168,23 +184,26 @@ export default function CustomerHome() {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="ch-search-wrap">
-          <span className="ch-search-icon">🔍</span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search shops or categories..."
-            className="ch-search-input"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="ch-search-clear">✕</button>
-          )}
-        </div>
+        {/* Search — only shown after location granted */}
+        {permState === 'granted' && (
+          <div className="ch-search-wrap">
+            <span className="ch-search-icon">🔍</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search shops or categories..."
+              className="ch-search-input"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="ch-search-clear">✕</button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── Category strip ── */}
-      <div className="ch-cats">
+      {/* ── Category strip — only shown after location granted ── */}
+      {permState === 'granted' && (
+        <div className="ch-cats">
         {CATEGORIES.map(cat => {
           const active = category === cat.label
           return (
@@ -212,30 +231,111 @@ export default function CustomerHome() {
           )
         })}
       </div>
+      )}
 
       {/* ── Section label ── */}
       <div className="ch-section-hdr">
         <span className="ch-section-title">
-          {loading
+          {permState === 'init'
+            ? 'Shops Near You'
+            : permState === 'asking' || loading
             ? 'Finding shops...'
-            : gpsError
-            ? 'GPS Required'
+            : permState === 'denied'
+            ? 'Location Required'
             : `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`}
         </span>
-        {radiusKm && !loading && !gpsError && <span className="ch-section-sub">Within {radiusKm} km</span>}
+        {radiusKm && permState === 'granted' && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
 
-      {/* ── GPS Error Banner ── */}
-      {gpsError && (
-        <div style={{ margin: '12px 12px 0', padding: '12px 14px', background: '#fef9c3', border: '1px solid #fcd34d', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontSize: '0.85rem', color: '#92400e', fontWeight: 500 }}>{gpsError}</span>
-          <button
-            onClick={requestLocation}
-            disabled={gpsAttempting}
-            style={{ padding: '6px 12px', background: '#fcd34d', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: gpsAttempting ? 'not-allowed' : 'pointer', opacity: gpsAttempting ? 0.6 : 1 }}
-          >
-            {gpsAttempting ? '⏳...' : '🔄 Retry'}
-          </button>
+      {/* ── GPS Permission Splash — shown when permission not yet asked ── */}
+      {permState === 'init' && (
+        <div style={{
+          margin: '20px 14px',
+          background: 'white',
+          borderRadius: 20,
+          overflow: 'hidden',
+          boxShadow: '0 4px 24px rgba(249,115,22,0.12)',
+          border: '2px solid #fed7aa',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+            padding: '28px 24px 20px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>📍</div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#9a3412', marginBottom: 8 }}>
+              Enable Location Access
+            </h2>
+            <p style={{ fontSize: '0.88rem', color: '#c2410c', lineHeight: 1.5, marginBottom: 0 }}>
+              We need your location to show shops near you within the <strong>{radiusKm} km</strong> delivery area.
+            </p>
+          </div>
+          <div style={{ padding: '20px 24px 24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {[
+                { icon: '🛒', text: 'See shops open & delivering in your area' },
+                { icon: '📦', text: 'Get accurate delivery time estimates' },
+                { icon: '🔒', text: 'Your location is never stored or shared' },
+              ].map(({ icon, text }) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{icon}</span>
+                  <span style={{ fontSize: '0.82rem', color: '#475569' }}>{text}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={requestLocation}
+              style={{
+                width: '100%', padding: '15px',
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                color: 'white', border: 'none', borderRadius: 14,
+                fontWeight: 800, fontSize: '1rem', cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+              }}
+            >
+              📍 Allow Location Access
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Asking / Loading state ── */}
+      {permState === 'asking' && !shops.length && (
+        <div style={{ textAlign: 'center', padding: '50px 24px' }}>
+          <div style={{ width: 48, height: 48, border: '4px solid #fed7aa', borderTopColor: '#f97316', borderRadius: '50%', animation: 'ch-spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+          <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>Getting your location...</p>
+        </div>
+      )}
+
+      {/* ── GPS Denied / Error state ── */}
+      {permState === 'denied' && (
+        <div style={{ margin: '16px 14px', background: 'white', borderRadius: 16, border: '2px solid #fca5a5', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 20px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🚫</div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626', marginBottom: 6 }}>Location Access Denied</h3>
+            {gpsError && <p style={{ fontSize: '0.82rem', color: '#ef4444', lineHeight: 1.5, marginBottom: 14 }}>{gpsError}</p>}
+          </div>
+          <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ background: '#fef2f2', borderRadius: 10, padding: '12px 14px' }}>
+              <p style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600, marginBottom: 6 }}>📱 How to fix on Android:</p>
+              <p style={{ fontSize: '0.75rem', color: '#78350f', lineHeight: 1.5 }}>Settings → Apps → Browser → Permissions → Location → Allow</p>
+            </div>
+            <button
+              onClick={requestLocation}
+              disabled={gpsAttempting}
+              style={{
+                width: '100%', padding: '12px',
+                background: gpsAttempting ? '#94a3b8' : '#f97316',
+                color: 'white', border: 'none', borderRadius: 10,
+                fontWeight: 700, fontSize: '0.9rem',
+                cursor: gpsAttempting ? 'not-allowed' : 'pointer',
+                opacity: gpsAttempting ? 0.6 : 1
+              }}
+            >
+              {gpsAttempting ? '⏳ Trying...' : '🔄 Try Again'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -257,39 +357,16 @@ export default function CustomerHome() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!loading && filtered.length === 0 && (
+        {/* Empty state — shops loaded but none found nearby */}
+        {!loading && permState === 'granted' && filtered.length === 0 && (
           <div className="ch-empty">
             <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>
               {gpsError ? '📍' : '🏪'}
             </div>
-            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>
-              {gpsError ? 'Enable Location Access' : 'No Shops Available'}
-            </h3>
+            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No Shops Available</h3>
             <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>
-              {gpsError
-                ? 'GPS is required to see shops in your delivery area.'
-                : 'No shops are currently available in your area. Check back soon!'}
+              No shops are open in your area right now ({radiusKm} km radius). Check back soon!
             </p>
-            {gpsError && (
-              <button
-                onClick={requestLocation}
-                disabled={gpsAttempting}
-                style={{
-                  padding: '10px 20px',
-                  background: gpsAttempting ? '#94a3b8' : '#f97316',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: gpsAttempting ? 'not-allowed' : 'pointer',
-                  opacity: gpsAttempting ? 0.6 : 1
-                }}
-              >
-                {gpsAttempting ? '⏳ Enabling...' : '🔄 Enable GPS'}
-              </button>
-            )}
           </div>
         )}
 
@@ -535,6 +612,7 @@ export default function CustomerHome() {
           font-weight: 700; font-size: 0.85rem; cursor: pointer;
           touch-action: manipulation;
         }
+        @keyframes ch-spin { to { transform: rotate(360deg); } }
 
         /* ── Wider phones / tablets: 3+ columns ── */
         @media (min-width: 480px) {
