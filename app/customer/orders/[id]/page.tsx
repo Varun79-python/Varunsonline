@@ -70,7 +70,7 @@ export default function OrderDetailPage() {
   }, [id])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setCurrentUserId(user.id) })
+    supabase.auth.getUser().then(({ data }) => { if (data.user) setCurrentUserId(data.user.id) })
     loadOrder()
     const ch = supabase.channel('order_' + id)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
