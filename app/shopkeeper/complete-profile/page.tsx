@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getReliableGPSPosition, formatGPSError, getGPSAccuracyWarning } from '@/lib/gps'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 
@@ -105,21 +104,38 @@ export default function CompleteProfilePage() {
     }
   }
 
-  async function getGPS() {
+  function getGPS() {
+    if (!navigator.geolocation) {
+      setGpsError('GPS is not supported on this device or browser.')
+      return
+    }
     setGettingGPS(true)
     setGpsError(null)
     setGpsWarning(null)
-    try {
-      const pos = await getReliableGPSPosition()
-      update('latitude', pos.coords.latitude)
-      update('longitude', pos.coords.longitude)
-      const warn = getGPSAccuracyWarning(pos.coords.accuracy)
-      if (warn) setGpsWarning(warn)
-    } catch (err: unknown) {
-      setGpsError(formatGPSError(err))
-    } finally {
-      setGettingGPS(false)
-    }
+    console.log('[GPS/CompleteProfile] Requesting location...')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords
+        console.log(`[GPS/CompleteProfile] Success: lat=${latitude.toFixed(5)}, lon=${longitude.toFixed(5)}, accuracy=±${Math.round(accuracy)}m`)
+        update('latitude', latitude)
+        update('longitude', longitude)
+        if (accuracy > 100) setGpsWarning(`⚠️ GPS accuracy is low (±${Math.round(accuracy)}m) — move to an open area for better precision.`)
+        setGettingGPS(false)
+      },
+      (err) => {
+        const code = err.code
+        console.error(`[GPS/CompleteProfile] Error code=${code}:`, err.message)
+        if (code === 1) {
+          setGpsError('Tap the 🔒 lock icon in the address bar → Site settings → Location → Allow, then try again.')
+        } else if (code === 2) {
+          setGpsError('Location unavailable — turn on device GPS and move to an open area.')
+        } else {
+          setGpsError('Location timed out — ensure GPS is on and try again.')
+        }
+        setGettingGPS(false)
+      },
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 20000 }
+    )
   }
 
   if (loading) return (
