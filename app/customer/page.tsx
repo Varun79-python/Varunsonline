@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatCustomerGPSError, getCustomerGPSPosition } from '@/lib/customerGps'
 
 interface Shop {
   id: string; name: string; category: string; description: string
@@ -59,55 +58,87 @@ export default function CustomerHome() {
   const [gpsCode, setGpsCode] = useState<number | null>(null)   // 1=denied 2=unavail 3=timeout
   const [gpsReady, setGpsReady] = useState(false)
   const [gpsAttempting, setGpsAttempting] = useState(false)
+  // useRef to avoid stale-closure double-call guard in useEffect
+  const gpsRunning = useRef(false)
 
-  async function loadSettings() {
+  // Returns the radius so loadShops can use the live value, not stale state
+  async function loadSettings(): Promise<number> {
     const { data } = await supabase.from('platform_settings').select('key,value').eq('key', 'shop_radius_km')
-    if (data?.[0]) setRadiusKm(Number(data[0].value))
+    if (data?.[0]) {
+      const r = Number(data[0].value)
+      setRadiusKm(r)
+      return r
+    }
+    return 10
   }
 
-  async function requestLocation() {
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      console.error('[GPS] Page is not in a secure context (requires HTTPS).')
-      setGpsError('Location requires a secure (HTTPS) connection.')
-      setGpsCode(null)
+  function doGPS(radiusForShops: number) {
+    // useRef guard prevents double-calls from React StrictMode
+    if (gpsRunning.current) {
+      console.log('[GPS] Already running, skipping duplicate call')
       return
     }
-    if (gpsAttempting) return  // Prevent double-calls
-    console.log('[GPS] requestLocation() triggered')
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      console.error('[GPS] navigator.geolocation not available')
+      setGpsError('GPS is not supported on this device or browser.')
+      setGpsCode(2)
+      setGpsAttempting(false)
+      setLoading(false)
+      return
+    }
+    gpsRunning.current = true
     setGpsAttempting(true)
     setGpsError(null)
     setGpsCode(null)
-    try {
-      const pos = await getCustomerGPSPosition()
-      setGpsReady(true)
-      setGpsAttempting(false)
-      loadShops(pos.coords.latitude, pos.coords.longitude)
-    } catch (error) {
-      const gpsErr = error as { code?: number; message?: string }
-      const code = gpsErr?.code ?? null
-      console.error(`[GPS] requestLocation failed — code=${code}:`, gpsErr?.message)
-      setGpsAttempting(false)
-      setGpsCode(code)
-      setGpsError(formatCustomerGPSError(error))
-      setShops([])
-      setFiltered([])
-      setLoading(false)
-    }
+    console.log('[GPS] Calling navigator.geolocation.getCurrentPosition...')
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        // SUCCESS
+        const { latitude, longitude, accuracy } = position.coords
+        console.log(`[GPS] Success: lat=${latitude.toFixed(5)}, lon=${longitude.toFixed(5)}, accuracy=±${Math.round(accuracy)}m`)
+        gpsRunning.current = false
+        setGpsAttempting(false)
+        setGpsReady(true)
+        setGpsError(null)
+        setGpsCode(null)
+        loadShops(latitude, longitude, radiusForShops)
+      },
+      (error) => {
+        // ERROR
+        const code = error.code  // 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
+        const msg = error.message
+        console.error(`[GPS] Error code=${code} (${['', 'PERMISSION_DENIED', 'POSITION_UNAVAILABLE', 'TIMEOUT'][code] || 'UNKNOWN'}):`, msg)
+        gpsRunning.current = false
+        setGpsAttempting(false)
+        setGpsCode(code)
+        setLoading(false)
+        if (code === 1) {
+          setGpsError('Tap the 🔒 lock icon in the browser address bar → Site settings → Location → Allow, then tap Retry.')
+        } else if (code === 2) {
+          setGpsError('Location unavailable — please turn on your device GPS/Location and move to an open area.')
+        } else {
+          setGpsError('Location timed out — please ensure GPS is on and try again.')
+        }
+      },
+      {
+        enableHighAccuracy: false,   // Start with network-based (fast, reliable); retry with high-accuracy if needed
+        maximumAge: 60000,           // Accept a position up to 60s old to avoid cold-start failures
+        timeout: 20000,
+      }
+    )
   }
 
-  async function loadShops(lat: number | null, lon: number | null) {
+  function requestLocation() {
+    gpsRunning.current = false  // Reset guard so manual retry always works
+    doGPS(radiusKm)
+  }
+
+  async function loadShops(lat: number, lon: number, radius?: number) {
     setLoading(true)
     const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
     if (data) {
-      const activeRadius = radiusKm || 10
-
-      // Only show shops if GPS coordinates are available
-      if (lat == null || lon == null) {
-        setShops([])
-        setFiltered([])
-        setLoading(false)
-        return
-      }
+      const activeRadius = radius ?? radiusKm ?? 10
 
       const withDist = data.map((s: Shop) => ({
         ...s,
@@ -115,12 +146,6 @@ export default function CustomerHome() {
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
       })).filter((s: Shop) => s.distance !== null && (s.distance!) <= activeRadius)
 
-      if (withDist.length === 0) {
-        setShops([])
-        setFiltered([])
-        setLoading(false)
-        return
-      }
       const sorted = withDist.sort((a: Shop, b: Shop) => ((a.distance ?? 99) - (b.distance ?? 99)))
       setShops(sorted)
       setFiltered(sorted)
@@ -131,21 +156,21 @@ export default function CustomerHome() {
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
-    async function loadUser() {
+    async function init() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-      const name =
-        profile?.full_name?.trim()?.split(' ')[0] ||
-        user.user_metadata?.full_name?.trim()?.split(' ')[0] ||
-        user.email?.split('@')[0] || 'there'
-      setUserName(name.charAt(0).toUpperCase() + name.slice(1))
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+        const name =
+          profile?.full_name?.trim()?.split(' ')[0] ||
+          user.user_metadata?.full_name?.trim()?.split(' ')[0] ||
+          user.email?.split('@')[0] || 'there'
+        setUserName(name.charAt(0).toUpperCase() + name.slice(1))
+      }
+      // Load radius first so GPS success uses the correct value
+      const radius = await loadSettings()
+      doGPS(radius)
     }
-    loadUser()
-    loadSettings()
-    // Always auto-trigger GPS on mount — the browser prompt will appear if needed.
-    // We do NOT use the Permissions API to gate this, as it can return stale state.
-    requestLocation()
+    init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = useCallback(() => {
