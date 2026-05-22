@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/lib/customerGps'
+import LocationPicker, { type SavedLocation } from '@/components/LocationPicker'
 
 const GENDER_OPTIONS = [
   { value: '', label: 'Select Gender' },
@@ -40,7 +40,6 @@ export default function CustomerProfile() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ ...blankEdit })
   const [editSaving, setEditSaving] = useState(false)
-  const [editGPS, setEditGPS] = useState(false)
   const [editGpsAccuracy, setEditGpsAccuracy] = useState<number | null>(null)
   const [personalInfoOpen, setPersonalInfoOpen] = useState(false)
 
@@ -79,20 +78,15 @@ export default function CustomerProfile() {
     setEditForm({ label: (a.label as string) || 'Home', house_name: (a.house_name as string) || '', street_name: (a.street_name as string) || '', landmark: (a.landmark as string) || '', city: (a.city as string) || '', pincode: (a.pincode as string) || '', phone: (a.phone as string) || '', latitude: (a.latitude as number) || 0, longitude: (a.longitude as number) || 0 })
   }
 
-  async function getEditGPS() {
-    setEditGPS(true)
-    setEditGpsAccuracy(null)
-    try {
-      const pos = await getCustomerGPSPosition()
-      const { latitude, longitude, accuracy } = pos.coords
-      setEditForm(f => ({ ...f, latitude, longitude }))
-      setEditGpsAccuracy(accuracy)
-      if (isPoorCustomerGPSAccuracy(accuracy)) alert(`⚠️ GPS accuracy is poor (±${Math.round(accuracy)}m)`)
-    } catch (error) {
-      alert('GPS failed: ' + formatCustomerGPSError(error))
-    } finally {
-      setEditGPS(false)
-    }
+  function handleAddressGPS(loc: SavedLocation) {
+    setEditForm(f => ({
+      ...f,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      city: f.city || loc.city || f.city,
+      pincode: f.pincode || loc.pincode || f.pincode,
+    }))
+    if (loc.accuracy) setEditGpsAccuracy(loc.accuracy)
   }
 
   async function saveEdit() {
@@ -168,57 +162,23 @@ export default function CustomerProfile() {
               {editingId === a.id && (
                 <div style={{ marginTop: 14, padding: 14, background: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label><select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>{['Home', 'Work', 'Other'].map(l => <option key={l}>{l}</option>)}</select></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>House *</label><input style={inputStyle} placeholder="e.g. Sunrise Apartments" value={editForm.house_name} onChange={e => setEditForm(f => ({ ...f, house_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Street *</label><input style={inputStyle} placeholder="e.g. MG Road" value={editForm.street_name} onChange={e => setEditForm(f => ({ ...f, street_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>City *</label><input style={inputStyle} placeholder="City" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Landmark</label><input style={inputStyle} placeholder="Near City Mall" value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Pincode</label><input style={inputStyle} placeholder="500001" value={editForm.pincode} onChange={e => setEditForm(f => ({ ...f, pincode: e.target.value }))} /></div><div style={{ gridColumn: '1/-1' }}><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Phone Number</label><input style={inputStyle} type="tel" placeholder="+91 9XXXXXXXXX" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div></div>
-                  {/* GPS box */}
-                  <div style={{ background: '#f8fafc', borderRadius: 10, border: '1.5px solid #e2e8f0', padding: 12, marginBottom: 10 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#374151', marginBottom: 8 }}>📡 GPS Location</div>
-                    {editForm.latitude !== 0 && (
-                      <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', marginBottom: 3 }}>✅ Saved Location</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#374151' }}>Lat: {editForm.latitude.toFixed(6)}<br />Lon: {editForm.longitude.toFixed(6)}</div>
-                        <a href={`https://www.openstreetmap.org/?mlat=${editForm.latitude}&mlon=${editForm.longitude}&zoom=17`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: '0.72rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>🗺️ Check on Map</a>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button onClick={getEditGPS} disabled={editGPS} style={{ flex: 1, background: editGPS ? '#f1f5f9' : 'linear-gradient(135deg,#f97316,#ea580c)', color: editGPS ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, padding: '9px 12px', fontSize: '0.78rem', cursor: editGPS ? 'not-allowed' : 'pointer', fontWeight: 700 }}>
-                        {editGPS ? '📡 Detecting…' : '📍 Detect Current Location'}
-                      </button>
-                      {editForm.latitude !== 0 && editGpsAccuracy !== null && (() => { const acc = Math.round(editGpsAccuracy); const cfg = acc < 20 ? { color: '#16a34a', bg: '#f0fdf4', label: `✓ ±${acc}m` } : acc < 50 ? { color: '#d97706', bg: '#fef3c7', label: `±${acc}m` } : acc < 100 ? { color: '#ea580c', bg: '#fff7ed', label: `⚠ ±${acc}m` } : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m` }; return <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '4px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color, flexShrink: 0 }}>{cfg.label}</span> })()}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : (editingId === 'new' ? 'Add Address' : 'Save Changes')}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {editingId === 'new' && (
+                  <LocationPicker
+                    saved={editForm.latitude !== 0 ? { latitude: editForm.latitude, longitude: editForm.longitude } : null}
+                    onUse={handleAddressGPS}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Saving...' : (editingId === 'new' ? 'Add Address' : 'Save Changes')}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
+ && (
           <div style={{ marginTop: 16 }}>
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: 14, border: '1.5px solid #f97316' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', marginBottom: 14 }}>➕ Add New Address</div>
               <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Label</label><select style={inputStyle} value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}>{['Home', 'Work', 'Other'].map(l => <option key={l}>{l}</option>)}</select></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>House *</label><input style={inputStyle} placeholder="e.g. Sunrise Apartments" value={editForm.house_name} onChange={e => setEditForm(f => ({ ...f, house_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Street *</label><input style={inputStyle} placeholder="e.g. MG Road" value={editForm.street_name} onChange={e => setEditForm(f => ({ ...f, street_name: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>City *</label><input style={inputStyle} placeholder="City" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Landmark</label><input style={inputStyle} placeholder="Near City Mall" value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} /></div><div><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Pincode</label><input style={inputStyle} placeholder="500001" value={editForm.pincode} onChange={e => setEditForm(f => ({ ...f, pincode: e.target.value }))} /></div><div style={{ gridColumn: '1/-1' }}><label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Phone (for delivery)</label><input style={inputStyle} placeholder="Mobile number" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div></div>
-                  {/* GPS box */}
-                  <div style={{ background: '#f8fafc', borderRadius: 10, border: '1.5px solid #e2e8f0', padding: 12, marginBottom: 10 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#374151', marginBottom: 8 }}>📡 GPS Location</div>
-                    {editForm.latitude !== 0 && (
-                      <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', marginBottom: 3 }}>✅ Detected Location</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#374151' }}>Lat: {editForm.latitude.toFixed(6)}<br />Lon: {editForm.longitude.toFixed(6)}</div>
-                        <a href={`https://www.openstreetmap.org/?mlat=${editForm.latitude}&mlon=${editForm.longitude}&zoom=17`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: '0.72rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>🗺️ Check on Map</a>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button onClick={getEditGPS} disabled={editGPS} style={{ flex: 1, background: editGPS ? '#f1f5f9' : 'linear-gradient(135deg,#f97316,#ea580c)', color: editGPS ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, padding: '9px 12px', fontSize: '0.78rem', cursor: editGPS ? 'not-allowed' : 'pointer', fontWeight: 700 }}>
-                        {editGPS ? '📡 Detecting…' : '📍 Detect Current Location'}
-                      </button>
-                      {editForm.latitude !== 0 && editGpsAccuracy !== null && (() => { const acc = Math.round(editGpsAccuracy); const cfg = acc < 20 ? { color: '#16a34a', bg: '#f0fdf4', label: `✓ ±${acc}m` } : acc < 50 ? { color: '#d97706', bg: '#fef3c7', label: `±${acc}m` } : acc < 100 ? { color: '#ea580c', bg: '#fff7ed', label: `⚠ ±${acc}m` } : { color: '#dc2626', bg: '#fef2f2', label: `❌ ±${acc}m` }; return <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '4px 8px', borderRadius: 6, background: cfg.bg, color: cfg.color, flexShrink: 0 }}>{cfg.label}</span> })()}
-                    </div>
-                  </div>
-                <div style={{ display: 'flex', gap: 8 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Adding...' : 'Add Address'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
-              </div>
-            </div>
-          </div>
-        )}
+                  <LocationPicker
+                    saved={editForm.latitude !== 0 ? { latitude: editForm.latitude, longitude: editForm.longitude } : null}
+                    onUse={handleAddressGPS}
+                  />
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: '12px', background: editSaving ? '#94a3b8' : '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{editSaving ? 'Adding...' : 'Add Address'}</button><button onClick={() => setEditingId(null)} style={{ padding: '12px 18px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancel</button></div>
+
       </div>
 
       <button onClick={() => router.push('/customer/care')} style={{ width: '100%', background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px', color: '#0f172a', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}><HeadsetIcon />Customer Care & Support</button>

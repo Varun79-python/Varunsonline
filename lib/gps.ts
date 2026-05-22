@@ -1,114 +1,143 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// GPS Utility — shared across shopkeeper, customer, and delivery agent flows
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * lib/gps.ts
+ * Reliable GPS helper for both customer and shopkeeper.
+ * Handles permissions, timeouts, accuracy rejection, and reverse geocoding.
+ */
 
-export const GPS_POOR_ACCURACY_METERS = 100
-
-export type GPSLikeError = Error & { code?: number }
-
-const HIGH_ACCURACY_OPTIONS: PositionOptions = {
-  enableHighAccuracy: true,
-  maximumAge: 0,
-  timeout: 15000,
+export interface GPSPosition {
+  latitude: number
+  longitude: number
+  accuracy: number
 }
 
-const FALLBACK_ACCURACY_OPTIONS: PositionOptions = {
-  enableHighAccuracy: false,
-  maximumAge: 3 * 60 * 1000,
-  timeout: 20000,
+export interface ReverseGeoResult {
+  formattedAddress: string
+  city: string
+  pincode: string
+  landmark: string
 }
 
-function createGPSError(message: string, code?: number): GPSLikeError {
-  const error = new Error(message) as GPSLikeError
-  error.code = code
-  return error
+export type GPSErrorType = 'PERMISSION_DENIED' | 'POSITION_UNAVAILABLE' | 'TIMEOUT' | 'NOT_SUPPORTED' | 'POOR_ACCURACY'
+
+export interface GPSError {
+  type: GPSErrorType
+  message: string
+  retryable: boolean
 }
 
-function getBrowserPosition(options: PositionOptions): Promise<GeolocationPosition> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    console.error('[GPS] navigator.geolocation is not available on this device/browser.')
-    return Promise.reject(createGPSError('GPS is not supported on this device.', 2))
-  }
+const MAX_ACCURACY_METERS = 100
+
+export function getGPSPosition(): Promise<GPSPosition> {
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, options)
+    if (!navigator.geolocation) {
+      const err: GPSError = {
+        type: 'NOT_SUPPORTED',
+        message: 'GPS is not supported on this browser.',
+        retryable: false,
+      }
+      reject(err)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords
+        console.log(`[GPS] Success: lat=${latitude.toFixed(5)}, lon=${longitude.toFixed(5)}, accuracy=±${Math.round(accuracy)}m`)
+        resolve({ latitude, longitude, accuracy })
+      },
+      (nativeErr) => {
+        console.error(`[GPS] Error code=${nativeErr.code}:`, nativeErr.message)
+        let err: GPSError
+        switch (nativeErr.code) {
+          case 1: // PERMISSION_DENIED
+            err = {
+              type: 'PERMISSION_DENIED',
+              message: 'Location access denied. Tap the 🔒 lock icon in your browser address bar → Site Settings → Location → Allow, then tap Retry.',
+              retryable: true,
+            }
+            break
+          case 2: // POSITION_UNAVAILABLE
+            err = {
+              type: 'POSITION_UNAVAILABLE',
+              message: 'Location unavailable. Ensure device GPS is turned on and move to an open area.',
+              retryable: true,
+            }
+            break
+          case 3: // TIMEOUT
+            err = {
+              type: 'TIMEOUT',
+              message: 'GPS timed out. Make sure you are in an area with clear sky visibility.',
+              retryable: true,
+            }
+            break
+          default:
+            err = {
+              type: 'POSITION_UNAVAILABLE',
+              message: 'Unable to get location. Please try again.',
+              retryable: true,
+            }
+        }
+        reject(err)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    )
   })
 }
 
-/**
- * Main GPS function. Tries high-accuracy first, falls back to network/cached
- * position on timeout or unavailability errors.
- *
- * NOTE: We intentionally do NOT pre-check navigator.permissions here.
- * The Permissions API can return stale/incorrect state in some Chrome builds
- * and cause false "denied" errors when location is actually allowed.
- * We let getCurrentPosition() be the single source of truth.
- */
-export async function getReliableGPSPosition(): Promise<GeolocationPosition> {
+/** Returns true if GPS accuracy is too poor to use */
+export function isAccuracyPoor(accuracy: number): boolean {
+  return accuracy > MAX_ACCURACY_METERS
+}
+
+/** Accuracy label and colour */
+export function accuracyLabel(accuracy: number): { label: string; color: string; bg: string } {
+  const m = Math.round(accuracy)
+  if (m < 20)  return { label: `✓ ±${m}m`, color: '#16a34a', bg: '#f0fdf4' }
+  if (m < 50)  return { label: `±${m}m`,   color: '#d97706', bg: '#fef3c7' }
+  if (m < 100) return { label: `⚠ ±${m}m`, color: '#ea580c', bg: '#fff7ed' }
+  return             { label: `❌ ±${m}m`,  color: '#dc2626', bg: '#fef2f2' }
+}
+
+/** OpenStreetMap reverse geocode */
+export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeoResult> {
   try {
-    console.log('[GPS] Requesting high-accuracy position...')
-    const pos = await getBrowserPosition(HIGH_ACCURACY_OPTIONS)
-    console.log(`[GPS] Success: lat=${pos.coords.latitude.toFixed(5)}, lon=${pos.coords.longitude.toFixed(5)}, accuracy=±${Math.round(pos.coords.accuracy)}m`)
-    return pos
-  } catch (error) {
-    const gpsError = error as GPSLikeError
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'VarunsOnline/1.0' } }
+    )
+    if (!res.ok) throw new Error('Geocode request failed')
+    const data = await res.json()
+    const addr = data.address || {}
 
-    const codeLabel =
-      gpsError.code === 1 ? 'PERMISSION_DENIED' :
-      gpsError.code === 2 ? 'POSITION_UNAVAILABLE' :
-      gpsError.code === 3 ? 'TIMEOUT' : 'UNKNOWN'
+    const city =
+      addr.city || addr.town || addr.village || addr.county || addr.state_district || ''
+    const pincode = addr.postcode || ''
+    const landmark =
+      addr.amenity || addr.tourism || addr.building || addr.neighbourhood || ''
+    const formattedAddress = data.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`
 
-    console.error(`[GPS] High-accuracy failed (${codeLabel} / code=${gpsError.code}):`, gpsError.message)
-
-    // Permission denial — don't retry, surface immediately
-    if (gpsError.code === 1) throw gpsError
-
-    // For TIMEOUT or POSITION_UNAVAILABLE: retry with network/cached fallback
-    try {
-      console.log('[GPS] Retrying with low-accuracy fallback...')
-      const pos = await getBrowserPosition(FALLBACK_ACCURACY_OPTIONS)
-      console.log(`[GPS] Fallback success: lat=${pos.coords.latitude.toFixed(5)}, lon=${pos.coords.longitude.toFixed(5)}, accuracy=±${Math.round(pos.coords.accuracy)}m`)
-      return pos
-    } catch (fallbackErr) {
-      const fe = fallbackErr as GPSLikeError
-      console.error(`[GPS] Fallback also failed (code=${fe.code}):`, fe.message)
-      throw fe
+    return { formattedAddress, city, pincode, landmark }
+  } catch {
+    console.warn('[GPS] Reverse geocode failed — using coordinates only')
+    return {
+      formattedAddress: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      city: '',
+      pincode: '',
+      landmark: '',
     }
   }
 }
 
-/**
- * Returns a user-friendly, specific error message per GeolocationPositionError code.
- */
-export function formatGPSError(error: unknown): string {
-  const gpsError = error as Partial<GPSLikeError> | null
-
-  console.error('[GPS] Error detail:', { code: gpsError?.code, message: gpsError?.message })
-
-  if (gpsError?.code === 1) {
-    // PERMISSION_DENIED
-    return 'Location access denied — tap the 🔒 icon in your browser address bar and set Location to "Allow", then try again.'
-  }
-  if (gpsError?.code === 2) {
-    // POSITION_UNAVAILABLE
-    return 'Location unavailable — turn on device GPS and move to an open area, then try again.'
-  }
-  if (gpsError?.code === 3) {
-    // TIMEOUT
-    return 'Location request timed out — ensure GPS/Location is on and try again.'
-  }
-  return gpsError?.message || 'Could not get location. Please enable GPS and try again.'
+/** OSM map URL for a position */
+export function osmMapUrl(lat: number, lon: number, zoom = 17): string {
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}&zoom=${zoom}`
 }
 
-export function isPoorGPSAccuracy(accuracy: number | null | undefined) {
-  return typeof accuracy === 'number' && accuracy > GPS_POOR_ACCURACY_METERS
-}
-
-/**
- * Returns a toast-friendly GPS accuracy warning, or null if accuracy is fine.
- */
-export function getGPSAccuracyWarning(accuracy: number): string | null {
-  if (accuracy > GPS_POOR_ACCURACY_METERS) {
-    return `⚠️ GPS accuracy is low (±${Math.round(accuracy)}m) — move to an open area for better precision.`
-  }
-  return null
+/** Google Maps URL */
+export function googleMapsUrl(lat: number, lon: number): string {
+  return `https://maps.google.com/?q=${lat},${lon}`
 }
