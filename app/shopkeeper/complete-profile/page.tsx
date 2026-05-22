@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getReliableGPSPosition, type GPSLikeError } from '@/lib/gps'
+import { getReliableGPSPosition, formatGPSError, getGPSAccuracyWarning } from '@/lib/gps'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 
@@ -14,6 +14,8 @@ export default function CompleteProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [gettingGPS, setGettingGPS] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [gpsWarning, setGpsWarning] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
 
   useEffect(() => {
@@ -105,18 +107,16 @@ export default function CompleteProfilePage() {
 
   async function getGPS() {
     setGettingGPS(true)
+    setGpsError(null)
+    setGpsWarning(null)
     try {
       const pos = await getReliableGPSPosition()
       update('latitude', pos.coords.latitude)
       update('longitude', pos.coords.longitude)
-      if (pos.coords.accuracy > 100) {
-        alert(`⚠️ GPS accuracy is low (±${Math.round(pos.coords.accuracy)}m). Location may be approximate.`)
-      }
+      const warn = getGPSAccuracyWarning(pos.coords.accuracy)
+      if (warn) setGpsWarning(warn)
     } catch (err: unknown) {
-      const gpsError = err as GPSLikeError
-      if (gpsError.code === 1) alert('GPS: Permission denied')
-      else if (gpsError.code === 2) alert('GPS: Position unavailable')
-      else alert('GPS: Request timed out')
+      setGpsError(formatGPSError(err))
     } finally {
       setGettingGPS(false)
     }
@@ -238,19 +238,23 @@ export default function CompleteProfilePage() {
               style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} 
             />
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button 
-              onClick={getGPS} 
-              disabled={gettingGPS}
-              style={{ background: gettingGPS ? '#fef3c7' : '#f1f5f9', border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: gettingGPS ? 'not-allowed' : 'pointer' }}
-            >
-              {gettingGPS ? '📡 Detecting...' : '📍 Set Location'}
-            </button>
-            {Boolean(shop?.latitude) && (
-              <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
-                ✓ {((shop as {latitude: number}).latitude).toFixed(4)}, {((shop as {longitude: number}).longitude).toFixed(4)}
-              </span>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button 
+                onClick={getGPS} 
+                disabled={gettingGPS}
+                style={{ background: gettingGPS ? '#fef3c7' : '#f1f5f9', border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: gettingGPS ? 'not-allowed' : 'pointer' }}
+              >
+                {gettingGPS ? '📡 Detecting...' : '📍 Set Location'}
+              </button>
+              {Boolean(shop?.latitude) && !gpsError && (
+                <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
+                  ✓ {((shop as {latitude: number}).latitude).toFixed(4)}, {((shop as {longitude: number}).longitude).toFixed(4)}
+                </span>
+              )}
+            </div>
+            {gpsError && <div style={{ fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>📍 {gpsError}</div>}
+            {gpsWarning && <div style={{ fontSize: '0.78rem', color: '#92400e', background: '#fef9c3', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4 }}>{gpsWarning}</div>}
           </div>
         </div>
       </div>

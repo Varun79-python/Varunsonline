@@ -64,6 +64,12 @@ export default function CustomerHome() {
   }
 
   async function requestLocation() {
+    // Geolocation requires HTTPS (or localhost). Show clear message if not available.
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setGpsError('📍 Location requires a secure (HTTPS) connection. Please contact support.')
+      setLoading(false)
+      return
+    }
     setGpsAttempting(true)
     setGpsError(null)
     try {

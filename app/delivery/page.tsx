@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getReliableGPSPosition, type GPSLikeError } from '@/lib/gps'
+import { getReliableGPSPosition, formatGPSError } from '@/lib/gps'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
@@ -110,11 +110,10 @@ export default function DeliveryDashboard() {
         setDistToShop(parseFloat(ds.toFixed(3)))
       }
       if (acc > 100) {
-        showToast(`⚠️ Your GPS accuracy is poor (±${Math.round(acc)}m). Distance reading may be inaccurate.`, false)
+        showToast(`⚠️ GPS accuracy is poor (±${Math.round(acc)}m) — move to open area for better precision.`, false)
       }
     } catch (err: unknown) {
-      const gpsError = err as GPSLikeError
-      showToast('GPS failed: ' + (gpsError.code === 1 ? 'Allow location access.' : 'Position unavailable.'), false)
+      showToast(`📍 ${formatGPSError(err)}`, false)
     } finally {
       setGpsChecking(false)
     }
@@ -135,8 +134,8 @@ export default function DeliveryDashboard() {
             setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
         }
       } catch (err: unknown) {
-        const gpsError = err as GPSLikeError
-        console.warn('Background GPS error:', gpsError.code)
+        // Background GPS — non-critical, just log so it doesn't silently hide issues
+        console.warn('Background GPS error:', formatGPSError(err))
       }
     }
     pushGPS()
