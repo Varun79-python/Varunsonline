@@ -20,6 +20,8 @@ export default function AdminAgents() {
   const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Agent | null>(null)
+  const [agentOrders, setAgentOrders] = useState<{id:string;order_number:string;status:string;agent_earning:number;created_at:string}[]>([])
+  const [agentOrdersLoading, setAgentOrdersLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -364,7 +366,14 @@ export default function AdminAgents() {
                 🚗 {agent.vehicle_number || 'N/A'} • 📦 {agent.total_deliveries || 0} deliveries • 💰 ₹{(agent.wallet_balance || 0).toFixed(0)}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setSelected(agent)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>View</button>
+                <button onClick={() => {
+                  setSelected(agent)
+                  setAgentOrders([])
+                  setAgentOrdersLoading(true)
+                  supabase.from('orders').select('id,order_number,status,agent_earning,created_at')
+                    .eq('agent_id', agent.id).order('created_at', { ascending: false }).limit(20)
+                    .then(({ data }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
+                }} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>View</button>
                 {!agent.is_approved && !agent.rejection_reason && (
                   <>
                     <button onClick={() => approve(agent)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>✓</button>
@@ -479,6 +488,27 @@ export default function AdminAgents() {
                     <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" />
                   </div>
                 </div>
+              </div>
+
+              {/* Agent Orders */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>📦 Orders Delivered</h4>
+                {agentOrdersLoading ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading orders...</div> :
+                agentOrders.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No deliveries yet.</div> :
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                  {agentOrders.map(ord => (
+                    <div key={ord.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>#{ord.order_number}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(ord.created_at).toLocaleDateString('en-IN')}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#16a34a' }}>₹{ord.agent_earning?.toFixed(0)}</div>
+                        <div style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: 99, background: ord.status === 'delivered' ? '#dcfce7' : '#fef3c7', color: ord.status === 'delivered' ? '#16a34a' : '#d97706', display: 'inline-block' }}>{ord.status}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>}
               </div>
 
               {/* Status */}

@@ -136,6 +136,14 @@ export default function ShopkeeperDashboard() {
     return () => { mounted = false; if (channel) { supabase.removeChannel(channel); channel = null } }
   }, [fetchPending, supabase])
 
+  // 5s polling fallback — ensures orders arrive even if realtime WebSocket drops
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (shopIdRef.current) fetchPending(shopIdRef.current)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [fetchPending])
+
   async function doOrderAction(orderId: string, orderNumber: string, action: 'accept' | 'reject') {
     if (actionLoading) return
     let reason = ''

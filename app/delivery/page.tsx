@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getReliableGPSPosition, formatGPSError } from '@/lib/gps'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
@@ -41,11 +40,14 @@ export default function DeliveryDashboard() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [gpsRequired, setGpsRequired] = useState(false)   // API says no GPS on record
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
   // Track excluded agent IDs for rejection-based reassignment chain
   const excludedAgentsRef = useRef<string[]>([])
   // Track the currently alerted order to avoid duplicate sounds
   const alertedOrderIdRef = useRef<string | null>(null)
+  // Track last GPS position pushed to DB (to gate writes by >30m movement)
+  const lastPushedPos = useRef<{ lat: number; lon: number } | null>(null)
 
   // Geolocation state for proximity lock
   const [agentLat, setAgentLat] = useState<number | null>(null)
@@ -79,7 +81,13 @@ export default function DeliveryDashboard() {
     const authHeader = await getAuthHeader()
     const res = await fetch('/api/delivery/orders', { headers: { ...authHeader } })
     const data = await res.json()
-    setAvailOrders(data.orders || [])
+    if (data.gpsRequired) {
+      setGpsRequired(true)
+      setAvailOrders([])
+    } else {
+      setGpsRequired(false)
+      setAvailOrders(data.orders || [])
+    }
   }, [supabase])
 
   const fetchActive = useCallback(async (uid: string) => {
@@ -89,59 +97,74 @@ export default function DeliveryDashboard() {
     return data.order as Order | null
   }, [supabase])
 
-  // Get agent's live GPS location
-  async function refreshGPS(order: Order) {
+  // Get agent's live GPS location (for proximity display on active order)
+  function refreshGPS(order: Order) {
+    if (!navigator.geolocation) return
     setGpsChecking(true)
-    try {
-      const pos = await getReliableGPSPosition()
-      const lat = pos.coords.latitude
-      const lon = pos.coords.longitude
-      const acc = pos.coords.accuracy
-      setAgentLat(lat)
-      setAgentLon(lon)
-      // Distance to CUSTOMER (for delivery proximity lock)
-      if (order.address?.latitude > 0 && order.address?.longitude > 0) {
-        const d = getDistanceKm(lat, lon, order.address.latitude, order.address.longitude)
-        setDistToCustomer(parseFloat(d.toFixed(3)))
-      }
-      // Distance to SHOP (for pickup navigation)
-      if (order.shop?.latitude > 0 && order.shop?.longitude > 0) {
-        const ds = getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude)
-        setDistToShop(parseFloat(ds.toFixed(3)))
-      }
-      if (acc > 100) {
-        showToast(`⚠️ GPS accuracy is poor (±${Math.round(acc)}m) — move to open area for better precision.`, false)
-      }
-    } catch (err: unknown) {
-      showToast(`📍 ${formatGPSError(err)}`, false)
-    } finally {
-      setGpsChecking(false)
-    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords
+        setAgentLat(lat)
+        setAgentLon(lon)
+        if (order.address?.latitude > 0 && order.address?.longitude > 0)
+          setDistToCustomer(parseFloat(getDistanceKm(lat, lon, order.address.latitude, order.address.longitude).toFixed(3)))
+        if (order.shop?.latitude > 0 && order.shop?.longitude > 0)
+          setDistToShop(parseFloat(getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude).toFixed(3)))
+        if (acc > 100) showToast(`⚠️ GPS accuracy is poor (±${Math.round(acc)}m)`, false)
+        setGpsChecking(false)
+      },
+      (err) => {
+        console.warn('[GPS/Delivery] refreshGPS error:', err.code, err.message)
+        setGpsChecking(false)
+      },
+      { enableHighAccuracy: false, maximumAge: 5000, timeout: 8000 }
+    )
   }
 
+  // Auto GPS push every 5s — direct navigator.geolocation, no async wrapper
   useEffect(() => {
     if (!agentId) return
-    async function pushGPS() {
-      try {
-        const pos = await getReliableGPSPosition()
-        const { latitude, longitude } = pos.coords
-        supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
-        if (activeOrder) {
-          setAgentLat(latitude); setAgentLon(longitude)
-          if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
-            setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
-          if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
-            setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
-        }
-      } catch (err: unknown) {
-        // Background GPS — non-critical, just log so it doesn't silently hide issues
-        console.warn('Background GPS error:', formatGPSError(err))
-      }
+    const push = () => {
+      if (!navigator.geolocation) return
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords
+          // Only write to DB if agent moved >30m since last push (saves writes + battery)
+          const prev = lastPushedPos.current
+          const movedEnough = !prev || getDistanceKm(prev.lat, prev.lon, latitude, longitude) * 1000 > 30
+          if (movedEnough) {
+            supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
+            lastPushedPos.current = { lat: latitude, lon: longitude }
+            console.log(`[GPS/Delivery] DB updated — moved ${prev ? Math.round(getDistanceKm(prev.lat, prev.lon, latitude, longitude) * 1000) : 'N/A'}m`)
+          }
+          setAgentLat(latitude)
+          setAgentLon(longitude)
+          if (activeOrder) {
+            if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
+              setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
+            if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
+              setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
+          }
+        },
+        (err) => console.warn('[GPS/Delivery] background push error:', err.code, err.message),
+        { enableHighAccuracy: false, maximumAge: 5000, timeout: 8000 }
+      )
     }
-    pushGPS()
-    const interval = setInterval(pushGPS, 30000)
+    push()
+    const interval = setInterval(push, 5000)   // auto-reset every 5 seconds
     return () => clearInterval(interval)
   }, [agentId, activeOrder, supabase])
+
+  // Auto order polling every 5s (fallback alongside realtime subscription)
+  useEffect(() => {
+    if (!agentId) return
+    const poll = async () => {
+      if (activeOrder) return   // Don't poll available orders when already on a delivery
+      await fetchAvailable()
+    }
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [agentId, activeOrder, fetchAvailable])
 
   useEffect(() => {
     let mounted = true
@@ -732,10 +755,18 @@ export default function DeliveryDashboard() {
               <h4 style={{ marginBottom: 8, color: '#f97316' }}>You are Offline</h4>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Go to <strong>Profile</strong> and toggle Availability to <strong>Online</strong> to receive orders.</p>
             </div>
+          ) : gpsRequired ? (
+            <div className="dl-empty-card" style={{ background: '#fef9c3', border: '1.5px solid #fcd34d' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📡</div>
+              <h4 style={{ color: '#92400e', marginBottom: 8 }}>GPS Required</h4>
+              <p style={{ fontSize: '0.85rem', color: '#78350f' }}>
+                Your location is not registered yet. Allow location access and wait a moment — orders will appear automatically once your GPS is detected.
+              </p>
+            </div>
           ) : availOrders.length === 0 ? (
             <div className="dl-empty-card">
               <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
-              <p>No orders available. Check back soon!</p>
+              <p>No orders nearby. Check back soon!</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

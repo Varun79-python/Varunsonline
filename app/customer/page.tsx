@@ -136,19 +136,26 @@ export default function CustomerHome() {
 
   async function loadShops(lat: number, lon: number, radius?: number) {
     setLoading(true)
-    const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true).eq('is_open', true)
+    // Only filter by approved + active — is_open affects badge display, not visibility
+    const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true)
     if (data) {
       const activeRadius = radius ?? radiusKm ?? 10
-
       const withDist = data.map((s: Shop) => ({
         ...s,
         distance: s.latitude != null && s.longitude != null
           ? getDistance(lat, lon, s.latitude, s.longitude) : null
-      })).filter((s: Shop) => s.distance !== null && (s.distance!) <= activeRadius)
-
-      const sorted = withDist.sort((a: Shop, b: Shop) => ((a.distance ?? 99) - (b.distance ?? 99)))
+      }))
+      // Show shops within radius; if shop has no GPS coords, still show it (null distance = show)
+      const inRange = withDist.filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)
+      const sorted = inRange.sort((a: Shop, b: Shop) => {
+        if (a.distance === null && b.distance === null) return 0
+        if (a.distance === null) return 1
+        if (b.distance === null) return -1
+        return (a.distance as number) - (b.distance as number)
+      })
       setShops(sorted)
       setFiltered(sorted)
+      console.log(`[Shops] Loaded ${sorted.length} shops within ${activeRadius}km (total available: ${data.length})`)
     }
     setLoading(false)
   }
@@ -366,8 +373,17 @@ export default function CustomerHome() {
                   {/* Category pill */}
                   <div
                     className="ch-card-cat-pill"
-                    style={{ background: CAT_COLOR[shop.category] || '#64748b' }}
+                    style={{ background: CAT_COLOR[shop.category] || '#64748b', bottom: shop.is_open === false ? 28 : 5 }}
                   >{shop.category}</div>
+                  {/* Closed badge */}
+                  {shop.is_open === false && (
+                    <div style={{
+                      position: 'absolute', bottom: 5, left: 6,
+                      background: 'rgba(0,0,0,0.75)', color: '#fca5a5',
+                      fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
+                      borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
+                    }}>🔴 Closed</div>
+                  )}
                 </div>
 
                 {/* Info */}

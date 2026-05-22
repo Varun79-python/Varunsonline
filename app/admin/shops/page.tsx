@@ -13,8 +13,17 @@ interface UnifiedShop {
   email: string
   category: string
   city: string
+  address_line1?: string
+  landmark?: string
+  description?: string
+  latitude?: number
+  longitude?: number
+  upi_id?: string
+  bank_account_number?: string
+  bank_ifsc?: string
   is_approved: boolean
   is_active: boolean
+  is_open?: boolean
   image_url: string
   rejection_reason: string | null
   created_at: string
@@ -23,6 +32,10 @@ interface UnifiedShop {
   // Document specific
   aadhar_url?: string
 }
+interface ShopOrder {
+  id: string; order_number: string; status: string; total_amount: number
+  shopkeeper_earning: number; created_at: string
+}
 
 export default function AdminShops() {
   const supabase = createClient()
@@ -30,6 +43,8 @@ export default function AdminShops() {
   const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<UnifiedShop | null>(null)
+  const [shopOrders, setShopOrders] = useState<ShopOrder[]>([])
+  const [shopOrdersLoading, setShopOrdersLoading] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [stats, setStats] = useState({ pendingDocs: 0 })
   const [processing, setProcessing] = useState(false)
@@ -79,6 +94,17 @@ export default function AdminShops() {
   function handleSelectShop(item: UnifiedShop) {
     setSelectedItem(item)
     setRejectReason('')
+    setShopOrders([])
+    if (item.type === 'shop') {
+      // Load orders for this shop
+      setShopOrdersLoading(true)
+      supabase.from('orders').select('id,order_number,status,total_amount,shopkeeper_earning,created_at')
+        .eq('shop_id', item.id).order('created_at', { ascending: false }).limit(20)
+        .then(({ data }) => {
+          setShopOrders((data || []) as ShopOrder[])
+          setShopOrdersLoading(false)
+        })
+    }
   }
 
   async function approve(item: UnifiedShop) {
@@ -296,6 +322,40 @@ export default function AdminShops() {
                       <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>City</div>
                       <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.city || '—'}</div>
                     </div>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Address</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.address_line1 || '—'}{selectedItem.landmark ? ` (${selectedItem.landmark})` : ''}</div>
+                    </div>
+                    {selectedItem.description && (
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Description</div>
+                        <div style={{ fontWeight: 500, fontSize: '0.82rem' }}>{selectedItem.description}</div>
+                      </div>
+                    )}
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Rating</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>⭐ {selectedItem.rating?.toFixed(1) || '—'}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Total Orders</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>📦 {selectedItem.total_orders || 0}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Status</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{selectedItem.is_open ? '🟢 Open' : '🔴 Closed'}</div>
+                    </div>
+                    {selectedItem.upi_id && (
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>UPI ID</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{selectedItem.upi_id}</div>
+                      </div>
+                    )}
+                    {selectedItem.latitude && (
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>GPS Coordinates</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>📍 {selectedItem.latitude?.toFixed(5)}, {selectedItem.longitude?.toFixed(5)}</div>
+                      </div>
+                    )}
                   </>
                 )}
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
@@ -303,6 +363,29 @@ export default function AdminShops() {
                   <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{new Date(selectedItem.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 </div>
               </div>
+
+              {/* Shop Orders */}
+              {selectedItem.type === 'shop' && (
+                <div style={{ marginBottom: 20 }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>📦 Orders from this Shop</h4>
+                  {shopOrdersLoading ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading orders...</div> :
+                  shopOrders.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No orders yet.</div> :
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {shopOrders.map(ord => (
+                      <div key={ord.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>#{ord.order_number}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(ord.created_at).toLocaleDateString('en-IN')}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#16a34a' }}>₹{ord.shopkeeper_earning?.toFixed(0)}</div>
+                          <div style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: 99, background: ord.status === 'delivered' ? '#dcfce7' : '#fef3c7', color: ord.status === 'delivered' ? '#16a34a' : '#d97706', display: 'inline-block' }}>{ord.status}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>}
+                </div>
+              )}
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {selectedItem.rejection_reason && selectedItem.rejection_reason !== 'BLOCKED' && (

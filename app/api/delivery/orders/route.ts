@@ -3,7 +3,7 @@ import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
-// GET — list all available packed orders (no agent assigned yet)
+// GET — list available packed orders within 5km of agent's current location
 export async function GET(req: NextRequest) {
   try {
     const auth = await verifyDeliveryAgent(req)
@@ -12,6 +12,16 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createServiceClient()
+
+    // Get agent's last known GPS position
+    const { data: agentRow } = await supabase
+      .from('delivery_agents')
+      .select('last_lat, last_lon')
+      .eq('id', auth.agentId)
+      .single()
+
+    const agentLat = agentRow?.last_lat as number | null
+    const agentLon = agentRow?.last_lon as number | null
 
     const { data: orders, error } = await supabase
       .from('orders')
@@ -27,7 +37,6 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Compute shop→customer distance for each order
     function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
       const R = 6371
       const dLat = (lat2 - lat1) * Math.PI / 180
@@ -42,10 +51,23 @@ export async function GET(req: NextRequest) {
       const distShopToCustomer = (shop?.latitude && shop?.longitude && addr?.latitude && addr?.longitude)
         ? haversineKm(shop.latitude, shop.longitude, addr.latitude, addr.longitude)
         : null
-      return { ...o, distShopToCustomer }
+      // Distance from agent to shop (for proximity filter)
+      const distAgentToShop = (agentLat && agentLon && shop?.latitude && shop?.longitude)
+        ? haversineKm(agentLat, agentLon, shop.latitude, shop.longitude)
+        : null
+      return { ...o, distShopToCustomer, distAgentToShop }
     })
 
-    return NextResponse.json({ orders: enriched })
+    // No GPS on record — return empty list and signal the UI
+    if (!agentLat || !agentLon) {
+      console.log(`[Orders/API] Agent ${auth.agentId} has no GPS — returning empty order list`)
+      return NextResponse.json({ orders: [], gpsRequired: true })
+    }
+
+    // Filter: only show orders whose shop is within 5km of agent
+    const filtered = enriched.filter(o => o.distAgentToShop === null || o.distAgentToShop <= 5)
+
+    return NextResponse.json({ orders: filtered })
   } catch (err) {
     console.error('Available orders error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
