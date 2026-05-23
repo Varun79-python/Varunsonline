@@ -36,27 +36,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLoginPage = pathname === '/admin/login'
 
   const checkAuth = useCallback(async () => {
-    if (checkingRef.current) return // Prevent duplicate checks
+    if (checkingRef.current) return
     checkingRef.current = true
-    
     try {
-      // First check: get session (faster)
+      // getSession reads from cookie — fast, no network call
       const { data: { session } } = await supabase.auth.getSession()
-      
       if (!session?.user) {
-        // Try getUser as fallback
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          router.replace('/admin/login')
-          return
-        }
-        await validateAdmin(user)
-      } else {
-        await validateAdmin(session.user)
+        router.replace('/admin/login')
+        return
       }
+      await validateAdmin(session.user)
     } catch (error) {
       console.error('Auth check error:', error)
-      router.replace('/admin/login')
+      // Do NOT redirect on error — could be a transient network issue
     } finally {
       checkingRef.current = false
     }
@@ -64,46 +56,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const validateAdmin = async (user: User) => {
     if (!mountedRef.current) return
-    
     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role
-    
     if (metaRole === 'admin' || user?.email === ADMIN_EMAIL) {
       setAdminName(user?.user_metadata?.full_name || user?.email || 'Admin')
       setChecking(false)
       return
     }
-
-    // Check profile table
     try {
       const { data: profile } = await supabase
         .from('profiles')
         .select('role, full_name')
         .eq('id', user.id)
         .single()
-      
       if (profile?.role === 'admin') {
         setAdminName(profile.full_name || user.email || 'Admin')
         setChecking(false)
         return
       }
-      
-      // Check admin email fallback
       if (user.email === ADMIN_EMAIL) {
         setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
         setChecking(false)
         return
       }
-      
-      // Not admin
-      await supabase.auth.signOut()
+      // Not admin — redirect without signing out (the user may be logged into another role)
       router.replace('/admin/login')
     } catch (err) {
       console.error('Profile check error:', err)
-      // Allow if email matches
       if (user.email === ADMIN_EMAIL) {
         setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
         setChecking(false)
       } else {
+        // Do NOT sign out — could be a transient DB error. Just redirect.
         router.replace('/admin/login')
       }
     }
@@ -111,27 +94,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     mountedRef.current = true
-    
-    if (isLoginPage) { 
+    if (isLoginPage) {
       setChecking(false)
-      return 
+      return
     }
-
-    // Set timeout fallback to prevent infinite loading
-    timeoutRef.current = setTimeout(() => {
-      if (mountedRef.current && checking) {
-        console.warn('Auth check timeout - forcing redirect')
-        router.replace('/admin/login')
-      }
-    }, 10000) // 10 second timeout
-
     checkAuth()
-
     return () => {
       mountedRef.current = false
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [pathname, isLoginPage, checkAuth, router, checking])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount — re-running on pathname causes false logouts during token refresh
 
   async function handleLogout() {
     await supabase.auth.signOut()

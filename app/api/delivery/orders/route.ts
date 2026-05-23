@@ -22,14 +22,9 @@ export async function GET(req: NextRequest) {
 
     const agentLat = agentRow?.last_lat as number | null
     const agentLon = agentRow?.last_lon as number | null
+    const hasGps = !!(agentLat && agentLon)
 
-    // No GPS on record — block immediately, return gpsRequired signal
-    if (!agentLat || !agentLon) {
-      console.log(`[Orders/API] Agent ${auth.agentId} has no GPS — returning empty order list`)
-      return NextResponse.json({ orders: [], gpsRequired: true })
-    }
-
-    // Only fetch orders that are packed and unassigned (shop accepted → auto-packed)
+    // Fetch all packed unassigned orders
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -58,16 +53,19 @@ export async function GET(req: NextRequest) {
       const distShopToCustomer = (shop?.latitude && shop?.longitude && addr?.latitude && addr?.longitude)
         ? haversineKm(shop.latitude, shop.longitude, addr.latitude, addr.longitude)
         : null
-      const distAgentToShop = (shop?.latitude && shop?.longitude)
-        ? haversineKm(agentLat, agentLon, shop.latitude, shop.longitude)
+      const distAgentToShop = (hasGps && shop?.latitude && shop?.longitude)
+        ? haversineKm(agentLat!, agentLon!, shop.latitude, shop.longitude)
         : null
       return { ...o, distShopToCustomer, distAgentToShop }
     })
 
-    // Filter: only show orders whose shop is within 5km of agent
-    const filtered = enriched.filter(o => o.distAgentToShop !== null && o.distAgentToShop <= 5)
+    // When GPS is known: filter to 5km radius. Without GPS: show all orders (don't block agent)
+    const filtered = hasGps
+      ? enriched.filter(o => o.distAgentToShop !== null && o.distAgentToShop <= 5)
+      : enriched
 
-    return NextResponse.json({ orders: filtered })
+    // gpsRequired signals soft UI warning (not a hard block anymore)
+    return NextResponse.json({ orders: filtered, gpsRequired: !hasGps })
   } catch (err) {
     console.error('Available orders error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -96,14 +94,13 @@ export async function POST(req: NextRequest) {
         agent_id: auth.agentId,
       })
       .eq('id', orderId)
-      .eq('status', 'order_packed')   // guard: must still be packed
-      .is('agent_id', null)            // guard: not yet claimed by anyone
+      .eq('status', 'order_packed')   // must still be packed
+      .is('agent_id', null)            // not yet claimed
       .select('id, order_number')
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     if (!data || data.length === 0) {
-      // No rows updated = someone else already accepted it
       return NextResponse.json({ error: 'Order already taken by another agent', alreadyClaimed: true }, { status: 409 })
     }
 

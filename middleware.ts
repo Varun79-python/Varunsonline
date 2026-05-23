@@ -34,9 +34,10 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Use getUser() to validate token and refresh cookies
-  const { data: { user }, error: sessionError } = await supabase.auth.getUser()
-  if (sessionError) console.error('Session error in middleware:', sessionError)
+  // Use getSession() to read the JWT from the cookie — no network call, no false logouts.
+  // getUser() (network-validated) is reserved for API route handlers where security is critical.
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   // Add security headers
   supabaseResponse.headers.set('X-Frame-Options', 'DENY')

@@ -30,7 +30,13 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
         if (user) { router.replace('/delivery'); return }
         setChecking(false); return
       }
-      if (!user) { setChecking(false); return }
+      if (!user) {
+        // Only redirect if we are on a protected delivery route
+        if (pathname.startsWith('/delivery')) {
+          router.replace('/login/delivery')
+        }
+        setChecking(false); return
+      }
       const metaRole = user.user_metadata?.role
       if (metaRole && metaRole !== 'delivery_agent') { router.replace('/login'); return }
       if (metaRole === 'delivery_agent') {
@@ -45,7 +51,8 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
       setChecking(false)
     }
     checkAuth()
-  }, [pathname])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount only — pathname changes must NOT re-trigger auth checks
 
   async function handleLogout() {
     await supabase.auth.signOut()

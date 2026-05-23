@@ -40,14 +40,12 @@ export default function DeliveryDashboard() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [gpsRequired, setGpsRequired] = useState(false)   // API says no GPS on record
+  const [gpsRequired, setGpsRequired] = useState(false)
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
-  // Track excluded agent IDs for rejection-based reassignment chain
   const excludedAgentsRef = useRef<string[]>([])
-  // Track the currently alerted order to avoid duplicate sounds
   const alertedOrderIdRef = useRef<string | null>(null)
-  // Track last GPS position pushed to DB (to gate writes by >30m movement)
   const lastPushedPos = useRef<{ lat: number; lon: number } | null>(null)
+  const lastPushTime = useRef<number>(0)
 
   // Geolocation state for proximity lock
   const [agentLat, setAgentLat] = useState<number | null>(null)
@@ -121,21 +119,25 @@ export default function DeliveryDashboard() {
     )
   }
 
-  // Auto GPS push every 5s — direct navigator.geolocation, no async wrapper
   useEffect(() => {
     if (!agentId) return
-    const push = () => {
+    const push = async (isFirst = false) => {
       if (!navigator.geolocation) return
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const { latitude, longitude } = pos.coords
-          // Only write to DB if agent moved >30m since last push (saves writes + battery)
           const prev = lastPushedPos.current
+          const now = Date.now()
           const movedEnough = !prev || getDistanceKm(prev.lat, prev.lon, latitude, longitude) * 1000 > 30
-          if (movedEnough) {
-            supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId).then(() => {})
+          const timeSinceLast = now - lastPushTime.current
+          // Write to DB: on first run, or moved > 30m, or > 60s since last write (stationary agents)
+          if (isFirst || movedEnough || timeSinceLast > 60000) {
+            await supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId)
             lastPushedPos.current = { lat: latitude, lon: longitude }
-            console.log(`[GPS/Delivery] DB updated — moved ${prev ? Math.round(getDistanceKm(prev.lat, prev.lon, latitude, longitude) * 1000) : 'N/A'}m`)
+            lastPushTime.current = now
+            if (isFirst || gpsRequired) {
+              await fetchAvailable()
+            }
           }
           setAgentLat(latitude)
           setAgentLon(longitude)
@@ -146,20 +148,19 @@ export default function DeliveryDashboard() {
               setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
           }
         },
-        (err) => console.warn('[GPS/Delivery] background push error:', err.code, err.message),
+        () => {},
         { enableHighAccuracy: false, maximumAge: 5000, timeout: 8000 }
       )
     }
-    push()
-    const interval = setInterval(push, 5000)   // auto-reset every 5 seconds
+    push(true)
+    const interval = setInterval(() => push(false), 5000)
     return () => clearInterval(interval)
-  }, [agentId, activeOrder, supabase])
+  }, [agentId, activeOrder, supabase, gpsRequired, fetchAvailable])
 
-  // Auto order polling every 5s (fallback alongside realtime subscription)
   useEffect(() => {
     if (!agentId) return
     const poll = async () => {
-      if (activeOrder) return   // Don't poll available orders when already on a delivery
+      if (activeOrder) return
       await fetchAvailable()
     }
     const interval = setInterval(poll, 5000)
@@ -221,8 +222,8 @@ export default function DeliveryDashboard() {
   async function acceptOrder(order: AvailOrder) {
     if (!agentId || accepting) return
     setAccepting(order.id)
-    stopAlert()   // stop any assignment alert
-    alertedOrderIdRef.current = order.id // Prevent sound from playing when accepted manually
+    stopAlert()
+    alertedOrderIdRef.current = order.id
     try {
       const authHeader = await getAuthHeader()
       const res = await fetch('/api/delivery/orders', {
@@ -247,12 +248,10 @@ export default function DeliveryDashboard() {
   async function rejectOrder(order: AvailOrder) {
     if (!agentId || rejecting) return
     setRejecting(order.id)
-    stopAlert()   // stop sound on reject
+    stopAlert()
     alertedOrderIdRef.current = null
-    // Remove from local list immediately for snappy UX
     setAvailOrders(prev => prev.filter(o => o.id !== order.id))
     showToast(`🚫 Order ${order.order_number} skipped.`, false)
-    // Trigger reassignment — pass accumulated exclusion list to avoid re-assigning same agents
     try {
       excludedAgentsRef.current = [...excludedAgentsRef.current, agentId]
       const authHeader = await getAuthHeader()
@@ -264,11 +263,10 @@ export default function DeliveryDashboard() {
           excludeAgentIds: excludedAgentsRef.current
         })
       })
-    } catch { /* non-critical — order will remain in order_packed state */ }
+    } catch { }
     setRejecting(null)
   }
 
-  // ──── STATUS UPDATE — via server API (bypasses RLS) ────
   async function updateStatus(orderId: string, status: string) {
     if (!agentId || updatingStatus) return
     setUpdatingStatus(true)
@@ -300,7 +298,6 @@ export default function DeliveryDashboard() {
     } finally { setUpdatingStatus(false) }
   }
 
-  // Is agent close enough to deliver? (within 100m OR no GPS coords saved for address)
   const noAddressGPS = !activeOrder?.address?.latitude || activeOrder.address.latitude === 0
   const withinRange = noAddressGPS || (distToCustomer !== null && distToCustomer <= 0.1)
 
@@ -753,50 +750,53 @@ export default function DeliveryDashboard() {
             <div className="dl-offline-card">
               <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔴</div>
               <h4 style={{ marginBottom: 8, color: '#f97316' }}>You are Offline</h4>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Go to <strong>Profile</strong> and toggle Availability to <strong>Online</strong> to receive orders.</p>
-            </div>
-          ) : gpsRequired ? (
-            <div className="dl-empty-card" style={{ background: '#fef9c3', border: '1.5px solid #fcd34d' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📡</div>
-              <h4 style={{ color: '#92400e', marginBottom: 8 }}>GPS Required</h4>
-              <p style={{ fontSize: '0.85rem', color: '#78350f' }}>
-                Your location is not registered yet. Allow location access and wait a moment — orders will appear automatically once your GPS is detected.
-              </p>
-            </div>
-          ) : availOrders.length === 0 ? (
-            <div className="dl-empty-card">
-              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
-              <p>No orders nearby. Check back soon!</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Toggle to <strong>Online</strong> above to receive orders.</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {availOrders.map((order: AvailOrder) => (
-                <div key={order.id} className="dl-avail-card">
-                  <div className="dl-avail-top">
-                    <div style={{ flex: 1 }}>
-                      <div className="dl-avail-num">#{order.order_number}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
-                        <span style={{ color: '#f97316' }}>🏪</span> {order.shops?.name} → <span style={{ color: '#16a34a' }}>🏠</span> {order.addresses?.city}
-                      </div>
-                      {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer != null && (
-                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
-                          🗺️ {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
-                            ? `${Math.round((order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! * 1000)}m`
-                            : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`} trip
-                        </div>
-                      )}
-                    </div>
-                    <div className="dl-avail-earn">₹{order.agent_earning}</div>
-                  </div>
-                  <div className="dl-avail-actions">
-                    <button className="dl-accept-btn" disabled={accepting === order.id || !!rejecting} onClick={() => acceptOrder(order)}>
-                      {accepting === order.id ? '⏳ Accepting...' : '✓ Accept'}
-                    </button>
-                    <button className="dl-reject-btn" disabled={rejecting === order.id || !!accepting} onClick={() => rejectOrder(order)}>✕ Skip</button>
-                  </div>
+            <>
+              {/* Soft GPS warning — shown above orders, does NOT block them */}
+              {gpsRequired && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef9c3', border: '1.5px solid #fcd34d', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: '0.82rem', color: '#78350f' }}>
+                  <span style={{ fontSize: '1.2rem' }}>📡</span>
+                  <span><strong>Updating your location…</strong> Distance info will appear once GPS is detected. Allow location access if not yet granted.</span>
                 </div>
-              ))}
-            </div>
+              )}
+              {availOrders.length === 0 ? (
+                <div className="dl-empty-card">
+                  <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
+                  <p>No orders nearby. Check back soon!</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {availOrders.map((order: AvailOrder) => (
+                    <div key={order.id} className="dl-avail-card">
+                      <div className="dl-avail-top">
+                        <div style={{ flex: 1 }}>
+                          <div className="dl-avail-num">#{order.order_number}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
+                            <span style={{ color: '#f97316' }}>🏪</span> {order.shops?.name} → <span style={{ color: '#16a34a' }}>🏠</span> {order.addresses?.city}
+                          </div>
+                          {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer != null && (
+                            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
+                              🗺️ {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
+                                ? `${Math.round((order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! * 1000)}m`
+                                : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`} trip
+                            </div>
+                          )}
+                        </div>
+                        <div className="dl-avail-earn">₹{order.agent_earning}</div>
+                      </div>
+                      <div className="dl-avail-actions">
+                        <button className="dl-accept-btn" disabled={accepting === order.id || !!rejecting} onClick={() => acceptOrder(order)}>
+                          {accepting === order.id ? '⏳ Accepting...' : '✓ Accept'}
+                        </button>
+                        <button className="dl-reject-btn" disabled={rejecting === order.id || !!accepting} onClick={() => rejectOrder(order)}>✕ Skip</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

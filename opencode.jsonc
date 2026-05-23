@@ -14,5 +14,10 @@
       "url": "http://127.0.0.1:50067/mcp"
     }
   },
-  "default_agent": "openwork"
+  "default_agent": "openwork",
+  "permission": {
+    "external_directory": {
+      "C:/BACKUP_VARUN/*": "allow"
+    }
+  }
 }
