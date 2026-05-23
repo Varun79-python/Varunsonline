@@ -26,8 +26,8 @@ export default function AdminLoginPage() {
           const metaRole = user.user_metadata?.role || user.app_metadata?.role
           
           // Already logged in as admin, redirect to dashboard
-          if (user.email === ADMIN_EMAIL || metaRole === 'admin') {
-            window.location.href = '/admin'
+          if (metaRole === 'admin' || (ADMIN_EMAIL && user.email === ADMIN_EMAIL)) {
+            router.push('/admin')
             return
           }
           
@@ -36,14 +36,14 @@ export default function AdminLoginPage() {
             .from('profiles')
             .select('role')
             .eq('id', user.id)
-            .single()
+            .maybeSingle()
           
           if (profile?.role === 'admin') {
-            window.location.href = '/admin'
+            router.push('/admin')
             return
           }
           
-          // User is logged in but not admin, sign them out
+          // Already logged in but not admin — clear session and show login
           await supabase.auth.signOut()
         }
       } catch (err) {
@@ -71,39 +71,39 @@ export default function AdminLoginPage() {
       // Check 1: user_metadata.role
       const metaRole = user.user_metadata?.role
       if (metaRole === 'admin') {
-        window.location.href = '/admin'
+        router.push('/admin')
         return
       }
 
       // Check 2: app_metadata.role
       const appRole = user.app_metadata?.role
       if (appRole === 'admin') {
-        window.location.href = '/admin'
+        router.push('/admin')
         return
       }
 
       // Check 3: profiles table
-      const { data: profile, error: profileErr } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!profileErr && profile?.role === 'admin') {
-        window.location.href = '/admin'
+      if (profile?.role === 'admin') {
+        router.push('/admin')
         return
       }
 
-      // Check 4: hardcoded admin email
-      if (user.email === ADMIN_EMAIL) {
+      // Check 4: hardcoded admin email (creates profile on first login)
+      if (ADMIN_EMAIL && user.email === ADMIN_EMAIL) {
         await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || 'Varun Admin',
           role: 'admin',
           is_active: true,
-        }).then(() => {})
-        window.location.href = '/admin'
+        }, { onConflict: 'id' })
+        router.push('/admin')
         return
       }
 

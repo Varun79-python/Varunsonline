@@ -38,39 +38,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const validateAdmin = async (user: User) => {
     if (!mountedRef.current) return
     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role
-    if (metaRole === 'admin' || user?.email === ADMIN_EMAIL) {
+    if (metaRole === 'admin' || (ADMIN_EMAIL && user?.email === ADMIN_EMAIL)) {
       setAdminName(user?.user_metadata?.full_name || user?.email || 'Admin')
       setChecking(false)
       return
     }
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', user.id)
-        .single()
-      if (profile?.role === 'admin') {
-        setAdminName(profile.full_name || user.email || 'Admin')
-        setChecking(false)
-        return
-      }
-      if (user.email === ADMIN_EMAIL) {
-        setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
-        setChecking(false)
-        return
-      }
-      // Not admin — redirect without signing out (the user may be logged into another role)
-      router.replace('/admin/login')
-    } catch (err) {
-      console.error('Profile check error:', err)
-      if (user.email === ADMIN_EMAIL) {
-        setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
-        setChecking(false)
-      } else {
-        // Do NOT sign out — could be a transient DB error. Just redirect.
-        router.replace('/admin/login')
-      }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profile?.role === 'admin') {
+      setAdminName(profile.full_name || user.email || 'Admin')
+      setChecking(false)
+      return
     }
+    if (ADMIN_EMAIL && user.email === ADMIN_EMAIL) {
+      setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
+      setChecking(false)
+      return
+    }
+    // Not admin — redirect without signing out (the user may be logged into another role)
+    router.replace('/admin/login')
   }
 
   const checkAuth = useCallback(async () => {
