@@ -13,7 +13,6 @@ export function createClient() {
     auth: {
       persistSession: true,
       detectSessionInUrl: true,
-      storageKey: 'varunsonline-auth',
     }
   })
 }
