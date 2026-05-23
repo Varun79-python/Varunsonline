@@ -39,15 +39,6 @@ const roles: RoleCard[] = [
     bgColor: '#f0f9ff',
     href: '/login/shopkeeper',
   },
-  {
-    id: 'admin',
-    label: 'Admin',
-    desc: 'Manage platform',
-    icon: '⚙️',
-    color: '#6366f1',
-    bgColor: '#eef2ff',
-    href: '/admin/login',
-  },
 ]
 
 export default function LoginPage() {
