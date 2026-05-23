@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -64,19 +64,23 @@ export async function middleware(request: NextRequest) {
     const isAdminEmail = user.email === ADMIN_EMAIL
     const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
+    // Fast path — trust email or metadata role without a DB call
     if (isAdminEmail || metaRole === 'admin') return supabaseResponse
 
+    // Slow path — check profiles table
     try {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-      if (!profile || profile.role !== 'admin') {
-        return NextResponse.redirect(new URL('/admin/login', request.url))
-      }
+      if (profile?.role === 'admin') return supabaseResponse
+      // Profile exists but not admin — block
+      if (profile) return NextResponse.redirect(new URL('/admin/login', request.url))
+      // Profile missing — fail open (layout will re-verify)
+      return supabaseResponse
     } catch {
-      if (!isAdminEmail) return NextResponse.redirect(new URL('/admin/login', request.url))
+      // DB error — fail open, layout will handle it
+      return supabaseResponse
     }
-
-    return supabaseResponse
   }
+
 
   // ── Protect /shopkeeper routes ──────────────────────────────────────────────
   if (pathname.startsWith('/shopkeeper')) {

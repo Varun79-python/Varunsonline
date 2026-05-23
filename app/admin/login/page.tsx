@@ -1,10 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AdminLoginPage() {
-  const router = useRouter()
   const supabase = createClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,35 +13,38 @@ export default function AdminLoginPage() {
 
   const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
+  // Helper: full-page redirect so middleware sees the cookie
+  function goToAdmin() {
+    window.location.href = '/admin'
+  }
+
   // Check if already authenticated on page load
   useEffect(() => {
     async function checkExistingSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
+
         if (session?.user) {
           const user = session.user
           const metaRole = user.user_metadata?.role || user.app_metadata?.role
-          
-          // Already logged in as admin, redirect to dashboard
+
           if (metaRole === 'admin' || (ADMIN_EMAIL && user.email === ADMIN_EMAIL)) {
-            router.push('/admin')
+            goToAdmin()
             return
           }
-          
-          // Check profile for admin role
+
           const { data: profile } = await supabase
             .from('profiles')
             .select('role')
             .eq('id', user.id)
             .maybeSingle()
-          
+
           if (profile?.role === 'admin') {
-            router.push('/admin')
+            goToAdmin()
             return
           }
-          
-          // Already logged in but not admin — clear session and show login
+
+          // Logged in but not admin — sign out and show form
           await supabase.auth.signOut()
         }
       } catch (err) {
@@ -53,13 +54,15 @@ export default function AdminLoginPage() {
         setLoading(false)
       }
     }
-    
+
     checkExistingSession()
-  }, [supabase])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
-    setError(''); setLoading(true)
+    setError('')
+    setLoading(true)
 
     try {
       const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
@@ -69,17 +72,13 @@ export default function AdminLoginPage() {
       if (!user) { setError('Login failed'); setLoading(false); return }
 
       // Check 1: user_metadata.role
-      const metaRole = user.user_metadata?.role
-      if (metaRole === 'admin') {
-        router.push('/admin')
-        return
+      if (user.user_metadata?.role === 'admin') {
+        goToAdmin(); return
       }
 
       // Check 2: app_metadata.role
-      const appRole = user.app_metadata?.role
-      if (appRole === 'admin') {
-        router.push('/admin')
-        return
+      if (user.app_metadata?.role === 'admin') {
+        goToAdmin(); return
       }
 
       // Check 3: profiles table
@@ -90,11 +89,10 @@ export default function AdminLoginPage() {
         .maybeSingle()
 
       if (profile?.role === 'admin') {
-        router.push('/admin')
-        return
+        goToAdmin(); return
       }
 
-      // Check 4: hardcoded admin email (creates profile on first login)
+      // Check 4: hardcoded admin email — upsert profile and allow in
       if (ADMIN_EMAIL && user.email === ADMIN_EMAIL) {
         await supabase.from('profiles').upsert({
           id: user.id,
@@ -103,8 +101,7 @@ export default function AdminLoginPage() {
           role: 'admin',
           is_active: true,
         }, { onConflict: 'id' })
-        router.push('/admin')
-        return
+        goToAdmin(); return
       }
 
       // Access denied
@@ -152,7 +149,10 @@ export default function AdminLoginPage() {
             <div style={{ position: 'relative' }}>
               <input className="input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" style={{ paddingRight: 44 }} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                {showPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                {showPassword
+                  ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                }
               </button>
             </div>
           </div>
