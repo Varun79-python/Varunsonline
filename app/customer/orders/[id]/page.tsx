@@ -32,12 +32,34 @@ interface OrderItem {
   product_image_url?: string
 }
 
+interface CustomerOrder {
+  id: string
+  order_number: string
+  status: string
+  total_amount: number
+  subtotal?: number
+  delivery_otp?: string | null
+  otp_verified?: boolean
+  address_id?: string
+  shops?: { name: string; phone?: string; address_line1?: string; city?: string } | null
+}
+
+interface CustomerAddress {
+  house_name?: string
+  street_name?: string
+  landmark?: string
+  city?: string
+  latitude?: number
+  longitude?: number
+  phone?: string
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const supabase = createClient()
-  const [order, setOrder] = useState<Record<string, unknown> | null>(null)
+  const [order, setOrder] = useState<CustomerOrder | null>(null)
   const [items, setItems] = useState<OrderItem[]>([])
-  const [address, setAddress] = useState<Record<string, unknown> | null>(null)
+  const [address, setAddress] = useState<CustomerAddress | null>(null)
   const [showOtp, setShowOtp] = useState(false)
   const [productRatings, setProductRatings] = useState<Record<string, number>>({})
   const [ratingModal, setRatingModal] = useState<{ productId: string; productName: string } | null>(null)
@@ -78,8 +100,8 @@ export default function OrderDetailPage() {
     loadOrder()
     const ch = supabase.channel('order_' + id)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) =>
-          setOrder(prev => ({ ...prev, ...(payload.new as Record<string, unknown>) }))
+        (payload: RealtimePostgresChangesPayload<CustomerOrder>) =>
+          setOrder(prev => prev ? { ...prev, ...payload.new } : null)
       ).subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [id])
@@ -168,11 +190,11 @@ export default function OrderDetailPage() {
     </div>
   )
 
-  const currentRank = ORDER_RANK[order.status as string] || 0
-  const isTerminal = ['delivered', 'cancelled', 'rejected'].includes(order.status as string)
-  const otpVisible = OTP_VISIBLE.includes(order.status as string)
-  const deliveryOtp = order.delivery_otp as string | null
-  const canEdit = EDITABLE_STATUSES.includes(order.status as string)
+  const currentRank = ORDER_RANK[order.status] || 0
+  const isTerminal = ['delivered', 'cancelled', 'rejected'].includes(order.status)
+  const otpVisible = OTP_VISIBLE.includes(order.status)
+  const deliveryOtp = order.delivery_otp ?? null
+  const canEdit = EDITABLE_STATUSES.includes(order.status)
 
   return (
     <div className="fade-in" style={{ maxWidth: 580, margin: '0 auto', paddingBottom: 120 }}>
@@ -185,8 +207,8 @@ export default function OrderDetailPage() {
       {/* Header */}
       <div className="card" style={{ marginBottom: 20, textAlign: 'center', background: 'linear-gradient(135deg, rgba(249,115,22,0.12), rgba(14,165,233,0.08))' }}>
         <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>{isTerminal ? (order.status === 'delivered' ? '🎉' : '❌') : '🔄'}</div>
-        <h2 style={{ marginBottom: 4 }}>{order.order_number as string}</h2>
-        <p style={{ color: 'var(--text-muted)' }}>from {(order.shops as Record<string, unknown>)?.name as string}</p>
+        <h2 style={{ marginBottom: 4 }}>{order.order_number}</h2>
+        <p style={{ color: 'var(--text-muted)' }}>from {order.shops?.name ?? ''}</p>
       </div>
 
       {/* OTP Section */}
@@ -219,7 +241,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* Delivery verified */}
-      {order.status === 'delivered' && (order.otp_verified as boolean) && (
+      {order.status === 'delivered' && order.otp_verified && (
         <div style={{ marginBottom: 20, padding: '14px 18px', borderRadius: 12, background: 'rgba(34,197,94,0.08)', border: '1.5px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: '1.5rem' }}>✅</span>
           <div>
@@ -230,7 +252,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* Progress */}
-      {!['cancelled', 'rejected'].includes(order.status as string) && (
+      {!['cancelled', 'rejected'].includes(order.status) && (
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 20 }}>Order Progress</h3>
           <div className="timeline">
@@ -347,7 +369,7 @@ export default function OrderDetailPage() {
             })}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 6 }} className="flex-between">
               <span style={{ fontWeight: 700 }}>Total</span>
-              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.total_amount as number}</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>₹{order.total_amount}</span>
             </div>
           </>
         )}
@@ -357,9 +379,9 @@ export default function OrderDetailPage() {
       {address && (
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 12 }}>📍 Delivery Address</h3>
-          <p style={{ marginBottom: 4 }}>{String(address.house_name ?? '')}, {String(address.street_name ?? '')}</p>
-          {address.landmark ? <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Near: {String(address.landmark)}</p> : null}
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>{String(address.city ?? '')}</p>
+          <p style={{ marginBottom: 4 }}>{address.house_name ?? ''}, {address.street_name ?? ''}</p>
+          {address.landmark ? <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Near: {address.landmark}</p> : null}
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>{address.city ?? ''}</p>
           {address.latitude ? (
             <a href={`https://maps.google.com/?q=${address.latitude},${address.longitude}`} target="_blank" rel="noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, color: 'var(--accent)', fontSize: '0.85rem' }}>
@@ -405,7 +427,7 @@ export default function OrderDetailPage() {
         orderId={id}
         currentUserId={currentUserId}
         currentUserRole="customer"
-        shopName={(order.shops as Record<string, unknown>)?.name as string}
+        shopName={order.shops?.name ?? ''}
       />
     </div>
   )

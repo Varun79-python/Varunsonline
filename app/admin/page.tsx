@@ -1,11 +1,20 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { getAdminStats } from '@/app/admin/actions'
+
+interface RecentOrder {
+  id: string
+  order_number: string
+  total_amount: number
+  status: string
+  shops: { name: string } | null
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0, customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, pendingWithdrawals: 0, complaints: 0 })
   const [loading, setLoading] = useState(true)
-  const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
   useEffect(() => {
     async function load() {
@@ -93,21 +102,21 @@ export default function AdminDashboard() {
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>📦 Recent Orders</h3>
-          <a href="/admin/orders" style={{ color: '#f97316', fontSize: '0.8rem', fontWeight: 600 }}>View All →</a>
+          <Link href="/admin/orders" style={{ color: '#f97316', fontSize: '0.8rem', fontWeight: 600 }}>View All →</Link>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {recentOrders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 30, background: '#f8fafc', borderRadius: 12 }}>No recent orders</div>
           ) : (
-            recentOrders.map((o: Record<string, unknown>) => (
-              <a key={o.id as string} href={`/admin/orders/${o.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0', textDecoration: 'none' }}>
+            recentOrders.map((o: RecentOrder) => (
+              <a key={o.id} href={`/admin/orders/${o.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0', textDecoration: 'none' }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>{o.order_number as string}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{(o.shops as { name: string })?.name}</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>{o.order_number}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{o.shops?.name}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 800, color: '#f97316', fontSize: '0.95rem' }}>₹{o.total_amount as number}</div>
-                  {getStatusBadge(o.status as string)}
+                  <div style={{ fontWeight: 800, color: '#f97316', fontSize: '0.95rem' }}>₹{o.total_amount}</div>
+                  {getStatusBadge(o.status)}
                 </div>
               </a>
             ))

@@ -16,16 +16,18 @@ export async function POST(req: NextRequest) {
     const body = await req.text()
     const signature = req.headers.get('x-razorpay-signature') || ''
 
-    // Verify webhook authenticity — require if secret is set
+    // Webhook secret is mandatory — reject if not configured
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET
     if (!webhookSecret) {
-      console.warn('[WEBHOOK] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification. Set it in production!')
-    } else {
-      const expectedSig = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex')
-      if (expectedSig !== signature) {
-        console.error('Razorpay webhook signature mismatch')
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
+      console.error('[WEBHOOK] RAZORPAY_WEBHOOK_SECRET is not set. Rejecting request to prevent unsigned webhook processing.')
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    }
+
+    // Always verify Razorpay HMAC signature — no bypass path
+    const expectedSig = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex')
+    if (expectedSig !== signature) {
+      console.error('[WEBHOOK] Signature mismatch — possible forged request rejected.')
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     const event = JSON.parse(body)

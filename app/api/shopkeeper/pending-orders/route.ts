@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch agent names for assigned orders
     const agentIds = orders.filter((o: { agent_id: string | null }) => o.agent_id).map((o: { agent_id: string | null }) => o.agent_id as string)
-    let agentMap: Record<string, string> = {}
+    const agentMap: Record<string, string> = {}
     if (agentIds.length > 0) {
       const { data: agents } = await supabase
         .from('delivery_agents')

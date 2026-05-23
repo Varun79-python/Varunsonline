@@ -11,10 +11,35 @@ const inp: React.CSSProperties = {
   border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box',
 }
 
+interface ShopProfile {
+  id: string
+  owner_id: string
+  name: string | null
+  description: string | null
+  category: string | null
+  is_approved: boolean
+  is_active: boolean
+  is_open: boolean
+  phone: string | null
+  upi_id: string | null
+  bank_account_number: string | null
+  bank_ifsc: string | null
+  address_line1: string | null
+  landmark: string | null
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+  gps_accuracy: number | null
+  formatted_address: string | null
+  shop_image_url?: string | null
+  email?: string | null
+  created_at?: string
+}
+
 export default function ShopkeeperProfile() {
   const router = useRouter()
   const supabase = createClient()
-  const [shop, setShop] = useState<Record<string, unknown> | null>(null)
+  const [shop, setShop] = useState<ShopProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [gender, setGender] = useState('')
   const [saving, setSaving] = useState(false)
@@ -36,7 +61,7 @@ export default function ShopkeeperProfile() {
     load()
   }, [])
 
-  function update(key: string, value: unknown) { setShop(s => s ? { ...s, [key]: value } : s) }
+  function update<K extends keyof ShopProfile>(key: K, value: ShopProfile[K]) { setShop(s => s ? { ...s, [key]: value } : s) }
 
   async function save() {
     if (!shop) return
@@ -51,7 +76,7 @@ export default function ShopkeeperProfile() {
       is_open: shop.is_open,
       latitude: shop.latitude, longitude: shop.longitude,
       gps_accuracy: shop.gps_accuracy, formatted_address: shop.formatted_address,
-    }).eq('id', shop.id as string)
+    }).eq('id', shop.id)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -74,13 +99,13 @@ export default function ShopkeeperProfile() {
     </div>
   )
 
-  const savedLoc: SavedLocation | null = (shop.latitude && shop.longitude)
+  const savedLoc: SavedLocation | null = (shop.latitude != null && shop.longitude != null)
     ? {
-        latitude: shop.latitude as number,
-        longitude: shop.longitude as number,
-        accuracy: shop.gps_accuracy as number | undefined,
-        formattedAddress: shop.formatted_address as string | undefined,
-        city: shop.city as string | undefined,
+        latitude: shop.latitude,
+        longitude: shop.longitude,
+        accuracy: shop.gps_accuracy ?? undefined,
+        formattedAddress: shop.formatted_address ?? undefined,
+        city: shop.city ?? undefined,
       }
     : null
 
@@ -106,15 +131,15 @@ export default function ShopkeeperProfile() {
         <h3 style={{ marginBottom: 16, fontSize: '1rem' }}>Basic Info</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Shop Name</label>
-            <input value={shop.name as string || ''} onChange={e => update('name', e.target.value)} style={inp} /></div>
+            <input value={shop.name ?? ''} onChange={e => update('name', e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Category</label>
-            <select value={shop.category as string || 'Other'} onChange={e => update('category', e.target.value)} style={inp}>
+            <select value={shop.category ?? 'Other'} onChange={e => update('category', e.target.value)} style={inp}>
               {SHOP_CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Description</label>
-            <textarea rows={3} value={shop.description as string || ''} onChange={e => update('description', e.target.value)} style={{ ...inp, resize: 'vertical' }} /></div>
+            <textarea rows={3} value={shop.description ?? ''} onChange={e => update('description', e.target.value)} style={{ ...inp, resize: 'vertical' }} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Phone</label>
-            <input value={shop.phone as string || ''} onChange={e => update('phone', e.target.value)} style={inp} /></div>
+            <input value={shop.phone ?? ''} onChange={e => update('phone', e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Gender</label>
             <select value={gender} onChange={e => setGender(e.target.value)} style={inp}>
               <option value="">Select</option>
@@ -130,11 +155,11 @@ export default function ShopkeeperProfile() {
         <h3 style={{ marginBottom: 16, fontSize: '1rem' }}>📍 Address &amp; Location</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Address</label>
-            <input value={shop.address_line1 as string || ''} onChange={e => update('address_line1', e.target.value)} style={inp} /></div>
+            <input value={shop.address_line1 ?? ''} onChange={e => update('address_line1', e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Landmark</label>
-            <input value={shop.landmark as string || ''} onChange={e => update('landmark', e.target.value)} style={inp} /></div>
+            <input value={shop.landmark ?? ''} onChange={e => update('landmark', e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>City</label>
-            <input value={shop.city as string || ''} onChange={e => update('city', e.target.value)} style={inp} /></div>
+            <input value={shop.city ?? ''} onChange={e => update('city', e.target.value)} style={inp} /></div>
           <LocationPicker saved={savedLoc} onUse={handleLocationUse} />
         </div>
       </div>
@@ -144,11 +169,11 @@ export default function ShopkeeperProfile() {
         <h3 style={{ marginBottom: 16, fontSize: '1rem' }}>💰 Payout Details</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>UPI ID</label>
-            <input value={shop.upi_id as string || ''} onChange={e => update('upi_id', e.target.value)} placeholder="yourname@upi" style={inp} /></div>
+            <input value={shop.upi_id ?? ''} onChange={e => update('upi_id', e.target.value)} placeholder="yourname@upi" style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Bank Account</label>
-            <input value={shop.bank_account_number as string || ''} onChange={e => update('bank_account_number', e.target.value)} style={inp} /></div>
+            <input value={shop.bank_account_number ?? ''} onChange={e => update('bank_account_number', e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>IFSC Code</label>
-            <input value={shop.bank_ifsc as string || ''} onChange={e => update('bank_ifsc', e.target.value)} style={inp} /></div>
+            <input value={shop.bank_ifsc ?? ''} onChange={e => update('bank_ifsc', e.target.value)} style={inp} /></div>
         </div>
       </div>
 

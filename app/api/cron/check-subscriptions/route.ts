@@ -13,13 +13,18 @@ export const dynamic = 'force-dynamic'
  * Set in Vercel: CRON_SECRET=your-random-secret-string
  */
 export async function GET(req: NextRequest) {
-  // Verify cron secret (set CRON_SECRET in environment variables)
+  // CRON_SECRET is mandatory — reject if not configured
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    console.error('[CRON] CRON_SECRET is not set. Rejecting request to prevent unauthenticated cron execution.')
+    return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 })
+  }
+
+  // Always verify the Authorization header — no bypass path
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    console.error('[CRON] Authorization header missing or invalid — request rejected.')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createClient(

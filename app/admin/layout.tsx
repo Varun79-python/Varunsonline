@@ -18,7 +18,7 @@ const navItems = [
   { href: '/admin/settings', icon: '⚙️', label: 'Settings' },
 ]
 
-const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -34,25 +34,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isLoginPage = pathname === '/admin/login'
-
-  const checkAuth = useCallback(async () => {
-    if (checkingRef.current) return
-    checkingRef.current = true
-    try {
-      // getSession reads from cookie — fast, no network call
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        router.replace('/admin/login')
-        return
-      }
-      await validateAdmin(session.user)
-    } catch (error) {
-      console.error('Auth check error:', error)
-      // Do NOT redirect on error — could be a transient network issue
-    } finally {
-      checkingRef.current = false
-    }
-  }, [supabase, router])
 
   const validateAdmin = async (user: User) => {
     if (!mountedRef.current) return
@@ -91,6 +72,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
   }
+
+  const checkAuth = useCallback(async () => {
+    if (checkingRef.current) return
+    checkingRef.current = true
+    try {
+      // getSession reads from cookie — fast, no network call
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        router.replace('/admin/login')
+        return
+      }
+      await validateAdmin(session.user)
+    } catch (error) {
+      console.error('Auth check error:', error)
+      // Do NOT redirect on error — could be a transient network issue
+    } finally {
+      checkingRef.current = false
+    }
+  }, [supabase, router])
 
   useEffect(() => {
     mountedRef.current = true
@@ -147,7 +147,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="sidebar-brand">
           <span style={{ fontSize: '1.5rem' }}>👑</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Varun's Online</div>
+            <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{"Varun's Online"}</div>
             <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Admin Panel</div>
           </div>
         </div>
@@ -178,7 +178,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: '1.5rem' }}>👑</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white' }}>Varun's Online</div>
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'white' }}>{"Varun's Online"}</div>
               <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Admin Panel</div>
             </div>
           </div>
@@ -216,7 +216,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span style={{ fontSize: '1.1rem' }}>👑</span>
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'white', lineHeight: 1.2 }}>Varun's Online</div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'white', lineHeight: 1.2 }}>{"Varun's Online"}</div>
             <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Admin Panel</div>
           </div>
         </div>

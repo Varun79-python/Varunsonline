@@ -14,6 +14,103 @@ interface Agent {
   rejection_reason: string | null; upi_id: string; created_at: string
 }
 
+// Document preview component (extracted to prevent recreation on every render)
+interface DocPreviewProps {
+  url?: string | null
+  label: string
+  fallback?: string
+  getSignedUrl: (bucket: string, path: string) => Promise<string>
+  onPreview: (url: string) => void
+}
+
+function DocPreview({ url, label, fallback = 'Document not uploaded', getSignedUrl, onPreview }: DocPreviewProps) {
+  const [displayUrl, setDisplayUrl] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    if (!url) { setDisplayUrl(''); return }
+
+    // Already has signed/token
+    if (url.includes('signed=') || url.includes('?token=') || url.includes('X-Amz-')) {
+      setDisplayUrl(url)
+      return
+    }
+
+    // Extract bucket and path from Supabase storage URL
+    const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
+    if (!match) {
+      setDisplayUrl(url)
+      return
+    }
+
+    const bucket = match[1] || ''
+    const path = match[2] || ''
+    if (!bucket || !path) {
+      setDisplayUrl(url)
+      return
+    }
+
+    setLoading(true)
+    getSignedUrl(bucket, path).then(signed => {
+      if (mountedRef.current) {
+        setDisplayUrl(signed || url)
+        setLoading(false)
+      }
+    }).catch(() => {
+      if (mountedRef.current) {
+        setDisplayUrl(url)
+        setLoading(false)
+      }
+    })
+  }, [url, getSignedUrl])
+
+  if (!url) {
+    return (
+      <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 16, textAlign: 'center', color: '#dc2626', fontSize: '0.8rem' }}>
+        ⚠️ {fallback}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+      {loading ? (
+        <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 24, height: 24, border: '2px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ fontSize: '0.75rem' }}>Loading...</span>
+          </div>
+        </div>
+      ) : (
+        <img
+          src={displayUrl}
+          alt={label}
+          style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
+          onClick={() => displayUrl && onPreview(displayUrl)}
+          onError={() => {
+            setDisplayUrl(url)
+          }}
+        />
+      )}
+      <div style={{ padding: '8px 12px', background: '#f8fafc', textAlign: 'center' }}>
+        <button
+          onClick={() => displayUrl && window.open(displayUrl, '_blank')}
+          style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: displayUrl ? 'pointer' : 'not-allowed', opacity: displayUrl ? 1 : 0.5 }}
+          disabled={!displayUrl}
+        >
+          ↗ View Full
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminAgents() {
   const supabase = createClient()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -25,6 +122,9 @@ export default function AdminAgents() {
   const [processing, setProcessing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const pageSize = 25
   
   // Refs to prevent duplicate fetches
   const loadingRef = useRef(false)
@@ -49,20 +149,13 @@ export default function AdminAgents() {
     setLoading(true)
     
     try {
-      const { data, error } = await getAdminAgents()
+      const { data, count, error } = await getAdminAgents(tab, page, pageSize)
       if (error) throw error
 
       if (!mountedRef.current) return
       
-      const all = (data || []) as Agent[]
-      
-      let filtered: Agent[]
-      if (tab === 'pending') filtered = all.filter(a => !a.is_approved && !a.rejection_reason)
-      else if (tab === 'active') filtered = all.filter(a => a.is_approved)
-      else if (tab === 'rejected') filtered = all.filter(a => !a.is_approved && !!a.rejection_reason)
-      else filtered = all
-
-      setAgents(filtered)
+      setAgents((data || []) as Agent[])
+      setTotalPages(Math.ceil((count || 0) / pageSize))
     } catch (err) {
       console.error('Failed to load agents:', err)
       showToast('Failed to load agents', false)
@@ -72,7 +165,7 @@ export default function AdminAgents() {
         loadingRef.current = false
       }
     }
-  }, [tab])
+  }, [tab, page])
 
   useEffect(() => { 
     if (!loadingRef.current) load() 
@@ -188,95 +281,6 @@ export default function AdminAgents() {
     return ''
   }
 
-  // Document preview component
-  function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
-    const [displayUrl, setDisplayUrl] = useState<string>('')
-    const [loading, setLoading] = useState(false)
-    const mountedRef = useRef(true)
-
-    useEffect(() => {
-      mountedRef.current = true
-      return () => { mountedRef.current = false }
-    }, [])
-
-    useEffect(() => {
-      if (!url) { setDisplayUrl(''); return }
-
-      // Already has signed/token
-      if (url.includes('signed=') || url.includes('?token=') || url.includes('X-Amz-')) {
-        setDisplayUrl(url)
-        return
-      }
-
-      // Extract bucket and path from Supabase storage URL
-      const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
-      if (!match) {
-        setDisplayUrl(url)
-        return
-      }
-
-      const bucket = match[1] || ''
-      const path = match[2] || ''
-      if (!bucket || !path) {
-        setDisplayUrl(url)
-        return
-      }
-
-      setLoading(true)
-      getSignedUrl(bucket, path).then(signed => {
-        if (mountedRef.current) {
-          setDisplayUrl(signed || url)
-          setLoading(false)
-        }
-      }).catch(() => {
-        if (mountedRef.current) {
-          setDisplayUrl(url)
-          setLoading(false)
-        }
-      })
-    }, [url])
-
-    if (!url) {
-      return (
-        <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 16, textAlign: 'center', color: '#dc2626', fontSize: '0.8rem' }}>
-          ⚠️ {fallback}
-        </div>
-      )
-    }
-
-    return (
-      <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 24, height: 24, border: '2px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
-              <span style={{ fontSize: '0.75rem' }}>Loading...</span>
-            </div>
-          </div>
-        ) : (
-          <img
-            src={displayUrl}
-            alt={label}
-            style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
-            onClick={() => displayUrl && setPreviewImage(displayUrl)}
-            onError={() => {
-              setDisplayUrl(url)
-            }}
-          />
-        )}
-        <div style={{ padding: '8px 12px', background: '#f8fafc', textAlign: 'center' }}>
-          <button
-            onClick={() => displayUrl && window.open(displayUrl, '_blank')}
-            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: displayUrl ? 'pointer' : 'not-allowed', opacity: displayUrl ? 1 : 0.5 }}
-            disabled={!displayUrl}
-          >
-            ↗ View Full
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div style={{ padding: '0 4px' }}>
       {/* Toast */}
@@ -322,7 +326,7 @@ export default function AdminAgents() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
         {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ 
+          <button key={t} onClick={() => { setTab(t); setPage(1) }} style={{ 
             flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
             background: tab === t ? '#22c55e' : 'white', borderColor: tab === t ? '#22c55e' : '#e2e8f0',
             color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
@@ -401,6 +405,27 @@ export default function AdminAgents() {
         ))}
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, padding: '12px 0' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ padding: '8px 16px', background: page <= 1 ? '#f1f5f9' : '#22c55e', color: page <= 1 ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+          >
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Page {page} of {totalPages}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{ padding: '8px 16px', background: page >= totalPages ? '#f1f5f9' : '#22c55e', color: page >= totalPages ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+
       {/* Detail Modal - Responsive */}
       {selected && (
         <div 
@@ -473,19 +498,19 @@ export default function AdminAgents() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Aadhaar Card</div>
-                    <DocPreview url={selected.aadhar_url} label="Aadhaar" fallback="Not uploaded" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
-                    <DocPreview url={selected.license_url} label="License" fallback="Not uploaded" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
-                    <DocPreview url={selected.pan_url} label="PAN" fallback="Not uploaded" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
-                    <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" />
+<DocPreview url={selected.aadhar_url} label="Aadhaar" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
+                      <DocPreview url={selected.license_url} label="License" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
+                      <DocPreview url={selected.pan_url} label="PAN" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
+                      <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
                   </div>
                 </div>
               </div>

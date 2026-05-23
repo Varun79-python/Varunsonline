@@ -1,0 +1,480 @@
+﻿node.exe : $ eslint "--no-cache"
+At C:\Users\venka\AppData\Roaming\npm\pnpm.ps1:24 char:5
++     & "node$exe"  "$basedir/node_modules/pnpm/bin/pnpm.mjs" $args
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ eslint "--no-cache":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\android\app\build\intermediates\assets\debug\mergeDebugAssets\native-bridge.js
+    5:5   warning  'nativeBridge' is assigned a value but never used                      @typescript-eslint/no-unused-vars
+   96:24  warning  'ignored' is defined but never used                                    @typescript-eslint/no-unused-vars
+  190:25  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  296:17  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  302:17  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  306:17  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  310:17  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  365:24  warning  'e' is defined but never used                                          @typescript-eslint/no-unused-vars
+  852:25  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  865:25  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  922:25  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  926:21  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  983:25  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  990:21  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agent-settlements\page.tsx
+   71:6   warning  React Hook useCallback has a missing dependency: 'getAuthHeader'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  311:75  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                     react/no-unescaped-entities
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx
+   94:14  warning  'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  133:14  warning  'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  253:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @next/next/no-img-element
+  305:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @next/next/no-img-element
+  493:22  error    Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:493:22
+  491 |                   <div>
+  492 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Aadhaar Card</div>
+> 493 |                     <DocPreview url={selected.aadhar_url} label="Aadhaar" fallback="Not uploaded" />
+      |                      ^^^^^^^^^^ This component is created during render
+  494 |                   </div>
+  495 |                   <div>
+  496 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:188:3
+  186 |
+  187 |   // Document preview component
+> 188 |   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |     const [displayUrl, setDisplayUrl] = useState<string>('')
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |     const [loading, setLoading] = useState(false)
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 273 |     )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 274 |   }
+      | ^^^^ The component is created during render here
+  275 |
+  276 |   return (
+  277 |     <div style={{ padding: '0:4px' }}>  react-hooks/static-components
+  497:22  error    Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:497:22
+  495 |                   <div>
+  496 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
+> 497 |                     <DocPreview url={selected.license_url} label="License" fallback="Not uploaded" />
+      |                      ^^^^^^^^^^ This component is created during render
+  498 |                   </div>
+  499 |                   <div>
+  500 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:188:3
+  186 |
+  187 |   // Document preview component
+> 188 |   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |     const [displayUrl, setDisplayUrl] = useState<string>('')
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |     const [loading, setLoading] = useState(false)
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 273 |     )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 274 |   }
+      | ^^^^ The component is created during render here
+  275 |
+  276 |   return (
+  277 |     <div style={{ padding: '0:4px' }}>     react-hooks/static-components
+  501:22  error    Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:501:22
+  499 |                   <div>
+  500 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
+> 501 |                     <DocPreview url={selected.pan_url} label="PAN" fallback="Not uploaded" />
+      |                      ^^^^^^^^^^ This component is created during render
+  502 |                   </div>
+  503 |                   <div>
+  504 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:188:3
+  186 |
+  187 |   // Document preview component
+> 188 |   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |     const [displayUrl, setDisplayUrl] = useState<string>('')
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |     const [loading, setLoading] = useState(false)
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 273 |     )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 274 |   }
+      | ^^^^ The component is created during render here
+  275 |
+  276 |   return (
+  277 |     <div style={{ padding: '0:4px' }}>          react-hooks/static-components
+  505:22  error    Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:505:22
+  503 |                   <div>
+  504 |                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
+> 505 |                     <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" />
+      |                      ^^^^^^^^^^ This component is created during render
+  506 |                   </div>
+  507 |                 </div>
+  508 |               </div>
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\agents\page.tsx:188:3
+  186 |
+  187 |   // Document preview component
+> 188 |   function DocPreview({ url, label, fallback = 'Document not uploaded' }: { url?: string | null, label: string, fallback?: string }) {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |     const [displayUrl, setDisplayUrl] = useState<string>('')
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |     const [loading, setLoading] = useState(false)
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 273 |     )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 274 |   }
+      | ^^^^ The component is created during render here
+  275 |
+  276 |   return (
+  277 |     <div style={{ padding: '0:4px' }}>                                                                                           react-hooks/static-components
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\complaints\page.tsx
+  45:5  error    Error: Cannot access variable before it is declared
+
+`loadComplaints` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\complaints\page.tsx:45:5
+  43 |
+  44 |   useEffect(() => {
+> 45 |     loadComplaints()
+     |     ^^^^^^^^^^^^^^ `loadComplaints` accessed before it is declared
+  46 |   }, [])
+  47 |
+  48 |   async function loadComplaints() {
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\complaints\page.tsx:48:3
+  46 |   }, [])
+  47 |
+> 48 |   async function loadComplaints() {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 49 |     const { data, error } = await supabase
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 50 |       .from('customer_complaints')
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     setLoading(false)
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 79 |   }
+     | ^^^^ `loadComplaints` is declared here
+  80 |
+  81 |   async function updateStatus(id: string, newStatus: string) {
+  82 |     setUpdating(true)  react-hooks/immutability
+  46:6  warning  React Hook useEffect has a missing dependency: 'loadComplaints'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\coupons\page.tsx
+  16:109  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  17:6    warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\customers\page.tsx
+  17:10  warning  'loading' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  70:27  warning  'idx' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\layout.tsx
+   48:13   error    Error: Cannot access variable before it is declared
+
+`validateAdmin` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\layout.tsx:48:13
+  46 |         return
+  47 |       }
+> 48 |       await validateAdmin(session.user)
+     |             ^^^^^^^^^^^^^ `validateAdmin` accessed before it is declared
+  49 |     } catch (error) {
+  50 |       console.error('Auth check error:', error)
+  51 |       // Do NOT redirect on error ΓÇö could be a transient network issue
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\layout.tsx:57:3
+  55 |   }, [supabase, router])
+  56 |
+> 57 |   const validateAdmin = async (user: User) => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 58 |     if (!mountedRef.current) return
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 59 |     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 93 |   }
+     | ^^^^ `validateAdmin` is declared here
+  94 |
+  95 |   useEffect(() => {
+  96 |     mountedRef.current = true  react-hooks/immutability
+   55:6    warning  React Hook useCallback has a missing dependency: 'validateAdmin'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/exhaustive-deps
+  104:55   warning  The ref value 'timeoutRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'timeoutRef.current' to a variable inside the effect, and use that variable in the cleanup function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+  150:71   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react/no-unescaped-entities
+  181:89   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react/no-unescaped-entities
+  219:105  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react/no-unescaped-entities
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\login\page.tsx
+   7:9  warning  'router' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
+  58:6  warning  React Hook useEffect has a missing dependency: 'ADMIN_EMAIL'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\orders\[id]\page.tsx
+  137:9   warning  'isTerminal' is assigned a value but never used                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  236:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\orders\page.tsx
+  34:31  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\page.tsx
+  104:11  error  Do not use an `<a>` element to navigate to `/admin/orders/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\plans\page.tsx
+  46:31  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\plans\settings\page.tsx
+  25:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\settings\page.tsx
+  30:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\shops\page.tsx
+   91:6   warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array                                                                                                                                                                                  react-hooks/exhaustive-deps
+  280:25  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  287:25  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  296:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  484:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\admin\withdrawals\page.tsx
+  47:31  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\api\delivery\settlement\verify\route.ts
+  35:11  warning  'agentId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\api\shopkeeper\order-action\route.ts
+  8:7  warning  'SUPABASE_URL' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  9:7  warning  'SERVICE_KEY' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\api\shopkeeper\pending-orders\route.ts
+  51:9  error  'agentMap' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\care\page.tsx
+  127:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\cart\page.tsx
+   54:6   warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array                                                                                                                                                                              react-hooks/exhaustive-deps
+  120:33  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\checkout\CheckoutContent.tsx
+   27:10  warning  'shopId' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+   28:10  warning  'shopName' is assigned a value but never used                                                                @typescript-eslint/no-unused-vars
+   68:6   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  227:18  warning  'reloadData' is defined but never used                                                                       @typescript-eslint/no-unused-vars
+  242:18  warning  'updateLocation' is defined but never used                                                                   @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\orders\[id]\page.tsx
+   93:6   warning  React Hook useCallback has a missing dependency: 'supabase'. Either include it or remove the dependency array                                                                                                                                                                            react-hooks/exhaustive-deps
+  107:6   warning  React Hook useEffect has missing dependencies: 'loadOrder' and 'supabase'. Either include them or remove the dependency array                                                                                                                                                            react-hooks/exhaustive-deps
+  310:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\orders\page.tsx
+  140:6   warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  192:12  warning  'StarIcon' is defined but never used                                                                         @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\page.tsx
+  367:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\profile\page.tsx
+  23:7  warning  'LocationIcon' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
+  58:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\customer\shop\[id]\page.tsx
+   32:7   warning  'PlusIcon' is assigned a value but never used                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   33:7   warning  'MinusIcon' is assigned a value but never used                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   34:7   warning  'CartIcon' is assigned a value but never used                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   36:7   warning  'FireIcon' is assigned a value but never used                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   37:7   warning  'SparkleIcon' is assigned a value but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   38:7   warning  'PopularIcon' is assigned a value but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   39:7   warning  'HistoryIcon' is assigned a value but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   90:6   warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array                                                                                                                                                                              react-hooks/exhaustive-deps
+  121:9   warning  'cartTotal' is assigned a value but never used                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  134:9   warning  'bestSellers' is assigned a value but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  135:9   warning  'recommended' is assigned a value but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  136:9   warning  'popular' is assigned a value but never used                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  428:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\orders\[id]\page.tsx
+  55:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\orders\page.tsx
+  62:31  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\page.tsx
+   51:10  warning  'agentLat' is assigned a value but never used                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   52:10  warning  'agentLon' is assigned a value but never used                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   66:10  warning  'codCollected' is assigned a value but never used                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   66:24  warning  'setCodCollected' is assigned a value but never used                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+   89:6   warning  React Hook useCallback has a missing dependency: 'getAuthHeader'. Either include it or remove the dependency array                                                                                                                                                                       react-hooks/exhaustive-deps
+   96:6   warning  React Hook useCallback has a missing dependency: 'getAuthHeader'. Either include it or remove the dependency array                                                                                                                                                                       react-hooks/exhaustive-deps
+  214:6   warning  React Hook useEffect has missing dependencies: 'refreshGPS' and 'startAlert'. Either include them or remove the dependency array                                                                                                                                                         react-hooks/exhaustive-deps
+  498:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  661:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\profile\page.tsx
+  36:31  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\wallet\page.tsx
+  42:28  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\wallet\page.tsx:42:28
+  40 |   }
+  41 |
+> 42 |   const load = useCallback(async () => {
+     |                            ^^^^^^^^^^^^^
+> 43 |     const { data: { user } } = await supabase.auth.getUser()
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 44 |     if (!user) return
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 68 |     setHasPending(!!pending)
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 69 |   }, [supabase])
+     | ^^^^ Could not preserve existing memoization
+  70 |
+  71 |   useEffect(() => { load() }, [load])
+  72 |  react-hooks/preserve-manual-memoization
+  69:7   error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\delivery\wallet\page.tsx:69:7
+  67 |       .maybeSingle()
+  68 |     setHasPending(!!pending)
+> 69 |   }, [supabase])
+     |       ^^^^^^^^ This dependency may be modified later
+  70 |
+  71 |   useEffect(() => { load() }, [load])
+  72 |                                                                                                                                                                                                                                                                                                                                                                            react-hooks/preserve-manual-memoization
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\customer\page.tsx
+   59:10  warning  'checkingExisting' is assigned a value but never used                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  250:9   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\delivery\page.tsx
+  156:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\delivery\register\documents\page.tsx
+  225:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\delivery\register\page.tsx
+  112:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\page.tsx
+  63:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\shopkeeper\page.tsx
+  178:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\shopkeeper\register\documents\page.tsx
+   30:10  warning  'shopImageFile' is assigned a value but never used                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+   35:10  warning  'aadharFile' is assigned a value but never used                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  280:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  320:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\login\shopkeeper\register\page.tsx
+  102:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\reset-password\page.tsx
+  39:15  warning  'type' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\complete-profile\page.tsx
+  40:6  warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\orders\[id]\page.tsx
+  21:7   warning  'STATUS_COLOR' is assigned a value but never used                                                                           @typescript-eslint/no-unused-vars
+  49:10  warning  'shopId' is assigned a value but never used                                                                                 @typescript-eslint/no-unused-vars
+  88:6   warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\orders\page.tsx
+  22:10  warning  'shopId' is assigned a value but never used                                                                                 @typescript-eslint/no-unused-vars
+  35:6   warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\page.tsx
+   37:10   warning  'expanded' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   48:20   error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\page.tsx:48:20
+  46 |
+  47 |   const alertingOrderIds = useMemo(() => {
+> 48 |     return new Set(alertingOrdersRef.current)
+     |                    ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  49 |   }, [alertingOrdersRef.current.size])
+  50 |
+  51 |   function showToast(msg: string, type: 'success' | 'error' = 'success') {  react-hooks/refs
+   49:6    warning  React Hook useMemo has an unnecessary dependency: 'alertingOrdersRef.current.size'. Either exclude it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/exhaustive-deps
+   83:6    warning  React Hook useCallback has a missing dependency: 'getAuthHeader'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+   94:39   warning  'uid' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  155:6    warning  React Hook useEffect has a missing dependency: 'startAlert'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  224:12   warning  'toggleExpand' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  225:52   warning  Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-expressions
+  467:29   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @next/next/no-img-element
+  530:165  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react/no-unescaped-entities
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\plans\page.tsx
+  74:6  warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\products\page.tsx
+   31:6   warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array                                                                                                                                                               react-hooks/exhaustive-deps
+  168:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\profile\page.tsx
+  62:6  warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\shopkeeper\wallet\page.tsx
+  69:6  warning  React Hook useEffect has missing dependencies: 'router' and 'supabase'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\app\splash\page.tsx
+  31:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\check.js
+  1:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\components\OrderChat\OrderChat.tsx
+  167:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\components\shopkeeper\ShopkeeperShell.tsx
+   2:31  warning  'useRef' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+  35:6   warning  React Hook useEffect has a missing dependency: 'supabase.auth'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\lib\authMiddleware.ts
+  1:23  warning  'NextResponse' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\lib\usePushNotifications.ts
+  95:16  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\venka\.gemini\antigravity\scratch\varunsonline\middleware.ts
+  13:7  error  'supabaseResponse' is never reassigned. Use 'const' instead  prefer-const
+
+Γ£û 140 problems (19 errors, 121 warnings)
+  2 errors and 0 warnings potentially fixable with the `--fix` option.
+
+[ELIFECYCLE] Command failed with exit code 1.

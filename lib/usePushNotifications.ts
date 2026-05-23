@@ -45,13 +45,20 @@ export function usePushNotifications(userId: string | null) {
         // 2. Register with FCM
         await PushNotifications.register()
 
-        // 3. Receive token → save to DB
+        // 3. Receive token → save to DB (authenticated via session JWT)
         PushNotifications.addListener('registration', async (token) => {
           try {
+            const { createClient } = await import('@/lib/supabase/client')
+            const supabase = createClient()
+            const { data: { session } } = await supabase.auth.getSession()
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+            if (session?.access_token) {
+              headers.Authorization = `Bearer ${session.access_token}`
+            }
             await fetch('/api/notifications/register-token', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId, token: token.value })
+              headers,
+              body: JSON.stringify({ token: token.value })
             })
           } catch (e) {
             console.error('[FCM] Token registration error:', e)

@@ -82,9 +82,20 @@ export async function sendFcmToMany(
   const valid = tokens.filter(t => t && t.length > 10)
   if (valid.length === 0) return
 
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     valid.map(token =>
       sendFcmNotification({ token, title, body, data, channelId })
     )
   )
+
+  const succeeded = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+  const failed = results.length - succeeded
+  if (failed > 0) {
+    const errors = results
+      .filter((r): r is PromiseFulfilledResult<{ success: boolean; error?: string }> => r.status === 'fulfilled' && !r.value.success)
+      .map(r => r.value.error)
+      .filter(Boolean)
+      .slice(0, 3)
+    console.warn(`[FCM] ${title}: ${succeeded}/${results.length} sent, ${failed} failed${errors.length ? ` (e.g. ${errors.join('; ')})` : ''}`)
+  }
 }

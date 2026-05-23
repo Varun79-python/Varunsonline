@@ -28,7 +28,7 @@ export default function ShopkeeperOrders() {
       const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
       if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
       setShopId(shop.id)
-      const { data } = await supabase.from('orders').select('*').eq('shop_id', shop.id).order('created_at', { ascending: false })
+      const { data } = await supabase.from('orders').select('id, order_number, status, total_amount, shopkeeper_earning, created_at').eq('shop_id', shop.id).order('created_at', { ascending: false })
       setOrders(data || [])
     }
     load()

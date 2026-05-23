@@ -10,17 +10,28 @@ export default function AdminOrders() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const pageSize = 25
 
   async function load() {
     setLoading(true)
-    let q = supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(100)
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    let countQ = supabase.from('orders').select('id', { count: 'exact', head: true })
+    if (statusFilter !== 'all') countQ = countQ.eq('status', statusFilter)
+    const { count } = await countQ
+
+    let q = supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).range(from, to)
     if (statusFilter !== 'all') q = q.eq('status', statusFilter)
     const { data } = await q
     setOrders(data || [])
+    setTotalPages(Math.ceil((count || 0) / pageSize))
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [statusFilter])
+  useEffect(() => { load() }, [statusFilter, page])
 
   const filtered = search ? orders.filter(o => o.order_number.includes(search) || o.shops?.name?.toLowerCase().includes(search.toLowerCase())) : orders
 
@@ -36,7 +47,7 @@ export default function AdminOrders() {
           <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '1rem' }}>🔍</span>
           <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.85rem', background: 'white' }}>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.85rem', background: 'white' }}>
           {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'all' ? 'All' : s.replace(/_/g, ' ')}</option>)}
         </select>
       </div>
@@ -62,6 +73,27 @@ export default function AdminOrders() {
           </a>
         ))}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, padding: '12px 0' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ padding: '8px 16px', background: page <= 1 ? '#f1f5f9' : '#f97316', color: page <= 1 ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+          >
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Page {page} of {totalPages}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{ padding: '8px 16px', background: page >= totalPages ? '#f1f5f9' : '#f97316', color: page >= totalPages ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

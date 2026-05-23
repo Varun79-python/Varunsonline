@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
-const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -13,6 +14,7 @@ export function createServiceClient() {
 export async function verifyAdmin(request: NextRequest): Promise<{ error?: string; userId?: string }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
+    logger.auth('no_header')
     return { error: 'No authorization header' }
   }
   
@@ -21,6 +23,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ error?: strin
   
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) {
+    logger.auth('bad_token', { reason: error?.message })
     return { error: 'Invalid token' }
   }
   
@@ -33,6 +36,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ error?: strin
   // Check profiles table
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') {
+    logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
     return { error: 'Not authorized - admin access required' }
   }
   
@@ -42,6 +46,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ error?: strin
 export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: string; userId?: string; shopId?: string }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
+    logger.auth('no_header')
     return { error: 'No authorization header' }
   }
   
@@ -50,6 +55,7 @@ export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: 
   
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) {
+    logger.auth('bad_token', { reason: error?.message })
     return { error: 'Invalid token' }
   }
   
@@ -58,6 +64,7 @@ export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: 
   if (metaRole !== 'shopkeeper') {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'shopkeeper') {
+      logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
       return { error: 'Not authorized - shopkeeper access required' }
     }
   }
@@ -71,6 +78,7 @@ export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: 
 export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error?: string; userId?: string; agentId?: string }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
+    logger.auth('no_header')
     return { error: 'No authorization header' }
   }
   
@@ -79,6 +87,7 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
   
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) {
+    logger.auth('bad_token', { reason: error?.message })
     return { error: 'Invalid token' }
   }
   
@@ -87,6 +96,7 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
   if (metaRole !== 'delivery_agent') {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'delivery_agent') {
+      logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
       return { error: 'Not authorized - delivery agent access required' }
     }
   }
@@ -94,6 +104,7 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
   // Get agent ID
   const { data: agent } = await supabase.from('delivery_agents').select('id').eq('id', user.id).single()
   if (!agent) {
+    logger.auth('no_agent_profile', { userId: user.id })
     return { error: 'No agent profile found' }
   }
   
@@ -103,6 +114,7 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
 export async function verifyCustomer(request: NextRequest): Promise<{ error?: string; userId?: string }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
+    logger.auth('no_header')
     return { error: 'No authorization header' }
   }
   
@@ -111,6 +123,7 @@ export async function verifyCustomer(request: NextRequest): Promise<{ error?: st
   
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) {
+    logger.auth('bad_token', { reason: error?.message })
     return { error: 'Invalid token' }
   }
   
@@ -119,6 +132,7 @@ export async function verifyCustomer(request: NextRequest): Promise<{ error?: st
   
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'customer') {
+    logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
     return { error: 'Not authorized - customer access required' }
   }
   

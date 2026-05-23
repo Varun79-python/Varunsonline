@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/lib/customerGps'
@@ -33,7 +33,6 @@ export default function CheckoutContent() {
   const pfee = Math.round((subtotal * platformFeePercent) / 100)
   const total = subtotal + deliveryCharge + pfee - couponDiscount
   const [paymentMode, setPaymentMode] = useState<'online' | 'cod'>('online')
-  const [codLoading, setCodLoading] = useState(false)
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -111,6 +110,13 @@ export default function CheckoutContent() {
       longitude: addr.longitude !== 0 ? addr.longitude : null,
     }
 
+    if (payload.latitude !== null && (payload.latitude < -90 || payload.latitude > 90)) {
+      alert('Invalid latitude. Must be between -90 and 90.'); return
+    }
+    if (payload.longitude !== null && (payload.longitude < -180 || payload.longitude > 180)) {
+      alert('Invalid longitude. Must be between -180 and 180.'); return
+    }
+
     const { data, error } = await supabase.from('addresses').insert(payload).select().single()
     if (error) {
       console.error('Save address error:', error)
@@ -125,9 +131,14 @@ export default function CheckoutContent() {
     }
   }
 
+  // Ref-based guard prevents double-submit even if React state update is delayed
+  const submittingRef = useRef(false)
+
   async function placeOrder() {
+    if (submittingRef.current) return // prevent double-submit
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !selectedAddr || cart.length === 0) return
+    submittingRef.current = true
     setLoading(true)
 
     const cartItems = cart.map(i => ({ product_id: i.product_id, quantity: i.quantity }))
@@ -147,7 +158,6 @@ export default function CheckoutContent() {
       const secureData = await secureRes.json()
       if (!secureRes.ok) {
         alert(secureData.error || 'Failed to place order')
-        setLoading(false)
         return
       }
 
@@ -209,9 +219,10 @@ export default function CheckoutContent() {
       console.error(err)
       alert('Payment failed. Please try again.')
     } finally {
-setLoading(false)
+      submittingRef.current = false
+      setLoading(false)
     }
-}
+  }
 
   async function reloadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -245,159 +256,9 @@ setLoading(false)
       setGettingGPS(false)
     }
   }
-
-  async function createNewAddress(userId: string) {
-    // Free order = full coupon cover. Shop STILL gets full item amount;
-    // admin absorbs coupon cost + platform fee.
-    const agentEarning = Math.round(deliveryCharge * 0.8)
-    const shopEarning = subtotal                         // shop always gets item total
-    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount // admin absorbs coupon
-    const { data: order } = await supabase.from('orders').insert({
-      customer_id: userId, shop_id: cart[0].shop_id, address_id: selectedAddr,
-      status: 'payment_confirmed', payment_method: 'free', payment_status: 'paid',
-      subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
-      discount_amount: couponDiscount, total_amount: 0,
-      shopkeeper_earning: shopEarning, agent_earning: agentEarning,
-      admin_earning: adminEarning,
-      coupon_code: couponCode || null,
-    }).select().single()
-    if (order) {
-      await supabase.from('order_items').insert(cart.map(i => ({
-        order_id: order.id, product_id: i.product_id, product_name: i.name,
-        product_image_url: i.image_url, quantity: i.quantity,
-        unit_price: i.price, total_price: i.price * i.quantity
-      })))
-      await supabase.from('order_status_history').insert({ order_id: order.id, status: 'payment_confirmed', changed_by: userId })
-      try {
-        await supabase.from('notifications').insert({
-          user_id: cart[0].shop_id, title: '🛒 New Order!',
-          body: `Order ${order.order_number} received`, type: 'new_order',
-          data: { order_id: order.id }
-        })
-      } catch { /* optional */ }
-      localStorage.removeItem('vo_cart')
-      router.push(`/customer/orders/${order.id}`)
-    }
-  }
-
-  async function placeCodOrder() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !selectedAddr || cart.length === 0) return
-    setCodLoading(true)
-    const agentEarning = Math.round(deliveryCharge * 0.8)
-    // Shop always earns full item subtotal — admin absorbs coupon + platform fee
-    const shopEarning = subtotal
-    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount
-    try {
-      const res = await fetch('/api/orders/place-cod', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: user.id, shopId: cart[0].shop_id, addressId: selectedAddr,
-          cart, subtotal, deliveryCharge, platformFee: pfee,
-          couponDiscount, total, agentEarning, shopEarning,
-          adminEarning,
-          couponCode: couponCode || null
-        })
-      })
-      const data = await res.json()
-      if (data.success) {
-        localStorage.removeItem('vo_cart')
-        router.push(`/customer/orders/${data.orderId}`)
-      } else {
-        alert('Failed to place order: ' + (data.error || 'Unknown error'))
-      }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to place COD order. Please try again.')
-    } finally {
-      setCodLoading(false)
-    }
-  }
-
-  async function processOnlineOrder() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !selectedAddr || cart.length === 0) return
-    setLoading(true)
-
-    // Free order (₹0 total after coupon) — skip Razorpay, only for online mode
-    if (total <= 0 && paymentMode !== 'cod') {
-      await createNewAddress(user.id)
-      setLoading(false)
-      return
-    }
-
-    const agentEarning = Math.round(deliveryCharge * 0.8)
-    // Shop always earns full item subtotal — admin absorbs coupon + platform fee
-    const shopEarning = subtotal
-    const adminEarning = pfee + (deliveryCharge - agentEarning) - couponDiscount
-
-    try {
-      const rzpRes = await fetch('/api/payment/create-order', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: total })
-      })
-      const rzpData = await rzpRes.json()
-      if (!rzpRes.ok || !rzpData.id) throw new Error(rzpData.error || 'Could not create payment order')
-
-      const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: total * 100,
-        currency: 'INR',
-        name: "Varun's Online",
-        description: `Order from ${cart[0].shop_name}`,
-        order_id: rzpData.id,
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-          const verifyRes = await fetch('/api/payment/verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(response),
-          })
-          const verifyData = await verifyRes.json()
-          if (!verifyRes.ok || !verifyData.verified) {
-            alert('Payment verification failed. Please contact support.')
-            return
-          }
-          const { data: order } = await supabase.from('orders').insert({
-            customer_id: user.id, shop_id: cart[0].shop_id, address_id: selectedAddr,
-            status: 'payment_confirmed', payment_status: 'paid',
-            subtotal, platform_fee: pfee, delivery_charge: deliveryCharge,
-            discount_amount: couponDiscount, total_amount: total,
-            shopkeeper_earning: shopEarning, agent_earning: agentEarning,
-            admin_earning: adminEarning,
-            coupon_code: couponCode || null,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          }).select().single()
-
-          if (order) {
-            await supabase.from('order_items').insert(cart.map(i => ({
-              order_id: order.id, product_id: i.product_id, product_name: i.name,
-              product_image_url: i.image_url, quantity: i.quantity,
-              unit_price: i.price, total_price: i.price * i.quantity
-            })))
-            await supabase.from('order_status_history').insert({ order_id: order.id, status: 'payment_confirmed', changed_by: user.id })
-            try {
-              await supabase.from('notifications').insert({
-                user_id: cart[0].shop_id, title: '🛒 New Order!',
-                body: `Order ${order.order_number} received`, type: 'new_order',
-                data: { order_id: order.id }
-              })
-            } catch { /* optional */ }
-            localStorage.removeItem('vo_cart')
-            router.push(`/customer/orders/${order.id}`)
-          }
-        },
-        prefill: { name: user.user_metadata?.full_name, email: user.email },
-        theme: { color: '#f97316' }
-      })
-      rzp.open()
-    } catch (err) {
-      console.error(err)
-      alert('Payment failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  // NOTE: placeCodOrder, processOnlineOrder, and createNewAddress were removed.
+  // All payment paths now go through placeOrder() → /api/orders/secure-place
+  // which performs server-side price calculation, stock validation, and coupon checks.
 
   if (cart.length === 0) return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>

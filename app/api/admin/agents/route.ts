@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
 function getAdminClient() {
   return createClient(

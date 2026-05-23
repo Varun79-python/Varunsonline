@@ -9,9 +9,10 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 3 withdrawal requests per hour
     const identifier = getRateLimitIdentifier(req)
-    const rateCheck = checkRateLimit(identifier, {
+    const rateCheck = await checkRateLimit(identifier, {
       windowMs: 60 * 60 * 1000,
       maxRequests: 3,
+      endpoint: 'withdraw-request',
       message: 'Too many withdrawal requests. Please try again later.',
     })
 
@@ -37,6 +38,13 @@ export async function POST(req: NextRequest) {
 
     if (!user_id || !user_type || !amount || !payment_method) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Allowlist user_type — prevents user-controlled input from driving table selection
+    const VALID_USER_TYPES = ['shopkeeper', 'delivery_agent'] as const
+    type ValidUserType = typeof VALID_USER_TYPES[number]
+    if (!VALID_USER_TYPES.includes(user_type as ValidUserType)) {
+      return NextResponse.json({ error: 'Invalid user_type' }, { status: 400 })
     }
 
     // Verify the requesting user matches the user_id in body

@@ -132,6 +132,27 @@ export async function reverseGeocode(lat: number, lon: number): Promise<ReverseG
   }
 }
 
+/** Validate latitude (-90 to +90) */
+export function isValidLatitude(lat: number): boolean {
+  return typeof lat === 'number' && !Number.isNaN(lat) && lat >= -90 && lat <= 90
+}
+
+/** Validate longitude (-180 to +180) */
+export function isValidLongitude(lng: number): boolean {
+  return typeof lng === 'number' && !Number.isNaN(lng) && lng >= -180 && lng <= 180
+}
+
+/** Validate both coordinates, returns an error message if invalid */
+export function validateCoordinates(lat: number, lng: number): { valid: true } | { valid: false; error: string } {
+  if (!isValidLatitude(lat)) {
+    return { valid: false, error: `Invalid latitude: ${lat}. Must be between -90 and 90.` }
+  }
+  if (!isValidLongitude(lng)) {
+    return { valid: false, error: `Invalid longitude: ${lng}. Must be between -180 and 180.` }
+  }
+  return { valid: true }
+}
+
 /** OSM map URL for a position */
 export function osmMapUrl(lat: number, lon: number, zoom = 17): string {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}&zoom=${zoom}`

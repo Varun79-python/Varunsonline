@@ -26,6 +26,71 @@ function InfoRow({ label, value, mono }: { label: string; value: string | number
   )
 }
 
+// ── Local types matching the API response ──
+interface OrderDetailOrder {
+  id: string
+  order_number: string
+  created_at: string
+  status: string
+  customer_id?: string
+  address_id?: string
+  agent_id?: string
+  payment_confirmed_at?: string | null
+  accepted_at?: string | null
+  packed_at?: string | null
+  picked_up_at?: string | null
+  delivered_at?: string | null
+  otp_verified?: boolean
+  items_total?: number
+  total_amount: number
+  delivery_charge?: number
+  platform_fee?: number
+  admin_earning?: number
+  shop_earning?: number
+  agent_earning?: number
+  payment_method?: string
+  razorpay_order_id?: string
+  shops: { name: string; phone: string; address_line1: string; city: string } | null
+}
+
+interface OrderDetailItem {
+  id: string
+  product_name: string
+  product_image_url: string | null
+  unit_price: number
+  quantity: number
+  total_price: number
+}
+
+interface OrderDetailCustomer {
+  full_name: string
+  phone: string
+  email: string
+}
+
+interface OrderDetailAddress {
+  house_name: string
+  street_name: string
+  landmark: string | null
+  city: string
+  phone: string
+}
+
+interface OrderDetailAgent {
+  full_name: string
+  phone: string
+  vehicle_type: string
+  vehicle_number: string
+}
+
+interface OrderDetailData {
+  order: OrderDetailOrder
+  items: OrderDetailItem[]
+  customer: OrderDetailCustomer | null
+  address: OrderDetailAddress | null
+  agent: OrderDetailAgent | null
+}
+
 function Card({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
     <div style={{ background: 'white', borderRadius: 14, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
@@ -41,7 +106,7 @@ export default function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const supabase = createClient()
-  const [data, setData] = useState<Record<string, unknown> | null>(null)
+  const [data, setData] = useState<OrderDetailData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
@@ -64,20 +129,16 @@ export default function AdminOrderDetail() {
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto', animation: 'spin 0.8s linear infinite' }} /></div>
   if (error || !data) return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>❌ {error || 'Order not found'}</div>
 
-  const order = data.order as Record<string, unknown>
-  const items = data.items as Record<string, unknown>[]
-  const customer = data.customer as Record<string, unknown> | null
-  const address = data.address as Record<string, unknown> | null
-  const agent = data.agent as Record<string, unknown> | null
-  const shop = order.shops as Record<string, unknown> | null
+  const { order, items, customer, address, agent } = data
+  const shop = order.shops
 
-  const status = order.status as string
+  const { status } = order
   const rank = STATUS_RANK[status] || 0
   const isTerminal = ['delivered', 'cancelled', 'rejected'].includes(status)
 
-  function fmt(dt: unknown) {
+  function fmt(dt: string | null | undefined) {
     if (!dt) return null
-    return new Date(dt as string).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+    return new Date(dt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
   }
 
   return (
@@ -91,7 +152,7 @@ export default function AdminOrderDetail() {
       <div style={{ background: 'linear-gradient(135deg, #fff7ed, #fef3c7)', borderRadius: 16, padding: '20px 24px', marginBottom: 16, border: '1.5px solid #fed7aa' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.4rem', color: '#ea580c' }}>{order.order_number as string}</div>
+            <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.4rem', color: '#ea580c' }}>{order.order_number}</div>
             <div style={{ fontSize: '0.82rem', color: '#78716c', marginTop: 4 }}>Ordered: {fmt(order.created_at)}</div>
           </div>
           <span style={{
@@ -132,32 +193,32 @@ export default function AdminOrderDetail() {
 
       {/* Customer */}
       <Card title="Customer Details" icon="👤">
-        <InfoRow label="Name" value={customer?.full_name as string} />
-        <InfoRow label="Phone" value={customer?.phone as string} />
-        <InfoRow label="Email" value={customer?.email as string} />
+        <InfoRow label="Name" value={customer?.full_name} />
+        <InfoRow label="Phone" value={customer?.phone} />
+        <InfoRow label="Email" value={customer?.email} />
         {address && (
           <>
-            <InfoRow label="House / Building" value={address.house_name as string} />
-            <InfoRow label="Street" value={address.street_name as string} />
+            <InfoRow label="House / Building" value={address.house_name} />
+            <InfoRow label="Street" value={address.street_name} />
             {address.landmark && <InfoRow label="Landmark" value={`Near ${address.landmark}`} />}
-            <InfoRow label="City" value={address.city as string} />
-            <InfoRow label="Delivery Phone" value={address.phone as string} />
+            <InfoRow label="City" value={address.city} />
+            <InfoRow label="Delivery Phone" value={address.phone} />
           </>
         )}
       </Card>
 
       {/* Shop */}
       <Card title="Shop Details" icon="🏪">
-        <InfoRow label="Shop Name" value={shop?.name as string} />
-        <InfoRow label="Phone" value={shop?.phone as string} />
+        <InfoRow label="Shop Name" value={shop?.name} />
+        <InfoRow label="Phone" value={shop?.phone} />
         <InfoRow label="Address" value={[shop?.address_line1, shop?.city].filter(Boolean).join(', ')} />
       </Card>
 
       {/* Delivery Agent */}
       {agent ? (
         <Card title="Delivery Agent" icon="🛵">
-          <InfoRow label="Name" value={agent.full_name as string} />
-          <InfoRow label="Phone" value={agent.phone as string} />
+          <InfoRow label="Name" value={agent.full_name} />
+          <InfoRow label="Phone" value={agent.phone} />
           <InfoRow label="Vehicle" value={`${agent.vehicle_type} — ${agent.vehicle_number}`} />
           <InfoRow label="Earnings" value={`₹${order.agent_earning || 0}`} />
         </Card>
@@ -170,16 +231,16 @@ export default function AdminOrderDetail() {
       {/* Items */}
       <Card title={`Order Items (${items.length})`} icon="🛍️">
         {items.map((item, idx) => (
-          <div key={item.id as string} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
             {item.product_image_url
-              ? <img src={item.product_image_url as string} alt={item.product_name as string} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+              ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
               : <div style={{ width: 44, height: 44, background: '#fff7ed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📦</div>
             }
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{item.product_name as string}</div>
-              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>₹{item.unit_price as number} × {item.quantity as number}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{item.product_name}</div>
+              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>₹{item.unit_price} × {item.quantity}</div>
             </div>
-            <div style={{ fontWeight: 700, color: '#f97316' }}>₹{item.total_price as number}</div>
+            <div style={{ fontWeight: 700, color: '#f97316' }}>₹{item.total_price}</div>
           </div>
         ))}
       </Card>
@@ -214,8 +275,8 @@ export default function AdminOrderDetail() {
         orderId={id}
         currentUserId={currentUserId}
         currentUserRole="admin"
-        customerName={(customer as Record<string, unknown>)?.full_name as string}
-        shopName={(shop as Record<string, unknown>)?.name as string}
+        customerName={customer?.full_name ?? ''}
+        shopName={shop?.name ?? ''}
       />
     </div>
   )

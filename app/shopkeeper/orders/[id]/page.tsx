@@ -29,9 +29,14 @@ interface Order {
   created_at: string; subtotal: number; delivery_charge: number; platform_fee: number
   shopkeeper_earning: number; customer_note: string; placed_at: string
   accepted_at: string; packed_at: string; picked_up_at: string; delivered_at: string
+  items_updated_at?: string
   customer_id: string
   addresses: { house_name: string; street_name: string; city: string; phone: string }
   profiles: { full_name: string; phone: string }
+}
+
+interface OrderItem {
+  id: string; product_name: string; unit_price: number; quantity: number; total_price: number
 }
 
 export default function ShopkeeperOrderDetail() {
@@ -39,7 +44,7 @@ export default function ShopkeeperOrderDetail() {
   const router = useRouter()
   const supabase = createClient()
   const [order, setOrder] = useState<Order | null>(null)
-  const [items, setItems] = useState<Record<string, unknown>[]>([])
+  const [items, setItems] = useState<OrderItem[]>([])
   const [currentUserId, setCurrentUserId] = useState('')
   const [shopId, setShopId] = useState('')
 
@@ -203,7 +208,7 @@ export default function ShopkeeperOrderDetail() {
         )}
       </div>
 
-      {(order as any).items_updated_at && (
+      {order.items_updated_at && (
         <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: '#fef3c7', border: '1.5px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
           🔔 Customer updated the order items — please review before packing.
         </div>
@@ -211,13 +216,13 @@ export default function ShopkeeperOrderDetail() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginBottom: 14 }}>🛍️ Order Items ({items.length})</h3>
-        {items.map((item: Record<string, unknown>) => (
-          <div key={item.id as string} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+        {items.map((item: OrderItem) => (
+          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.product_name as string}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹{Number(item.unit_price)} × {Number(item.quantity)}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.product_name}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹{item.unit_price} × {item.quantity}</div>
             </div>
-            <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{Number(item.total_price)}</div>
+            <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{item.total_price}</div>
           </div>
         ))}
         <div style={{ borderTop: '2px solid var(--border)', marginTop: 10, paddingTop: 10 }}>
@@ -264,7 +269,7 @@ export default function ShopkeeperOrderDetail() {
         orderId={id}
         currentUserId={currentUserId}
         currentUserRole="shopkeeper"
-        customerName={(order.profiles as Record<string, unknown>)?.full_name as string}
+        customerName={order.profiles?.full_name}
       />
     </div>
   )

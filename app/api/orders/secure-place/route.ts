@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 
 function createServiceClient() {
   return createClient(
@@ -33,21 +34,26 @@ interface OrderRequest {
 }
 
 export async function POST(req: NextRequest) {
+  let userId: string | undefined
+  let shopId: string | undefined
+  let paymentMethod: string | undefined
   try {
     // Rate limit: 5 order placements per minute
     const identifier = getRateLimitIdentifier(req)
-    const rateCheck = checkRateLimit(identifier, {
+    const rateCheck = await checkRateLimit(identifier, {
       windowMs: 60 * 1000,
       maxRequests: 5,
       message: 'Too many orders. Please wait a moment.',
     })
 
     if (!rateCheck.allowed) {
+      logger.order('rate_limited', 'unknown')
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 }
       )
     }
+
     const authHeader = req.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -61,15 +67,19 @@ export async function POST(req: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
+    userId = user.id
 
     // Verify user is a customer
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (!profile || profile.role !== 'customer') {
+      logger.auth('wrong_role', { userId: user.id, expected: 'customer', actual: profile?.role })
       return NextResponse.json({ error: 'Only customers can place orders' }, { status: 403 })
     }
 
     const body: OrderRequest = await req.json()
-    const { shopId, addressId, cart, paymentMethod, couponCode } = body
+    const { shopId: sId, addressId, cart, paymentMethod: pm, couponCode } = body
+    shopId = sId
+    paymentMethod = pm
 
     // Validate required fields
     if (!shopId || !addressId || !cart?.length) {
@@ -285,6 +295,8 @@ export async function POST(req: NextRequest) {
       await supabase.rpc('increment_coupon_usage', { coupon_code: couponCode })
     }
 
+    logger.order('placed', order.id, { paymentMethod, total, shopId })
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
@@ -296,7 +308,12 @@ export async function POST(req: NextRequest) {
       couponDiscount,
     })
   } catch (err) {
-    console.error('Secure order placement error:', err)
+    logger.error('secure-place failed', {
+      userId,
+      shopId,
+      paymentMethod,
+      error: err instanceof Error ? err.message : String(err),
+    })
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

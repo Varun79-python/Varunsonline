@@ -1,8 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
-const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -11,7 +10,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-pathname', pathname)
 
   // Create Supabase response with cookie handling
-  let supabaseResponse = NextResponse.next({ 
+  const supabaseResponse = NextResponse.next({ 
     request: {
       headers: requestHeaders,
     }
@@ -68,10 +67,7 @@ export async function middleware(request: NextRequest) {
     if (isAdminEmail || metaRole === 'admin') return supabaseResponse
 
     try {
-      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      })
-      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (!profile || profile.role !== 'admin') {
         return NextResponse.redirect(new URL('/admin/login', request.url))
       }
@@ -100,10 +96,7 @@ export async function middleware(request: NextRequest) {
     if (metaRole === 'shopkeeper') return supabaseResponse
 
     try {
-      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      })
-      const { data: profile } = await supabaseSvc.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role === 'shopkeeper') return supabaseResponse
     } catch (profileError) {
       console.error('Profile check error in shopkeeper middleware:', profileError)
@@ -123,10 +116,7 @@ export async function middleware(request: NextRequest) {
     if (metaRole === 'delivery_agent') return supabaseResponse
 
     try {
-      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      })
-      const { data: profile, error: profileError } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profileError) {
         return NextResponse.redirect(new URL('/login/delivery', request.url))
       }
@@ -149,10 +139,7 @@ export async function middleware(request: NextRequest) {
     if (metaRole === 'customer') return supabaseResponse
 
     try {
-      const supabaseSvc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      })
-      const { data: profile } = await supabaseSvc.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role === 'customer') return supabaseResponse
     } catch {
       return NextResponse.redirect(new URL('/login', request.url))

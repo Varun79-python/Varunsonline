@@ -132,7 +132,11 @@ export default function DeliveryDashboard() {
           const timeSinceLast = now - lastPushTime.current
           // Write to DB: on first run, or moved > 30m, or > 60s since last write (stationary agents)
           if (isFirst || movedEnough || timeSinceLast > 60000) {
+            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+              console.warn('[GPS/Delivery] Invalid coordinates, skipping DB update:', latitude, longitude)
+            } else {
             await supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId)
+            }
             lastPushedPos.current = { lat: latitude, lon: longitude }
             lastPushTime.current = now
             if (isFirst || gpsRequired) {
@@ -156,16 +160,6 @@ export default function DeliveryDashboard() {
     const interval = setInterval(() => push(false), 5000)
     return () => clearInterval(interval)
   }, [agentId, activeOrder, supabase, gpsRequired, fetchAvailable])
-
-  useEffect(() => {
-    if (!agentId) return
-    const poll = async () => {
-      if (activeOrder) return
-      await fetchAvailable()
-    }
-    const interval = setInterval(poll, 5000)
-    return () => clearInterval(interval)
-  }, [agentId, activeOrder, fetchAvailable])
 
   useEffect(() => {
     let mounted = true

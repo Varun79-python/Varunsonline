@@ -308,7 +308,7 @@ export default function AdminAgentSettlements() {
                       ⚠️ {pendingAgents.length} agent{pendingAgents.length !== 1 ? 's' : ''} owe a total of ₹{totalPending.toFixed(2)} in COD cash
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                      These agents collected cash from customers but haven't remitted it yet. They should pay via the Razorpay settlement in their Wallet page.
+                      These agents collected cash from customers but haven&apos;t remitted it yet. They should pay via the Razorpay settlement in their Wallet page.
                     </div>
                   </div>
                   <div className="table-container">

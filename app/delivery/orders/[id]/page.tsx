@@ -213,8 +213,8 @@ export default function DeliveryOrderDetail() {
         orderId={id}
         currentUserId={currentUserId}
         currentUserRole="delivery_agent"
-        customerName={(order.profiles as Record<string, unknown>)?.full_name as string}
-        shopName={(order.shops as Record<string, unknown>)?.name as string}
+        customerName={order.profiles?.full_name ?? ''}
+        shopName={order.shops?.name ?? ''}
       />
     </div>
   )

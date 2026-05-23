@@ -1,8 +1,16 @@
 /**
  * POST /api/notifications/register-token
- * Body: { userId: string; token: string }
+ * Auth: Bearer token (Supabase session JWT) required in Authorization header
+ * Body: { token: string }
  *
- * Saves / updates an FCM device token for a user.
+ * Saves / updates an FCM device token for the authenticated user.
+ * The user ID is extracted from the verified auth session — any userId
+ * in the request body is IGNORED to prevent IDOR attacks.
+ *
+ * Security: the server verifies the caller's identity via their Supabase
+ * JWT before writing. An attacker cannot register a token for another
+ * user even if they know that user's UUID.
+ *
  * Upserts on (user_id, token) to handle refresh and prevent duplicates.
  * The table `device_tokens` must exist in Supabase (DDL below).
  *
@@ -27,20 +35,34 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, token } = await req.json()
-    if (!userId || !token) {
-      return NextResponse.json({ error: 'Missing userId or token' }, { status: 400 })
+    // 1. Verify caller's identity — reject if no valid JWT
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const jwt = authHeader.substring(7)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(jwt)
+    if (authErr || !user) {
+      return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 })
+    }
+
+    // 2. Extract token from body (userId from body is IGNORED — enforced server-side)
+    const { token } = await req.json()
+    if (!token) {
+      return NextResponse.json({ error: 'Missing token' }, { status: 400 })
+    }
+
+    // 3. Register the token under the authenticated user's ID
     const { error } = await supabase
       .from('device_tokens')
       .upsert(
-        { user_id: userId, token, updated_at: new Date().toISOString() },
+        { user_id: user.id, token, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,token' }
       )
 

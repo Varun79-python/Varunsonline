@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(
   'https://garxraczisrnmvvnotyu.supabase.co',

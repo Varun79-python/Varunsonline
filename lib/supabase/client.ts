@@ -2,13 +2,13 @@ import { createBrowserClient } from '@supabase/ssr'
 
 let _client: ReturnType<typeof createBrowserClient> | null = null
 
-export function createClient() {
+export function createClient(): ReturnType<typeof createBrowserClient> | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
     console.warn('Supabase environment variables not configured. This is expected during build.')
-    return null as any
+    return null
   }
 
   // Reuse single browser instance — prevents multiple GoTrue auth listeners

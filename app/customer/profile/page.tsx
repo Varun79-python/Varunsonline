@@ -96,8 +96,14 @@ export default function CustomerProfile() {
     if (editForm.landmark !== undefined) addressData.landmark = editForm.landmark || null
     if (editForm.pincode) addressData.pincode = editForm.pincode
     if (editForm.phone) addressData.phone = editForm.phone
-    if (editForm.latitude && editForm.latitude !== 0) addressData.latitude = editForm.latitude
-    if (editForm.longitude && editForm.longitude !== 0) addressData.longitude = editForm.longitude
+    if (editForm.latitude && editForm.latitude !== 0) {
+      if (editForm.latitude < -90 || editForm.latitude > 90) { alert('Invalid latitude. Must be between -90 and 90.'); setEditSaving(false); return }
+      addressData.latitude = editForm.latitude
+    }
+    if (editForm.longitude && editForm.longitude !== 0) {
+      if (editForm.longitude < -180 || editForm.longitude > 180) { alert('Invalid longitude. Must be between -180 and 180.'); setEditSaving(false); return }
+      addressData.longitude = editForm.longitude
+    }
 
     if (editingId === 'new') {
       const { data: { user } } = await supabase.auth.getUser()

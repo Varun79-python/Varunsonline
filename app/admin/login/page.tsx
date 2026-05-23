@@ -13,7 +13,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(true)
   const [initializing, setInitializing] = useState(true)
 
-  const ADMIN_EMAIL = 'venkatavarun79@gmail.com'
+  const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
   // Check if already authenticated on page load
   useEffect(() => {

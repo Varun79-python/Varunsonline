@@ -23,11 +23,14 @@ export async function pushToUser(
       .eq('user_id', userId)
 
     const tokens = (rows || []).map((r: { token: string }) => r.token).filter(Boolean)
-    if (tokens.length === 0) return
+    if (tokens.length === 0) {
+      console.log(`[FCM] No tokens for user ${userId}, skipped "${title}"`)
+      return
+    }
 
     await sendFcmToMany(tokens, title, body, data, channelId)
   } catch (e) {
     // Push failure must NEVER break the order flow
-    console.error('[FCM] pushToUser error:', e)
+    console.error(`[FCM] pushToUser error for user ${userId} ("${title}"):`, e)
   }
 }

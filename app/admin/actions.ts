@@ -222,21 +222,51 @@ export async function rejectShopkeeperDocuments(docId: string, userId: string, r
 }
 
 
-export async function getAdminCustomers() {
+export async function getAdminCustomers(page = 1, pageSize = 25) {
   const supabase = await createAdminClient()
-  return await supabase
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const { count } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('role', 'customer')
+
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('role', 'customer')
     .order('created_at', { ascending: false })
+    .range(from, to)
+
+  return { data, count: count || 0, error }
 }
 
-export async function getAdminAgents() {
+export async function getAdminAgents(tab = 'all', page = 1, pageSize = 25) {
   const supabase = await createAdminClient()
-  return await supabase
-    .from('delivery_agents')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  let countQuery = supabase.from('delivery_agents').select('id', { count: 'exact', head: true })
+  let dataQuery = supabase.from('delivery_agents').select('*')
+
+  if (tab === 'pending') {
+    countQuery = countQuery.eq('is_approved', false).is('rejection_reason', null)
+    dataQuery = dataQuery.eq('is_approved', false).is('rejection_reason', null)
+  } else if (tab === 'active') {
+    countQuery = countQuery.eq('is_approved', true)
+    dataQuery = dataQuery.eq('is_approved', true)
+  } else if (tab === 'rejected') {
+    countQuery = countQuery.eq('is_approved', false).not('rejection_reason', 'is', null)
+    dataQuery = dataQuery.eq('is_approved', false).not('rejection_reason', 'is', null)
+  }
+
+  const [{ count }, { data, error }] = await Promise.all([
+    countQuery,
+    dataQuery.order('created_at', { ascending: false }).range(from, to)
+  ])
+
+  return { data, count: count || 0, error }
 }
 
 export async function getAdminStats() {

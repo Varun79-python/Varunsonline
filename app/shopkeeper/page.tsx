@@ -38,15 +38,12 @@ export default function ShopkeeperDashboard() {
   const [togglingOpen, setTogglingOpen] = useState(false)
   const shopIdRef = useRef<string | null>(null)
   // Track which order IDs are currently alerting (to stop when handled)
-  const alertingOrdersRef = useRef<Set<string>>(new Set())
+  const alertedRef = useRef<Set<string>>(new Set())
+  const [alertingOrderIds, setAlertingOrderIds] = useState<Set<string>>(new Set())
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
 
   const [nowTime, setNowTime] = useState<number | null>(null)
   useEffect(() => { setNowTime(Date.now()) }, [])
-
-  const alertingOrderIds = useMemo(() => {
-    return new Set(alertingOrdersRef.current)
-  }, [alertingOrdersRef.current.size])
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -62,7 +59,8 @@ export default function ShopkeeperDashboard() {
   function maybeStopAlert(remainingOrders: Order[]) {
     if (remainingOrders.length === 0) {
       stopAlert()
-      alertingOrdersRef.current.clear()
+      alertedRef.current.clear()
+      setAlertingOrderIds(new Set())
     }
   }
 
@@ -142,8 +140,9 @@ export default function ShopkeeperDashboard() {
         await fetchPending(shopIdRef.current)
         // Start looping alert — track by order id to prevent duplicate sounds
         const newOrderId = (payload.new as Order)?.id as string | undefined
-        if (newOrderId && !alertingOrdersRef.current.has(newOrderId)) {
-          alertingOrdersRef.current.add(newOrderId)
+        if (newOrderId && !alertedRef.current.has(newOrderId)) {
+          alertedRef.current.add(newOrderId)
+          setAlertingOrderIds(prev => new Set([...prev, newOrderId]))
           startAlert()
         }
         showToast('🔔 New Order Received!')
@@ -197,7 +196,8 @@ export default function ShopkeeperDashboard() {
         return next
       })
       // Stop alert for this specific order
-      alertingOrdersRef.current.delete(orderId)
+      alertedRef.current.delete(orderId)
+      setAlertingOrderIds(prev => { const next = new Set(prev); next.delete(orderId); return next })
 
       // Show agent assignment feedback on accept
       if (action === 'accept') {
@@ -527,7 +527,7 @@ export default function ShopkeeperDashboard() {
             {/* Section: History */}
             {history.length > 0 && (
               <div>
-                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📅 Today's History</h3>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📅 {"Today's History"}</h3>
                 {history.map((o, i) => renderOrder(o, i))}
               </div>
             )}

@@ -39,7 +39,7 @@ export default function DeliveryWallet() {
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }
 
-  const load = useCallback(async () => {
+  async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setUserId(user.id)
@@ -66,9 +66,9 @@ export default function DeliveryWallet() {
       .eq('status', 'pending')
       .maybeSingle()
     setHasPending(!!pending)
-  }, [supabase])
+  }
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [supabase])
 
   // ── Razorpay settlement payment ──────────────────────────────────────────
   async function payCodSettlement() {
@@ -95,8 +95,9 @@ export default function DeliveryWallet() {
       const { id: order_id, amount, currency, key_id, settleAmount } = orderData
 
       // Open Razorpay checkout
+      interface RazorpayInstance { open(): void; on(event: string, handler: (resp: { error: { description: string } }) => void): void }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const RazorpayClass = (window as any).Razorpay
+      const RazorpayClass: new (opts: any) => RazorpayInstance = window.Razorpay as any
       const rzp = new RazorpayClass({
         key: key_id,
         amount,

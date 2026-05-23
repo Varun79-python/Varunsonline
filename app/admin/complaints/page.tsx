@@ -41,10 +41,6 @@ export default function AdminComplaintsPage() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [updating, setUpdating] = useState(false)
 
-  useEffect(() => {
-    loadComplaints()
-  }, [])
-
   async function loadComplaints() {
     const { data, error } = await supabase
       .from('customer_complaints')
@@ -77,6 +73,10 @@ export default function AdminComplaintsPage() {
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    loadComplaints()
+  }, [])
 
   async function updateStatus(id: string, newStatus: string) {
     setUpdating(true)

@@ -232,7 +232,7 @@ export default function OrderChat({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       const now = Date.now()
-      if (now - lastEnterMs < 100) return // debounce spam
+      if (now - lastEnterMs < 100) return // guard: ignore double Enter within 100ms (mobile keyboard IME safety — does NOT delay sends)
       setLastEnterMs(now)
       send(input)
     }

@@ -3,12 +3,22 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+interface WalletTransaction {
+  id: string
+  description: string
+  created_at: string
+  type: string
+  amount: number
+  order_id?: string | null
+  user_id?: string
+}
+
 export default function ShopkeeperWallet() {
   const router = useRouter()
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [balance, setBalance] = useState(0)
-  const [txns, setTxns] = useState<Record<string, unknown>[]>([])
+  const [txns, setTxns] = useState<WalletTransaction[]>([])
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [form, setForm] = useState({ amount: '', payment_method: 'upi', upi_id: '', bank_account_number: '', bank_ifsc: '' })
   const [submitting, setSubmitting] = useState(false)
@@ -189,14 +199,14 @@ export default function ShopkeeperWallet() {
         {txns.length === 0 && (
           <div style={{ textAlign: 'center', padding: 30, background: '#f8fafc', borderRadius: 12 }}>No transactions yet</div>
         )}
-        {txns.map(t => (
-          <div key={t.id as string} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0' }}>
+        {txns.map(txn => (
+          <div key={txn.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 10, padding: 12, border: '1.5px solid #e2e8f0' }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.description as string}</div>
-              <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{new Date(t.created_at as string).toLocaleDateString('en-IN')}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{txn.description}</div>
+              <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{new Date(txn.created_at).toLocaleDateString('en-IN')}</div>
             </div>
-            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: (t.type as string) === 'credit' ? '#16a34a' : '#dc2626' }}>
-              {(t.type as string) === 'credit' ? '+' : '−'}₹{t.amount as number}
+            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: txn.type === 'credit' ? '#16a34a' : '#dc2626' }}>
+              {txn.type === 'credit' ? '+' : '−'}₹{txn.amount}
             </span>
           </div>
         ))}
