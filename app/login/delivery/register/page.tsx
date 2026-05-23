@@ -43,21 +43,11 @@ export default function DeliveryRegisterPage() {
 
       if (existingAgent) {
         if (existingAgent.is_approved) {
-          setExistingUserMessage('Account already exists and approved. Redirecting to login...')
-          setTimeout(() => router.push('/login/delivery'), 1500)
+          setExistingUserMessage('Note: An approved delivery agent account already exists with this phone number. If this is you, please log in.')
           return
         }
         
-        setForm(f => ({
-          ...f,
-          full_name: existingAgent.full_name || f.full_name,
-          email: existingAgent.email || f.email,
-          phone: existingAgent.phone || f.phone,
-          vehicle_type: existingAgent.vehicle_type || f.vehicle_type,
-          vehicle_number: existingAgent.vehicle_number || f.vehicle_number,
-        }))
-        setExistingUserMessage('Partial registration found. Please login to continue.')
-        setCheckingExisting(false)
+        setExistingUserMessage('Note: A partial registration already exists with this phone number.')
         return
       }
     } catch (err) {
@@ -65,7 +55,7 @@ export default function DeliveryRegisterPage() {
     } finally {
       setCheckingExisting(false)
     }
-  }, [supabase, router])
+  }, [supabase])
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
@@ -228,8 +218,9 @@ export default function DeliveryRegisterPage() {
           padding: 14, 
           borderRadius: 12, 
           marginBottom: 16,
-          background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
-          color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+          background: '#fffbeb',
+          color: '#b45309',
+          border: '1px solid #fde68a',
           fontSize: '0.85rem',
           fontWeight: 600,
           maxWidth: 500,
@@ -238,7 +229,7 @@ export default function DeliveryRegisterPage() {
           {checkingExisting ? (
             <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking...</>
           ) : (
-            <>✅ {existingUserMessage}</>
+            <>⚠️ {existingUserMessage}</>
           )}
         </div>
       )}

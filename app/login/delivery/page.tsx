@@ -81,10 +81,29 @@ export default function DeliveryLoginPage() {
 
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
+    let emailToAuth = input
 
-    const { error: signInError } = isPhone
-      ? await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      : await supabase.auth.signInWithPassword({ email: input, password: form.password })
+    if (isPhone) {
+      const { data: agentData } = await supabase
+        .from('delivery_agents')
+        .select('email')
+        .eq('phone', input)
+        .maybeSingle()
+
+      if (agentData?.email) {
+        emailToAuth = agentData.email
+      } else {
+        setError('No delivery partner account found with this phone number.')
+        setLoading(false)
+        refreshCaptcha()
+        return
+      }
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: emailToAuth,
+      password: form.password,
+    })
 
     if (signInError) {
       setError(signInError.message)

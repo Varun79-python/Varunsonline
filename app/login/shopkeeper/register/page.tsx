@@ -58,8 +58,7 @@ export default function ShopRegisterPage() {
         .maybeSingle()
 
       if (existingProfile) {
-        setExistingUserMessage('Account already registered. Redirecting to login...')
-        setTimeout(() => router.push('/login/shopkeeper'), 1500)
+        setExistingUserMessage('Note: An account with this phone/email already exists. If this is you, please log in.')
         return
       }
     } catch (err) {
@@ -67,7 +66,7 @@ export default function ShopRegisterPage() {
     } finally {
       setCheckingExisting(false)
     }
-  }, [supabase, router])
+  }, [supabase])
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
@@ -216,14 +215,15 @@ export default function ShopRegisterPage() {
           padding: 14,
           borderRadius: 12,
           marginBottom: 16,
-          background: existingUserMessage.includes('Redirecting') ? '#dcfce7' : '#fef3c7',
-          color: existingUserMessage.includes('Redirecting') ? '#16a34a' : '#92400e',
+          background: '#fffbeb',
+          color: '#b45309',
+          border: '1px solid #fde68a',
           fontSize: '0.85rem',
           fontWeight: 600,
           maxWidth: 500,
           margin: '0 auto 16px'
         }}>
-          {checkingExisting ? <>⏳ Checking...</> : <>✅ {existingUserMessage}</>}
+          {checkingExisting ? <>⏳ Checking...</> : <>⚠️ {existingUserMessage}</>}
         </div>
       )}
 

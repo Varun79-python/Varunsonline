@@ -61,7 +61,7 @@ export default function CustomerLoginPage() {
 
   // Real-time existing user detection during registration
   const checkExistingUser = useCallback(async (phone: string, email: string) => {
-    if (!isLogin || (!phone.trim() && !email.trim())) {
+    if (isLogin || (!phone.trim() && !email.trim())) {
       setExistingMessage('')
       return
     }
@@ -78,7 +78,7 @@ export default function CustomerLoginPage() {
       
       const isPhone = /^\d{10,}$/.test(searchValue)
       
-      const { data: customer, error } = await supabase
+      const { data: customer } = await supabase
         .from('customers')
         .select('id, full_name, phone, email')
         .eq(isPhone ? 'phone' : 'email', searchValue)
@@ -87,12 +87,7 @@ export default function CustomerLoginPage() {
       if (!mountedRef.current) return
       
       if (customer) {
-        setForm(prev => ({
-          ...prev,
-          full_name: customer.full_name || prev.full_name,
-          phone: customer.phone || prev.phone,
-        }))
-        setExistingMessage('Account already exists. Please login to continue.')
+        setExistingMessage('Note: An account already exists with this information. If this is you, please switch to Login.')
       }
     } catch (err) {
       console.error('Error checking existing user:', err)
@@ -152,14 +147,27 @@ export default function CustomerLoginPage() {
     
     if (isLogin) {
       const isPhone = /^\d{10,}$/.test(input)
+      let emailToAuth = input
       
       if (isPhone) {
-        const { error } = await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-        if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: input, password: form.password })
-        if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('email')
+          .eq('phone', input)
+          .maybeSingle()
+
+        if (customerData?.email) {
+          emailToAuth = customerData.email
+        } else {
+          setError('No customer account found with this phone number.')
+          setLoading(false)
+          refreshCaptcha()
+          return
+        }
       }
+
+      const { error } = await supabase.auth.signInWithPassword({ email: emailToAuth, password: form.password })
+      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
       router.push('/customer')
     } else {
       // Check if user already exists in customers table before signup
@@ -253,13 +261,14 @@ export default function CustomerLoginPage() {
           <div style={{ 
             padding: 12, 
             borderRadius: 10, 
-            background: '#fef3c7',
-            color: '#92400e',
+            background: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
             fontSize: '0.85rem',
             fontWeight: 600,
             marginBottom: 8
           }}>
-            {existingMessage}
+            ⚠️ {existingMessage}
           </div>
         )}
 

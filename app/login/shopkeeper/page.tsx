@@ -81,10 +81,30 @@ export default function ShopkeeperLoginPage() {
 
     const input = form.email.trim()
     const isPhone = /^\d{10,}$/.test(input)
+    let emailToAuth = input
 
-    const { error: signInError } = isPhone
-      ? await supabase.auth.signInWithPassword({ phone: input, password: form.password })
-      : await supabase.auth.signInWithPassword({ email: input, password: form.password })
+    if (isPhone) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('phone', input)
+        .eq('role', 'shopkeeper')
+        .maybeSingle()
+
+      if (profileData?.email) {
+        emailToAuth = profileData.email
+      } else {
+        setError('No shop owner account found with this phone number.')
+        setLoading(false)
+        refreshCaptcha()
+        return
+      }
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: emailToAuth,
+      password: form.password,
+    })
 
     if (signInError) {
       setError(signInError.message)
