@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'Car', 'EV Bike']
+const VEHICLE_TYPES = ['Bike', 'Scooter', 'Bicycle', 'EV Bike']
 
 export default function DeliveryRegisterPage() {
   const supabase = createClient()
@@ -120,11 +120,11 @@ export default function DeliveryRegisterPage() {
 
     if (!form.full_name.trim()) { setFormError('Full Name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
-    if (!isExistingAuth && !form.password.trim()) { setFormError('Password is required'); return }
-    if (!isExistingAuth && form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
-    if (!isExistingAuth && !form.confirmPassword.trim()) { setFormError('Please confirm your password'); return }
-    if (!isExistingAuth && form.password !== form.confirmPassword) { setFormError('Passwords do not match. Please re-enter.'); return }
     if (!form.phone.trim()) { setFormError('Phone Number is required'); return }
+    if (!form.password.trim()) { setFormError('Password is required'); return }
+    if (form.password.length < 6) { setFormError('Password must be at least 6 characters'); return }
+    if (!form.confirmPassword.trim()) { setFormError('Please confirm your password'); return }
+    if (form.password !== form.confirmPassword) { setFormError('Passwords do not match. Please re-enter.'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim() && form.vehicle_type !== 'Bicycle') { setFormError('Vehicle Number is required'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
@@ -162,7 +162,7 @@ export default function DeliveryRegisterPage() {
         id: userId,
         full_name: form.full_name.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim(),
+        phone: form.phone.replace(/\D/g, ''),
         vehicle_type: form.vehicle_type,
         vehicle_number: form.vehicle_number.trim().toUpperCase(),
         is_approved: false,
@@ -258,9 +258,7 @@ export default function DeliveryRegisterPage() {
             )}
           </div>
 
-          {!isExistingAuth && (
-            <>
-              <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -306,8 +304,6 @@ export default function DeliveryRegisterPage() {
                   <div style={{ marginTop: 5, fontSize: '0.78rem', color: '#22c55e', fontWeight: 600 }}>✅ Passwords match</div>
                 )}
               </div>
-            </>
-          )}
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Phone Number *</label>

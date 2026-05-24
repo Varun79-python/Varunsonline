@@ -108,10 +108,10 @@ export default function ShopRegisterPage() {
     if (!form.full_name.trim()) { setError('Please enter Full Name'); return }
     if (!form.phone_number.trim()) { setError('Please enter Phone Number'); return }
     if (!form.email.trim()) { setError('Please enter Email'); return }
-    if (!isExistingAuth && !form.password.trim()) { setError('Please enter Password'); return }
-    if (!isExistingAuth && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
-    if (!isExistingAuth && !form.confirmPassword.trim()) { setError('Please confirm your password'); return }
-    if (!isExistingAuth && form.password !== form.confirmPassword) { setError('Passwords do not match. Please re-enter.'); return }
+    if (!form.password.trim()) { setError('Please enter Password'); return }
+    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!form.confirmPassword.trim()) { setError('Please confirm your password'); return }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match. Please re-enter.'); return }
     if (!form.gender) { setError('Please select Gender'); return }
     if (!agreedToTerms) { setError('Please agree to Terms & Conditions'); return }
 
@@ -162,7 +162,7 @@ export default function ShopRegisterPage() {
       await supabase.from('profiles').upsert({
         id: userId,
         full_name: form.full_name.trim(),
-        phone: form.phone_number.trim(),
+        phone: form.phone_number.replace(/\D/g, ''),
         email: form.email.trim(),
         role: 'shopkeeper',
         gender: form.gender,
@@ -256,9 +256,7 @@ export default function ShopRegisterPage() {
             )}
           </div>
 
-          {!isExistingAuth && (
-            <>
-              <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -304,8 +302,6 @@ export default function ShopRegisterPage() {
                   <div style={{ marginTop: 5, fontSize: '0.78rem', color: '#22c55e', fontWeight: 600 }}>✅ Passwords match</div>
                 )}
               </div>
-            </>
-          )}
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Gender *</label>

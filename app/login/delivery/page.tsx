@@ -80,14 +80,15 @@ export default function DeliveryLoginPage() {
     setError('')
 
     const input = form.email.trim()
-    const isPhone = /^\d{10,}$/.test(input)
+    const digitsOnly = input.replace(/\D/g, '')
+    const isPhone = /^\d{10,}$/.test(digitsOnly)
     let emailToAuth = input
 
     if (isPhone) {
       const { data: agentData } = await supabase
         .from('delivery_agents')
         .select('email')
-        .eq('phone', input)
+        .eq('phone', digitsOnly)
         .maybeSingle()
 
       if (agentData?.email) {

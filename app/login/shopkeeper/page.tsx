@@ -80,14 +80,15 @@ export default function ShopkeeperLoginPage() {
     setError('')
 
     const input = form.email.trim()
-    const isPhone = /^\d{10,}$/.test(input)
+    const digitsOnly = input.replace(/\D/g, '')
+    const isPhone = /^\d{10,}$/.test(digitsOnly)
     let emailToAuth = input
 
     if (isPhone) {
       const { data: profileData } = await supabase
         .from('profiles')
         .select('email')
-        .eq('phone', input)
+        .eq('phone', digitsOnly)
         .eq('role', 'shopkeeper')
         .maybeSingle()
 

@@ -153,14 +153,15 @@ export default function CustomerLoginPage() {
     }
     
     if (isLogin) {
-      const isPhone = /^\d{10,}$/.test(input)
+      const digitsOnly = input.replace(/\D/g, '')
+      const isPhone = /^\d{10,}$/.test(digitsOnly)
       let emailToAuth = input
       
       if (isPhone) {
         const { data: customerData } = await supabase
           .from('customers')
           .select('email')
-          .eq('phone', input)
+          .eq('phone', digitsOnly)
           .maybeSingle()
 
         if (customerData?.email) {
@@ -239,7 +240,7 @@ export default function CustomerLoginPage() {
         await supabase.from('customers').insert({
           id: data.user.id,
           full_name: form.full_name,
-          phone: form.phone,
+          phone: form.phone.replace(/\D/g, ''),
           email: form.email,
           gender: form.gender,
         })
