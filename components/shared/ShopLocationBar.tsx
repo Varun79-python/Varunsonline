@@ -85,7 +85,7 @@ export default function ShopLocationBar() {
     })
   }, [shop, geocoded])
 
-  const getAuthHeader = useCallback(async () => {
+  const getAuthHeader = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }, [supabase])

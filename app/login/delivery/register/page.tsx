@@ -245,7 +245,12 @@ export default function DeliveryRegisterPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Email ID *</label>
-            <input type="email" value={form.email} readOnly={isExistingAuth} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: isExistingAuth ? '#f1f5f9' : 'white' }} />
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box', background: 'white' }} />
+            {isExistingAuth && form.email && (
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '6px 10px' }}>
+                💡 Pre-filled from your account — you can change it if needed
+              </div>
+            )}
           </div>
 
           {!isExistingAuth && (
