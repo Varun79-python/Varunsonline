@@ -115,7 +115,7 @@ async function checkShopkeeper(
         email: shop.email,
         shop_name: shop.name,
       },
-      redirectTo: '/login/shopkeeper/documents',
+      redirectTo: '/login/shopkeeper/register/documents',
       message: 'Existing registration found. Continuing to document upload...',
     }
   }
@@ -132,7 +132,7 @@ async function checkShopkeeper(
       email: shop.email,
       shop_name: shop.name,
     },
-    redirectTo: '/login/shopkeeper/documents',
+    redirectTo: '/login/shopkeeper/register/documents',
     message: 'Existing registration found. Continuing from saved progress.',
   }
 }
