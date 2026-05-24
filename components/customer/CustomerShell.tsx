@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
+import CustomerLocationBar from '@/components/shared/CustomerLocationBar'
 
 const HomeIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,7 +74,7 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
         { href: '/customer/profile', icon: '👤', label: 'Profile' },
       ]} brandIcon="🛒" brand="Varun's Online" />
 
-      <div className="main-content">
+        <div className="main-content">
         <div className="topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: '1.4rem' }}>🛒</span>
@@ -83,6 +84,8 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
             Logout →
           </button>
         </div>
+
+        <CustomerLocationBar />
 
         <div style={{ paddingBottom: cartCount > 0 ? 130 : 74 }}>
           {children}

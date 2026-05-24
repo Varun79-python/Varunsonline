@@ -26,6 +26,12 @@ export default function ShopDocumentsPage() {
   const [ownerName, setOwnerName] = useState('')
   const [category, setCategory] = useState('')
 
+  // GPS state
+  const [latitude, setLatitude] = useState<number | null>(null)
+  const [longitude, setLongitude] = useState<number | null>(null)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsError, setGpsError] = useState('')
+
   // File state — local preview + uploaded URL
   const [shopImageFile, setShopImageFile] = useState<File | null>(null)
   const [shopImagePreview, setShopImagePreview] = useState('')
@@ -74,6 +80,37 @@ export default function ShopDocumentsPage() {
     }
   }, [done, router])
 
+  // ── GPS Capture ─────────────────────────────────────────────────────────────
+  function captureGPS() {
+    setGpsError('')
+    setGpsLoading(true)
+
+    if (!navigator.geolocation) {
+      setGpsError('GPS not supported on this device.')
+      setGpsLoading(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude)
+        setLongitude(pos.coords.longitude)
+        setGpsLoading(false)
+        setGpsError('')
+      },
+      (err) => {
+        const msgs: Record<number, string> = {
+          1: 'Location permission denied. Please allow location access and try again.',
+          2: 'Location unavailable. Please try again outside or near a window.',
+          3: 'GPS timed out. Please try again.',
+        }
+        setGpsError(msgs[err.code] || 'Failed to get location.')
+        setGpsLoading(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    )
+  }
+
   // ── Upload helpers ──────────────────────────────────────────────────────────
   async function uploadToStorage(file: File, bucket: string, docType: string): Promise<string | null> {
     if (!userId) return null
@@ -97,10 +134,8 @@ export default function ShopDocumentsPage() {
     if (file.size > MAX_FILE_SIZE) { setError('Shop image too large. Max 5MB.'); return }
     setShopImageFile(file)
     setShopImagePreview(URL.createObjectURL(file))
-    setShopImageUrl('') // reset previously uploaded URL
+    setShopImageUrl('')
     setError('')
-
-    // Upload immediately
     setShopImageUploading(true)
     uploadToStorage(file, 'shop-images', 'shop_image').then(url => {
       setShopImageUploading(false)
@@ -116,7 +151,6 @@ export default function ShopDocumentsPage() {
     setAadharPreview(URL.createObjectURL(file))
     setAadharUrl('')
     setError('')
-
     setAadharUploading(true)
     uploadToStorage(file, 'shop-documents', 'aadhar').then(url => {
       setAadharUploading(false)
@@ -124,31 +158,37 @@ export default function ShopDocumentsPage() {
     })
   }
 
+  // suppress unused-var lint for file state (kept for future use)
+  void shopImageFile
+  void aadharFile
+
   // ── Submit ──────────────────────────────────────────────────────────────────
   async function submit() {
     setError('')
     if (!shopName.trim()) { setError('Please enter your shop name.'); return }
     if (!ownerName.trim()) { setError('Please enter the owner name.'); return }
     if (!category) { setError('Please select a shop category.'); return }
+    if (latitude === null || longitude === null) {
+      setError('Please capture your shop GPS location before submitting.')
+      return
+    }
     if (!shopImageUrl) { setError(shopImageUploading ? 'Shop image still uploading. Please wait.' : 'Please upload a photo of your shop.'); return }
     if (!aadharUrl) { setError(aadharUploading ? 'Aadhaar still uploading. Please wait.' : 'Please upload your Aadhaar card.'); return }
 
     setSaving(true)
 
-    // Server action — bypasses RLS, creates shop_documents + pending shop in one call
     const result = await submitShopkeeperDocuments({
       shopPhotoUrl: shopImageUrl,
       aadharUrl,
       shopName: shopName.trim(),
       ownerName: ownerName.trim(),
       category,
+      latitude,
+      longitude,
     })
 
     if (result.error) {
-      if (result.error === 'already_submitted') {
-        router.replace('/login/status')
-        return
-      }
+      if (result.error === 'already_submitted') { router.replace('/login/status'); return }
       setError('Failed to submit: ' + result.error)
       setSaving(false)
       return
@@ -203,6 +243,7 @@ export default function ShopDocumentsPage() {
     display: 'block', fontSize: '0.82rem', fontWeight: 700,
     color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em'
   }
+  const gpsConfirmed = latitude !== null && longitude !== null
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: 40 }}>
@@ -215,76 +256,110 @@ export default function ShopDocumentsPage() {
 
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
 
-        {/* ── Shop Info Section ────────────────────────────────────────────── */}
+        {/* ── Shop Info ─────────────────────────────────────────────────────── */}
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 20, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>📋</span>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px' }}>📋</span>
             Shop Information
           </h3>
-
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Shop Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Raju General Store"
-              value={shopName}
-              onChange={e => setShopName(e.target.value)}
-              style={inputStyle}
-            />
+            <input type="text" placeholder="e.g. Raju General Store" value={shopName} onChange={e => setShopName(e.target.value)} style={inputStyle} />
           </div>
-
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Owner Name *</label>
-            <input
-              type="text"
-              placeholder="Your full name"
-              value={ownerName}
-              onChange={e => setOwnerName(e.target.value)}
-              style={inputStyle}
-            />
+            <input type="text" placeholder="Your full name" value={ownerName} onChange={e => setOwnerName(e.target.value)} style={inputStyle} />
           </div>
-
           <div style={{ marginBottom: 4 }}>
             <label style={labelStyle}>Shop Category *</label>
-            <select
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              style={{ ...inputStyle, color: category ? '#0f172a' : '#94a3b8' }}
-            >
+            <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inputStyle, color: category ? '#0f172a' : '#94a3b8' }}>
               <option value="" disabled>Select category...</option>
               {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
 
-        {/* ── Shop Photo Section ───────────────────────────────────────────── */}
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+        {/* ── GPS Location ──────────────────────────────────────────────────── */}
+        <div style={{
+          background: 'white', borderRadius: 16, padding: 20, marginTop: 16,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+          border: `1.5px solid ${gpsConfirmed ? '#22c55e' : '#f1f5f9'}`
+        }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>📸</span>
-            Shop Photo *
+            <span style={{ background: '#f0fdf4', borderRadius: 8, padding: '4px 8px' }}>📍</span>
+            Shop Location *
           </h3>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>
-            Take a clear photo of your shop with the shop name board visible. Max 5MB.
+          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 16, lineHeight: 1.55 }}>
+            Stand inside or directly in front of your shop, then tap the button below to capture your exact location. This helps customers find your shop on the map.
           </p>
 
+          <button
+            type="button"
+            onClick={captureGPS}
+            disabled={gpsLoading}
+            style={{
+              width: '100%', padding: '14px 16px',
+              background: gpsConfirmed ? 'linear-gradient(135deg,#22c55e,#16a34a)' : gpsLoading ? '#94a3b8' : 'linear-gradient(135deg,#f97316,#ea580c)',
+              color: 'white', border: 'none', borderRadius: 12,
+              fontSize: '0.95rem', fontWeight: 700,
+              cursor: gpsLoading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              boxShadow: gpsLoading ? 'none' : '0 4px 12px rgba(0,0,0,0.15)',
+              transition: 'background 0.2s ease'
+            }}
+          >
+            {gpsLoading ? (
+              <>
+                <span style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.35)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                Getting your location…
+              </>
+            ) : gpsConfirmed ? (
+              '✅ Location Captured — Tap to Recapture'
+            ) : (
+              '📍 Capture My Shop Location'
+            )}
+          </button>
+
+          {gpsConfirmed && (
+            <div style={{ marginTop: 14, background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ fontWeight: 700, color: '#16a34a', fontSize: '0.85rem', marginBottom: 6 }}>✅ Location captured successfully</div>
+              <div style={{ fontSize: '0.77rem', color: '#475569', fontFamily: 'monospace', marginBottom: 8 }}>
+                Lat: {latitude!.toFixed(6)} &nbsp;|&nbsp; Lng: {longitude!.toFixed(6)}
+              </div>
+              <a
+                href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.78rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+              >
+                🗺️ Verify on Google Maps →
+              </a>
+            </div>
+          )}
+
+          {gpsError && (
+            <div style={{ marginTop: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 14px', fontSize: '0.82rem', color: '#dc2626', fontWeight: 600 }}>
+              ⚠️ {gpsError}
+            </div>
+          )}
+        </div>
+
+        {/* ── Shop Photo ────────────────────────────────────────────────────── */}
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px' }}>📸</span>
+            Shop Photo *
+          </h3>
+          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>Take a clear photo of your shop with the shop name board visible. Max 5MB.</p>
           <label style={{ display: 'block', cursor: 'pointer' }}>
             <input type="file" accept="image/*" onChange={handleShopImageSelect} style={{ display: 'none' }} />
-            <div style={{
-              border: `2px dashed ${shopImageUrl ? '#22c55e' : '#e2e8f0'}`,
-              borderRadius: 12, padding: shopImagePreview ? 8 : 28,
-              textAlign: 'center',
-              background: shopImageUrl ? '#f0fdf4' : shopImagePreview ? '#fefce8' : '#f8fafc'
-            }}>
+            <div style={{ border: `2px dashed ${shopImageUrl ? '#22c55e' : '#e2e8f0'}`, borderRadius: 12, padding: shopImagePreview ? 8 : 28, textAlign: 'center', background: shopImageUrl ? '#f0fdf4' : shopImagePreview ? '#fefce8' : '#f8fafc' }}>
               {shopImagePreview ? (
                 <div>
                   <img src={shopImagePreview} alt="Shop" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
-                  {shopImageUploading ? (
-                    <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
-                  ) : shopImageUrl ? (
-                    <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
-                  ) : (
-                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>
-                  )}
+                  {shopImageUploading ? <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
+                    : shopImageUrl ? <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
+                    : <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>}
                 </div>
               ) : (
                 <div>
@@ -297,34 +372,22 @@ export default function ShopDocumentsPage() {
           </label>
         </div>
 
-        {/* ── Aadhaar Section ──────────────────────────────────────────────── */}
+        {/* ── Aadhaar ───────────────────────────────────────────────────────── */}
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px', fontSize: '0.9rem' }}>🪪</span>
+            <span style={{ background: '#fff7ed', borderRadius: 8, padding: '4px 8px' }}>🪪</span>
             Aadhaar Card *
           </h3>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>
-            Upload a clear photo of your Aadhaar card (front side). Max 5MB.
-          </p>
-
+          <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 14 }}>Upload a clear photo of your Aadhaar card (front side). Max 5MB.</p>
           <label style={{ display: 'block', cursor: 'pointer' }}>
             <input type="file" accept="image/*" onChange={handleAadharSelect} style={{ display: 'none' }} />
-            <div style={{
-              border: `2px dashed ${aadharUrl ? '#22c55e' : '#e2e8f0'}`,
-              borderRadius: 12, padding: aadharPreview ? 8 : 28,
-              textAlign: 'center',
-              background: aadharUrl ? '#f0fdf4' : aadharPreview ? '#fefce8' : '#f8fafc'
-            }}>
+            <div style={{ border: `2px dashed ${aadharUrl ? '#22c55e' : '#e2e8f0'}`, borderRadius: 12, padding: aadharPreview ? 8 : 28, textAlign: 'center', background: aadharUrl ? '#f0fdf4' : aadharPreview ? '#fefce8' : '#f8fafc' }}>
               {aadharPreview ? (
                 <div>
                   <img src={aadharPreview} alt="Aadhaar" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
-                  {aadharUploading ? (
-                    <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
-                  ) : aadharUrl ? (
-                    <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
-                  ) : (
-                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>
-                  )}
+                  {aadharUploading ? <div style={{ color: '#f97316', fontSize: '0.82rem', fontWeight: 600 }}>⏳ Uploading...</div>
+                    : aadharUrl ? <div style={{ color: '#16a34a', fontSize: '0.82rem', fontWeight: 600 }}>✅ Uploaded — tap to change</div>
+                    : <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600 }}>❌ Upload failed — tap to retry</div>}
                 </div>
               ) : (
                 <div>
@@ -337,7 +400,7 @@ export default function ShopDocumentsPage() {
           </label>
         </div>
 
-        {/* ── Error & Submit ───────────────────────────────────────────────── */}
+        {/* ── Error & Submit ────────────────────────────────────────────────── */}
         {error && (
           <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, color: '#dc2626', fontSize: '0.88rem', fontWeight: 600, marginTop: 16 }}>
             ⚠️ {error}
@@ -364,6 +427,8 @@ export default function ShopDocumentsPage() {
           You will receive a notification once approved.
         </p>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

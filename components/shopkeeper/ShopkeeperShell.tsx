@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
 import { usePushNotifications } from '@/lib/usePushNotifications'
+import ShopLocationBar from '@/components/shared/ShopLocationBar'
 
 const navItems = [
   { href: '/shopkeeper', icon: '📊', label: 'Dashboard' },
@@ -53,6 +54,7 @@ export default function ShopkeeperShell({ children }: { children: React.ReactNod
           </div>
           <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#dc2626', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>Logout →</button>
         </div>
+        <ShopLocationBar />
         <div className="sk-page-wrap">{children}</div>
       </div>
 

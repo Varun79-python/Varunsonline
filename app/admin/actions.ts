@@ -102,6 +102,8 @@ export async function submitShopkeeperDocuments(payload: {
   shopName: string
   ownerName: string
   category: string
+  latitude?: number | null
+  longitude?: number | null
 }) {
   try {
     const user = await getCurrentUser()
@@ -145,6 +147,10 @@ export async function submitShopkeeperDocuments(payload: {
         is_approved: false,
         is_active: false,
         is_open: false,
+        ...(payload.latitude != null && payload.longitude != null ? {
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+        } : {}),
       })
       if (shopErr) return { error: shopErr.message }
     }

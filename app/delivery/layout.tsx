@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
 import { usePushNotifications } from '@/lib/usePushNotifications'
+import AgentLiveLocationBar from '@/components/shared/AgentLiveLocationBar'
 
 const navItems = [
   { href: '/delivery', icon: '📊', label: 'Dashboard' },
@@ -71,17 +72,18 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
     <div className="app-layout">
       <Sidebar navItems={navItems} brandIcon="🛵" brand="Delivery" />
       <div className="main-content">
-        <div className="topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: '1.4rem' }}>🛵</span>
-            <div>
-              <div style={{ fontWeight: 700, lineHeight: 1.2 }}>Delivery Partner</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agentName}</div>
+          <div className="topbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: '1.4rem' }}>🛵</span>
+              <div>
+                <div style={{ fontWeight: 700, lineHeight: 1.2 }}>Delivery Partner</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{agentName}</div>
+              </div>
             </div>
+            <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#dc2626', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>Logout →</button>
           </div>
-          <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#dc2626', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>Logout →</button>
-        </div>
-        <div className="dl-page-wrap">{children}</div>
+          <AgentLiveLocationBar />
+          <div className="dl-page-wrap">{children}</div>
       </div>
 
 {/* Mobile bottom nav */}
