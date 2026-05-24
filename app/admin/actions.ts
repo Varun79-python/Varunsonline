@@ -75,6 +75,31 @@ export async function checkShopkeeperStatus() {
   }
 }
 
+// ── Bypasses RLS: checks real approval status for current delivery agent ──────
+export async function checkDeliveryAgentStatus() {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { status: 'no_user' }
+
+    // Use admin client — delivery_agents table may have RLS blocking anon reads
+    const supabase = await createAdminClient()
+
+    const { data: agent } = await supabase
+      .from('delivery_agents')
+      .select('is_approved, is_active, aadhar_url, rejection_reason')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!agent) return { status: 'no_profile' }
+    if (agent.is_approved && agent.is_active) return { status: 'approved' }
+    if (agent.rejection_reason) return { status: 'rejected', reason: agent.rejection_reason }
+    if (!agent.aadhar_url) return { status: 'no_documents' }
+    return { status: 'pending' }
+  } catch (err: unknown) {
+    return { status: 'error', error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 // ── Bypasses RLS: fetches full shop data for the current shopkeeper ────────────
 export async function getShopkeeperShopData() {
   try {

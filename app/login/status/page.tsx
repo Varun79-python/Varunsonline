@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { checkShopkeeperStatus } from '@/app/admin/actions'
+import { checkShopkeeperStatus, checkDeliveryAgentStatus } from '@/app/admin/actions'
 
 export default function ApprovalStatusPage() {
   const router = useRouter()
@@ -108,15 +108,26 @@ export default function ApprovalStatusPage() {
       setLoading(false)
 
     } else if (profile.role === 'delivery_agent') {
-      const { data: agent } = await supabase
-        .from('delivery_agents')
-        .select('is_approved, is_active, aadhar_url, rejection_reason')
-        .eq('id', user.id)
-        .maybeSingle()
-
+      // ✅ Use server action — bypasses RLS on delivery_agents table
+      const result = await checkDeliveryAgentStatus()
       if (!mountedRef.current) return
 
-      if (!agent) {
+      if (result.status === 'approved') {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        window.location.href = '/delivery'
+        return
+      }
+
+      if (result.status === 'rejected') {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        setIsRejected(true)
+        setIcon('❌')
+        setMessage('Registration rejected: ' + (result.reason || 'Please contact support.'))
+        setLoading(false)
+        return
+      }
+
+      if (result.status === 'no_profile') {
         if (pollingRef.current) clearInterval(pollingRef.current)
         setNeedsDocs(true)
         setIcon('📋')
@@ -125,25 +136,7 @@ export default function ApprovalStatusPage() {
         return
       }
 
-      // ✅ Approved and active → go to dashboard
-      if (agent.is_approved && agent.is_active) {
-        if (pollingRef.current) clearInterval(pollingRef.current)
-        window.location.href = '/delivery'
-        return
-      }
-
-      // Rejected
-      if (agent.rejection_reason) {
-        if (pollingRef.current) clearInterval(pollingRef.current)
-        setIsRejected(true)
-        setIcon('❌')
-        setMessage('Registration rejected: ' + agent.rejection_reason)
-        setLoading(false)
-        return
-      }
-
-      // No Aadhaar doc uploaded yet
-      if (!agent.aadhar_url) {
+      if (result.status === 'no_documents') {
         if (pollingRef.current) clearInterval(pollingRef.current)
         setNeedsDocs(true)
         setIcon('📋')
@@ -152,9 +145,9 @@ export default function ApprovalStatusPage() {
         return
       }
 
-      // Pending approval
+      // Pending
       setIcon('⏳')
-      setMessage('Your agent registration is pending admin approval. You will be redirected automatically once approved.')
+      setMessage("Your agent registration is pending admin approval. You'll be redirected automatically once approved.")
       setLoading(false)
     } else {
       if (pollingRef.current) clearInterval(pollingRef.current)
