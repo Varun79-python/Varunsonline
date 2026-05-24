@@ -1,8 +1,12 @@
 /**
  * lib/order-calculations.ts
- * Server-side only — shared order pricing logic.
- * Mirrors the same calculation in /api/orders/secure-place/route.ts.
+ * Server-side only — SHARED order pricing logic (single source of truth).
+ * ALL order creation/modification paths MUST use recalcOrder() for financial fields.
  * DO NOT import this on the client — it uses service-role patterns.
+ *
+ * adminEarning formula:
+ *   platform_fee + delivery_commission - coupon_discount
+ *   where delivery_commission = delivery_charge - agent_earning (20% of delivery_charge)
  */
 import { createServiceClient } from '@/lib/authMiddleware'
 
@@ -68,7 +72,8 @@ export function recalcOrder(
   const platformFee = Math.round((subtotal * platformFeePercent) / 100)
   const totalAmount = Math.max(0, subtotal + deliveryCharge + platformFee - existingDiscount)
   const agentEarning = Math.round(deliveryCharge * 0.8)
-  const adminEarning = platformFee + (deliveryCharge - agentEarning)
+  // adminEarning = platform_fee + delivery_commission - coupon_discount
+  const adminEarning = platformFee + (deliveryCharge - agentEarning) - existingDiscount
   // Shopkeeper earns the subtotal (before platform fee; platform fee deducted separately)
   const shopkeeperEarning = subtotal
 

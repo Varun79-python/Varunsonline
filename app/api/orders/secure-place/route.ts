@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
+import { recalcOrder } from '@/lib/order-calculations'
 
 function createServiceClient() {
   return createClient(
@@ -194,9 +195,6 @@ export async function POST(req: NextRequest) {
       deliveryCharge = baseDeliveryCharge + Math.ceil(distance) * perKmCharge
     }
 
-    // Calculate platform fee
-    const platformFee = Math.round((subtotal * platformFeePercent) / 100)
-
     // Validate coupon if provided
     let couponDiscount = 0
     if (couponCode) {
@@ -224,12 +222,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Calculate total
-    const total = Math.max(0, subtotal + deliveryCharge + platformFee - couponDiscount)
-
-    // Calculate earnings split
-    const agentEarning = Math.round(deliveryCharge * 0.8)
-    const adminEarning = platformFee + (deliveryCharge - agentEarning) - couponDiscount
+    // Calculate all financials using shared logic (single source of truth)
+    const financials = recalcOrder(subtotal, deliveryCharge, platformFeePercent, couponDiscount)
+    const total = financials.totalAmount
 
     // Create order
     const { data: order, error: orderErr } = await supabase
@@ -242,13 +237,13 @@ export async function POST(req: NextRequest) {
         payment_method: paymentMethod,
         payment_status: paymentMethod === 'cod' ? 'pending' : 'pending',
         subtotal,
-        platform_fee: platformFee,
+        platform_fee: financials.platformFee,
         delivery_charge: deliveryCharge,
         discount_amount: couponDiscount,
         total_amount: total,
-        shopkeeper_earning: subtotal,
-        agent_earning: agentEarning,
-        admin_earning: adminEarning,
+        shopkeeper_earning: financials.shopkeeperEarning,
+        agent_earning: financials.agentEarning,
+        admin_earning: financials.adminEarning,
         coupon_code: couponCode || null,
       })
       .select()
@@ -304,8 +299,9 @@ export async function POST(req: NextRequest) {
       totalAmount: total,
       subtotal,
       deliveryCharge,
-      platformFee,
+      platformFee: financials.platformFee,
       couponDiscount,
+      adminEarning: financials.adminEarning,
     })
   } catch (err) {
     logger.error('secure-place failed', {

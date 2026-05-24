@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
   // 1. Find all expired active subscriptions (fixed_monthly only — percentage never expires)
   const { data: expiredSubs, error: fetchErr } = await supabase
     .from('shop_subscriptions')
-    .select('id, shop_id, plan_id, expires_at, subscription_plans(plan_type)')
+    .select('id, shop_id, plan_id, end_date, subscription_plans(plan_type)')
     .eq('is_active', true)
-    .not('expires_at', 'is', null)
-    .lt('expires_at', now)
+    .not('end_date', 'is', null)
+    .lt('end_date', now)
 
   if (fetchErr) {
     console.error('Cron: fetch expired subs error:', fetchErr)

@@ -16,6 +16,7 @@ const navItems = [
   { href: '/admin/coupons', icon: '🏷️', label: 'Coupons' },
   { href: '/admin/complaints', icon: '🎫', label: 'Tickets' },
   { href: '/admin/settings', icon: '⚙️', label: 'Settings' },
+  { href: '/admin/revenue', icon: '💎', label: 'Revenue' },
 ]
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL

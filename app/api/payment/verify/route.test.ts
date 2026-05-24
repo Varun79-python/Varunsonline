@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createHmac } from 'node:crypto'
+import { NextRequest } from 'next/server'
 import { POST } from './route'
 import { haversineKm, recalcOrder } from '@/lib/order-calculations'
 
@@ -37,7 +38,7 @@ describe('POST /api/payment/verify', () => {
       .update(`${orderId}|${paymentId}`)
       .digest('hex')
 
-    const req = new Request('http://localhost/api/payment/verify', {
+    const req = new NextRequest('http://localhost/api/payment/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -47,7 +48,7 @@ describe('POST /api/payment/verify', () => {
       }),
     })
 
-    const res = await POST(req as Request)
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -55,7 +56,7 @@ describe('POST /api/payment/verify', () => {
   })
 
   it('rejects an invalid signature with 400', async () => {
-    const req = new Request('http://localhost/api/payment/verify', {
+    const req = new NextRequest('http://localhost/api/payment/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -65,7 +66,7 @@ describe('POST /api/payment/verify', () => {
       }),
     })
 
-    const res = await POST(req as Request)
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(400)
@@ -81,7 +82,7 @@ describe('POST /api/payment/verify', () => {
       .update(`${orderId}|${paymentId}`)
       .digest('hex')
 
-    const req = new Request('http://localhost/api/payment/verify', {
+    const req = new NextRequest('http://localhost/api/payment/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -91,18 +92,18 @@ describe('POST /api/payment/verify', () => {
       }),
     })
 
-    const res = await POST(req as Request)
+    const res = await POST(req)
     expect(res.status).toBe(400)
   })
 
   it('rejects missing verification fields with 400', async () => {
-    const req = new Request('http://localhost/api/payment/verify', {
+    const req = new NextRequest('http://localhost/api/payment/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ razorpay_order_id: 'order_abc' }),
     })
 
-    const res = await POST(req as Request)
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(400)
@@ -113,7 +114,7 @@ describe('POST /api/payment/verify', () => {
     const originalSecret = process.env.RAZORPAY_KEY_SECRET
     delete process.env.RAZORPAY_KEY_SECRET
 
-    const req = new Request('http://localhost/api/payment/verify', {
+    const req = new NextRequest('http://localhost/api/payment/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -123,7 +124,7 @@ describe('POST /api/payment/verify', () => {
       }),
     })
 
-    const res = await POST(req as Request)
+    const res = await POST(req)
     expect(res.status).toBe(500)
 
     // Restore for subsequent tests

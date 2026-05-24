@@ -93,10 +93,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_subscriptions_razorpay_payment_id
   ON shop_subscriptions (razorpay_payment_id)
   WHERE razorpay_payment_id IS NOT NULL;
 
--- For cron job: .eq('is_active',true).lt('expires_at', now)
-CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_active_expires
-  ON shop_subscriptions (expires_at)
-  WHERE is_active = true AND expires_at IS NOT NULL;
+-- For cron job: .eq('is_active',true).lt('end_date', now)
+CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_active_end_date
+  ON shop_subscriptions (end_date)
+  WHERE is_active = true AND end_date IS NOT NULL;
 
 -- ──────────────────────────────────────────────
 -- order_items table

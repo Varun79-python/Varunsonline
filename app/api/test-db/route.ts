@@ -7,15 +7,21 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const { data, error } = await supabaseAdmin.from('shop_documents').select('*').limit(1)
     
-    // Also test the join
-    const { data: joinData, error: joinError } = await supabaseAdmin
-      .from('shop_documents')
-      .select('id, profiles(full_name)')
-      .limit(1)
+    // Sample a few rows from shop_subscriptions to see columns
+    const { data: subData, error: subError } = await supabaseAdmin.from('shop_subscriptions').select('*').limit(1)
+    
+    // Sample from subscription_plans
+    const { data: planData, error: planError } = await supabaseAdmin.from('subscription_plans').select('*').limit(1)
 
-    return NextResponse.json({ data, error, joinData, joinError })
+    // Sample from orders
+    const { data: orderData, error: orderError } = await supabaseAdmin.from('orders').select('*').limit(1)
+
+    return NextResponse.json({
+      shop_subscriptions: { data: subData, error: subError },
+      subscription_plans: { data: planData, error: planError },
+      orders: { data: orderData, error: orderError }
+    })
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) })
   }

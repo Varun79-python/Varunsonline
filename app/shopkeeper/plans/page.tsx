@@ -12,7 +12,7 @@ interface Plan {
 
 interface ShopSub {
   id: string; plan_id: string; is_active: boolean
-  starts_at: string; expires_at: string; payment_status: string
+  start_date: string; end_date: string; payment_status: string
   subscription_plans: { name: string; plan_type: string; monthly_fee: number; fee_percent: number }
 }
 
@@ -48,7 +48,7 @@ export default function ShopkeeperPlans() {
 
       const { data: shop } = await supabase
         .from('shops')
-        .select('id, subscription_plan_id, subscription_expires_at, is_approved, is_active')
+        .select('id, subscription_plan_id, subscription_end_date, is_approved, is_active')
         .eq('owner_id', user.id).maybeSingle()
       if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
       setShopId(shop.id)
@@ -87,12 +87,12 @@ export default function ShopkeeperPlans() {
     await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopId!).eq('is_active', true)
     await supabase.from('shop_subscriptions').insert({
       shop_id: shopId, plan_id: plan.id, payment_status: 'paid',
-      starts_at: now.toISOString(), expires_at: expiresAt, is_active: true
+      start_date: now.toISOString(), end_date: expiresAt, is_active: true
     })
     await supabase.from('shops').update({
       is_active: true, subscription_plan_id: plan.id,
       subscription_fee_percent: plan.plan_type === 'percentage' ? plan.fee_percent : 0,
-      subscription_expires_at: expiresAt
+      subscription_end_date: expiresAt
     }).eq('id', shopId)
     const successMsg = plan.plan_type === 'percentage'
       ? `✅ Activated! ${plan.fee_percent}% auto-deducted from each order. Shop is now live!`
@@ -173,7 +173,7 @@ export default function ShopkeeperPlans() {
     </div>
   )
 
-  const expiresAt = activeSub?.expires_at ? new Date(activeSub.expires_at) : null
+  const expiresAt = activeSub?.end_date ? new Date(activeSub.end_date) : null
   const daysLeft = expiresAt && nowTime > 0 ? Math.ceil((expiresAt.getTime() - nowTime) / 86400000) : null
   const isPercentagePlan = activeSub?.subscription_plans?.plan_type === 'percentage'
 

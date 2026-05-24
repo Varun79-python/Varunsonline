@@ -5,7 +5,7 @@ import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useOrderAlert } from '@/lib/useOrderAlert'
 import { getShopkeeperShopData } from '@/app/admin/actions'
 
-interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_expires_at?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
+interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_end_date?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }
 interface OrderItem { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; product_image_url: string }
 interface Order {
   id: string; order_number: string; status: string; total_amount: number
@@ -109,8 +109,8 @@ export default function ShopkeeperDashboard() {
 
       // ── Subscription Expiry Check ──────────────────────────────
       // Check if fixed_monthly plan has expired; if so, deactivate shop instantly
-      if (shopData.subscription_expires_at) {
-        const expiry = new Date(shopData.subscription_expires_at)
+      if (shopData.subscription_end_date) {
+        const expiry = new Date(shopData.subscription_end_date)
         if (expiry < new Date() && shopData.is_active) {
           await supabase.from('shops').update({ is_active: false, subscription_plan_id: null, subscription_fee_percent: 0 }).eq('id', shopData.id)
           await supabase.from('shop_subscriptions').update({ is_active: false }).eq('shop_id', shopData.id).eq('is_active', true)
@@ -356,7 +356,7 @@ export default function ShopkeeperDashboard() {
 
       {/* Subscription Status Banner */}
       {(() => {
-        const expiresAt = shop?.subscription_expires_at
+        const expiresAt = shop?.subscription_end_date
         if (!expiresAt) {
           // No plan or percentage plan — show warning if not active
           if (!shop?.is_active) {

@@ -273,7 +273,7 @@ export async function getAdminStats() {
   const supabase = await createAdminClient()
   const today = new Date().toISOString().split('T')[0]
   
-  const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders, complaints] = await Promise.all([
+  const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders, complaints, totalRevData, subRevData] = await Promise.all([
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', true),
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', true),
@@ -283,11 +283,23 @@ export async function getAdminStats() {
     supabase.from('orders').select('id,admin_earning', { count: 'exact' }).gte('created_at', today).eq('payment_status', 'paid'),
     supabase.from('withdraw_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('orders').select('*, shops(name)').order('created_at', { ascending: false }).limit(8),
-    supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+    supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    // Order-based revenue: admin_earning = platform_fee + delivery_commission - coupon_discount (already embedded)
+    supabase.from('orders').select('admin_earning').eq('status', 'delivered'),
+    // Subscription revenue: use amount_paid (actual money received from Razorpay)
+    supabase.from('shop_subscriptions')
+      .select('amount_paid')
+      .eq('payment_status', 'paid')
   ])
 
   const todayRev = (todayOrds.data || []).reduce((s: number, o: { admin_earning: number }) => s + (o.admin_earning || 0), 0)
-  
+  const orderRev = (totalRevData.data || []).reduce((s: number, o: { admin_earning: number }) => s + (o.admin_earning || 0), 0)
+  // Use amount_paid — the actual money received, not plan config price
+  const subRev = (subRevData.data || []).reduce((s: number, row: { amount_paid: number | null }) => {
+    return s + (Number(row.amount_paid) || 0)
+  }, 0)
+  const totalRev = orderRev + subRev
+
   return {
     stats: {
       shops: shops.count || 0,
@@ -298,7 +310,7 @@ export async function getAdminStats() {
       orders: orders.count || 0,
       todayOrders: todayOrds.count || 0,
       todayRevenue: todayRev,
-      totalRevenue: 0,
+      totalRevenue: totalRev,
       pendingWithdrawals: withdrawals.count || 0,
       complaints: complaints.count || 0
     },

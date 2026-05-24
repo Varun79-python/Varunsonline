@@ -12,7 +12,11 @@ interface RecentOrder {
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0, customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, pendingWithdrawals: 0, complaints: 0 })
+  const [stats, setStats] = useState({
+    shops: 0, pendingShops: 0, agents: 0, pendingAgents: 0,
+    customers: 0, orders: 0, todayOrders: 0, todayRevenue: 0,
+    totalRevenue: 0, pendingWithdrawals: 0, complaints: 0
+  })
   const [loading, setLoading] = useState(true)
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
@@ -41,7 +45,12 @@ export default function AdminDashboard() {
     { icon: '🎫', label: 'Complaints', value: stats.complaints, sub: 'open tickets', color: '#f59e0b', bg: '#fffbeb', href: '/admin/complaints' },
   ]
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto', animation: 'spin 0.8s linear infinite' }} /></div>
+  if (loading) return (
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
@@ -54,7 +63,7 @@ export default function AdminDashboard() {
       out_for_delivery: { bg: '#dcfce7', text: '#16a34a' },
     }
     const c = colors[status] || { bg: '#f1f5f9', text: '#64748b' }
-    return <span style={{ background: c.bg, color: c.text, fontSize: '0.65rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{status.replace('_', ' ')}</span>
+    return <span style={{ background: c.bg, color: c.text, fontSize: '0.65rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{status.replace(/_/g, ' ')}</span>
   }
 
   return (
@@ -77,6 +86,25 @@ export default function AdminDashboard() {
             </div>
           </a>
         ))}
+
+        {/* 💎 Total Revenue Card — links to full analytics page */}
+        <a href="/admin/revenue" style={{ textDecoration: 'none' }}>
+          <div className="stat-card" style={{
+            background: 'linear-gradient(135deg, #fdf4ff 0%, #f5f3ff 100%)',
+            border: '1.5px solid #e9d5ff',
+            position: 'relative', overflow: 'hidden'
+          }}>
+            <div style={{ position: 'absolute', top: -10, right: -10, width: 60, height: 60, background: 'radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%)', borderRadius: '50%' }} />
+            <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>💎</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#7c3aed' }}>
+              ₹{stats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Total Revenue</div>
+            <div style={{ fontSize: '0.7rem', color: '#a855f7', marginTop: 4, fontWeight: 600 }}>
+              Tap for analytics ↗
+            </div>
+          </div>
+        </a>
       </div>
 
       {/* Quick Actions */}
@@ -128,18 +156,15 @@ export default function AdminDashboard() {
         .dashboard-container { max-width: 1400px; margin: 0 auto; }
         .dashboard-header { margin-bottom: 24px; }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
-        .stat-card { border-radius: 16px; padding: 20px; text-align: center; border: 1px solid; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card { border-radius: 16px; padding: 20px; text-align: center; border: 1px solid; transition: transform 0.2s ease, box-shadow 0.2s ease; height: 100%; box-sizing: border-box; }
         .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
-        
-        @media (max-width: 1200px) {
-          .stats-grid { grid-template-columns: repeat(3, 1fr); }
-        }
+        @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px) {
           .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
           .stat-card { padding: 14px 10px; }
           .dashboard-container { padding: 0; }
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
     </div>
   )
