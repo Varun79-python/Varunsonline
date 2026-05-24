@@ -1,12 +1,13 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { checkShopkeeperStatus } from '@/app/admin/actions'
 
 export default function ApprovalStatusPage() {
   const router = useRouter()
-  const supabase = createClient()
+  // Memoize supabase so it doesn't change identity on every render (prevents infinite polling loop)
+  const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [icon, setIcon] = useState('⏳')
@@ -109,23 +110,29 @@ export default function ApprovalStatusPage() {
     } else if (profile.role === 'delivery_agent') {
       const { data: agent } = await supabase
         .from('delivery_agents')
-        .select('is_approved, is_active, rejection_reason')
+        .select('is_approved, is_active, aadhar_url, rejection_reason')
         .eq('id', user.id)
         .maybeSingle()
 
       if (!mountedRef.current) return
 
       if (!agent) {
+        if (pollingRef.current) clearInterval(pollingRef.current)
         setNeedsDocs(true)
-        setMessage('No agent profile found. Please complete registration.')
+        setIcon('📋')
+        setMessage('No agent profile found. Please complete your registration.')
         setLoading(false)
         return
       }
+
+      // ✅ Approved and active → go to dashboard
       if (agent.is_approved && agent.is_active) {
         if (pollingRef.current) clearInterval(pollingRef.current)
         window.location.href = '/delivery'
         return
       }
+
+      // Rejected
       if (agent.rejection_reason) {
         if (pollingRef.current) clearInterval(pollingRef.current)
         setIsRejected(true)
@@ -134,8 +141,20 @@ export default function ApprovalStatusPage() {
         setLoading(false)
         return
       }
+
+      // No Aadhaar doc uploaded yet
+      if (!agent.aadhar_url) {
+        if (pollingRef.current) clearInterval(pollingRef.current)
+        setNeedsDocs(true)
+        setIcon('📋')
+        setMessage('Please upload your Aadhaar document to complete registration.')
+        setLoading(false)
+        return
+      }
+
+      // Pending approval
       setIcon('⏳')
-      setMessage('Your agent registration is pending admin approval.')
+      setMessage('Your agent registration is pending admin approval. You will be redirected automatically once approved.')
       setLoading(false)
     } else {
       if (pollingRef.current) clearInterval(pollingRef.current)

@@ -133,31 +133,57 @@ export default function DeliveryRegisterPage() {
     
     try {
       let userId = ''
-      
+
       if (!isExistingAuth) {
+        // New user — create Supabase auth account
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: form.email.trim(),
           password: form.password,
           options: { data: { full_name: form.full_name.trim(), role: 'delivery_agent' } }
         })
-        
+
         if (signUpError) {
           if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            setFormError('An account with this email already exists. Please login.')
+            // Account exists — try to sign in with given password so we get a session
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            })
+            if (signInError || !signInData.user) {
+              setFormError('An account with this email already exists. Please login with your existing password.')
+              setSaving(false)
+              return
+            }
+            userId = signInData.user.id
+          } else {
+            setFormError(signUpError.message)
             setSaving(false)
             return
           }
-          setFormError(signUpError.message); setSaving(false); return
-        }
+        } else {
+          if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
+          userId = signUpData.user.id
 
-        if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
-        userId = signUpData.user.id
+          // If signUp returned a session, we're logged in — otherwise sign in manually
+          if (!signUpData.session) {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            })
+            if (signInError || !signInData.user) {
+              setFormError('Account created but login failed. Please login manually.')
+              setSaving(false)
+              return
+            }
+          }
+        }
       } else {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { setFormError('Session expired. Please login again.'); setSaving(false); return }
         userId = user.id
       }
 
+      // Save to delivery_agents table
       const { error: agentError } = await supabase.from('delivery_agents').upsert({
         id: userId,
         full_name: form.full_name.trim(),
@@ -172,12 +198,18 @@ export default function DeliveryRegisterPage() {
       }, { onConflict: 'id' })
 
       if (agentError) { setFormError('Failed to submit: ' + agentError.message); setSaving(false); return }
-      
-      if (!isExistingAuth) {
-        setShowLoginPopup(true)
-      } else {
-        router.push('/login/delivery/register/documents')
-      }
+
+      // Save role to profiles table so the status page can identify role
+      await supabase.from('profiles').upsert({
+        id: userId,
+        full_name: form.full_name.trim(),
+        phone: form.phone.replace(/\D/g, ''),
+        email: form.email.trim(),
+        role: 'delivery_agent',
+      }, { onConflict: 'id' })
+
+      // Redirect to document upload (user is now logged in)
+      router.push('/login/delivery/register/documents')
     } catch (err: unknown) {
       setFormError('Error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {

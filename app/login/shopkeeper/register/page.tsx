@@ -120,7 +120,6 @@ export default function ShopRegisterPage() {
 
     try {
       let userId = ''
-      let needsLogin = false
 
       if (!isExistingAuth) {
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -131,34 +130,46 @@ export default function ShopRegisterPage() {
 
         if (signUpError) {
           if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            setError('An account with this email already exists. Please login.')
+            // Account exists — sign in with provided password
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            })
+            if (signInError || !signInData.user) {
+              setError('An account with this email already exists. Please login with your existing password.')
+              setSaving(false)
+              return
+            }
+            userId = signInData.user.id
+          } else {
+            setError('Registration failed: ' + signUpError.message)
             setSaving(false)
             return
           }
-          setError('Registration failed: ' + signUpError.message)
-          setSaving(false)
-          return
-        }
+        } else {
+          if (!signUpData.user) { setError('Failed to create account'); setSaving(false); return }
+          userId = signUpData.user.id
 
-        if (!signUpData.user) {
-          setError('Failed to create account')
-          setSaving(false)
-          return
+          // If no session returned, sign in manually to establish session
+          if (!signUpData.session) {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            })
+            if (signInError || !signInData.user) {
+              setError('Account created but login failed. Please login manually.')
+              setSaving(false)
+              return
+            }
+          }
         }
-        userId = signUpData.user.id
-        // If no session returned (email confirmation required), user needs to login first
-        needsLogin = !signUpData.session
       } else {
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setError('Session expired. Please login again.')
-          setSaving(false)
-          return
-        }
+        if (!user) { setError('Session expired. Please login again.'); setSaving(false); return }
         userId = user.id
       }
 
-      // Save profile only — shop is created by admin after document approval
+      // Save profile (role: shopkeeper) — shop created by admin after document approval
       await supabase.from('profiles').upsert({
         id: userId,
         full_name: form.full_name.trim(),
@@ -168,13 +179,8 @@ export default function ShopRegisterPage() {
         gender: form.gender,
       })
 
-      if (needsLogin) {
-        // Email confirmation or session not returned — show login popup
-        setShowLoginPopup(true)
-      } else {
-        // Already have session → go directly to document upload
-        router.push('/login/shopkeeper/register/documents')
-      }
+      // Always go directly to document upload (session is guaranteed above)
+      router.push('/login/shopkeeper/register/documents')
     } catch (err: unknown) {
       setError('Error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
