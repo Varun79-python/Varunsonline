@@ -47,8 +47,9 @@ export default function CustomerLoginPage() {
   
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '', gender: '' })
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', full_name: '', phone: '', gender: '' })
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [showReset, setShowReset] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
@@ -144,6 +145,12 @@ export default function CustomerLoginPage() {
     setError('')
 
     const input = form.email.trim()
+    
+    if (!isLogin) {
+      // Validate confirm password for registration
+      if (!form.confirmPassword.trim()) { setError('Please confirm your password'); setLoading(false); return }
+      if (form.password !== form.confirmPassword) { setError('Passwords do not match. Please re-enter.'); setLoading(false); return }
+    }
     
     if (isLogin) {
       const isPhone = /^\d{10,}$/.test(input)
@@ -298,6 +305,35 @@ export default function CustomerLoginPage() {
               </button>
             </div>
 
+          {!isLogin && (
+            <div style={{ paddingBottom: form.confirmPassword ? 22 : 0 }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm Password"
+                  value={form.confirmPassword}
+                  onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                  required
+                  style={{
+                    width: '100%', padding: '14px 16px', paddingRight: 44,
+                    borderRadius: 12,
+                    border: `1.5px solid ${form.confirmPassword && form.password !== form.confirmPassword ? '#ef4444' : form.confirmPassword && form.password === form.confirmPassword ? '#22c55e' : '#e2e8f0'}`,
+                    fontSize: '0.95rem', background: 'white', boxSizing: 'border-box'
+                  }}
+                />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  {showConfirmPassword ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                </button>
+              </div>
+              {form.confirmPassword && form.password !== form.confirmPassword && (
+                <div style={{ marginTop: 5, fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>⚠️ Passwords do not match</div>
+              )}
+              {form.confirmPassword && form.password === form.confirmPassword && (
+                <div style={{ marginTop: 5, fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>✅ Passwords match</div>
+              )}
+            </div>
+          )}
+
           {/* CAPTCHA for both login and register */}
           <CaptchaDisplay code={captcha} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -326,7 +362,7 @@ export default function CustomerLoginPage() {
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>{isLogin ? "Don't have an account?" : 'Already have an account?'} </span>
-          <button onClick={() => { setIsLogin(!isLogin); setError('') }} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{isLogin ? 'Register' : 'Login'}</button>
+          <button onClick={() => { setIsLogin(!isLogin); setError(''); setForm(f => ({ ...f, confirmPassword: '' })) }} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{isLogin ? 'Register' : 'Login'}</button>
         </div>
       </div>
 

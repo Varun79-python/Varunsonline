@@ -17,8 +17,11 @@ export default function ShopRegisterPage() {
     phone_number: '',
     email: '',
     password: '',
+    confirmPassword: '',
     gender: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [showTerms, setShowTerms] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
@@ -107,6 +110,8 @@ export default function ShopRegisterPage() {
     if (!form.email.trim()) { setError('Please enter Email'); return }
     if (!isExistingAuth && !form.password.trim()) { setError('Please enter Password'); return }
     if (!isExistingAuth && form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!isExistingAuth && !form.confirmPassword.trim()) { setError('Please confirm your password'); return }
+    if (!isExistingAuth && form.password !== form.confirmPassword) { setError('Passwords do not match. Please re-enter.'); return }
     if (!form.gender) { setError('Please select Gender'); return }
     if (!agreedToTerms) { setError('Please agree to Terms & Conditions'); return }
 
@@ -252,10 +257,54 @@ export default function ShopRegisterPage() {
           </div>
 
           {!isExistingAuth && (
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
-              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Create a password (min 6 chars)" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
-            </div>
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Create a password (min 6 chars)"
+                    style={{ width: '100%', padding: '12px 14px', paddingRight: 44, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    {showPassword
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Confirm Password *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={form.confirmPassword}
+                    onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    placeholder="Re-enter your password"
+                    style={{
+                      width: '100%', padding: '12px 14px', paddingRight: 44, borderRadius: 10,
+                      border: `1.5px solid ${form.confirmPassword && form.password !== form.confirmPassword ? '#ef4444' : form.confirmPassword && form.password === form.confirmPassword ? '#22c55e' : '#e2e8f0'}`,
+                      fontSize: '0.95rem', boxSizing: 'border-box'
+                    }}
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    {showConfirmPassword
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+                {form.confirmPassword && form.password !== form.confirmPassword && (
+                  <div style={{ marginTop: 5, fontSize: '0.78rem', color: '#ef4444', fontWeight: 600 }}>⚠️ Passwords do not match</div>
+                )}
+                {form.confirmPassword && form.password === form.confirmPassword && (
+                  <div style={{ marginTop: 5, fontSize: '0.78rem', color: '#22c55e', fontWeight: 600 }}>✅ Passwords match</div>
+                )}
+              </div>
+            </>
           )}
 
           <div style={{ marginBottom: 14 }}>
