@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 20 status updates per minute
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 20,
+      message: 'Too many status updates. Please slow down.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
     const auth = await verifyDeliveryAgent(req)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })

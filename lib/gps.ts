@@ -162,3 +162,29 @@ export function osmMapUrl(lat: number, lon: number, zoom = 17): string {
 export function googleMapsUrl(lat: number, lon: number): string {
   return `https://maps.google.com/?q=${lat},${lon}`
 }
+
+/**
+ * Haversine distance between two coordinates in km.
+ * Single source of truth — all other implementations should call this.
+ */
+export function haversineKm(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+/** Haversine distance in meters */
+export function haversineMeters(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  return haversineKm(lat1, lon1, lat2, lon2) * 1000
+}

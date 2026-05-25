@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { haversineKm } from '@/lib/gps'
 
 interface Shop {
   id: string; name: string; category: string; description: string
@@ -12,14 +13,6 @@ interface Shop {
   delivery_rating?: number | null
   total_ratings?: number | null
   is_open?: boolean | null
-}
-
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 const CATEGORIES = [
@@ -144,7 +137,7 @@ export default function CustomerHome() {
       const withDist = data.map((s: Shop) => ({
         ...s,
         distance: s.latitude != null && s.longitude != null
-          ? getDistance(lat, lon, s.latitude, s.longitude) : null
+          ? haversineKm(lat, lon, s.latitude, s.longitude) : null
       }))
       // Show shops within radius; if shop has no GPS coords, still show it (null distance = show)
       const inRange = withDist.filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)

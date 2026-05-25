@@ -5,9 +5,10 @@
 
 create table if not exists device_tokens (
   id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null references auth.users(id) on delete cascade,
+  user_id       uuid not null references public.profiles(id) on delete cascade,
   token         text not null,
   platform      text default 'android',   -- 'android' | 'ios'
+  is_active     boolean default true,
   created_at    timestamptz default now(),
   updated_at    timestamptz default now(),
   unique (user_id, token)                 -- prevent duplicate token rows

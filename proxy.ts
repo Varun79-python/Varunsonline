@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const requestHeaders = new Headers(request.headers)

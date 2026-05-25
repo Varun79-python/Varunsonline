@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
       // Handle order payment (mark order as payment_confirmed)
       if (notes.type === 'order' && notes.orderId) {
-        // secure-place creates order with payment_status='pending' for online payments
+        // secure-place creates order with status='payment_pending' and payment_status='pending' for online payments
         // Webhook confirms the payment - only update if still pending (idempotent)
         const { data: order } = await supabase
           .from('orders')
@@ -97,10 +97,18 @@ export async function POST(req: NextRequest) {
 
         if (order) {
           await supabase.from('orders').update({
+            status: 'payment_confirmed',
             payment_status: 'paid',
             razorpay_payment_id: payment.id,
             razorpay_order_id: payment.order_id
           }).eq('id', notes.orderId).eq('payment_status', 'pending')
+
+          // Record status history
+          await supabase.from('order_status_history').insert({
+            order_id: notes.orderId,
+            status: 'payment_confirmed',
+            changed_by: 'system',
+          }).maybeSingle()
 
           console.log(`Order ${notes.orderId} payment confirmed via webhook`)
         } else {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,17 @@ const MAX_ATTEMPTS = 3
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 OTP verifications per minute (brute force protection)
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+      message: 'Too many verification attempts. Please wait.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 })
+    }
+
     const auth = await verifyDeliveryAgent(req)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })

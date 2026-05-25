@@ -2,21 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
-import { recalcOrder } from '@/lib/order-calculations'
+import { recalcOrder, haversineKm } from '@/lib/order-calculations'
 
 function createServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-}
-
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 export const dynamic = 'force-dynamic'
@@ -111,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     // SERVER-SIDE VALIDATION: Check shop is within allowed radius
     if (shop.latitude && shop.longitude && address.latitude && address.longitude) {
-      const distance = getDistance(address.latitude, address.longitude, shop.latitude, shop.longitude)
+      const distance = haversineKm(address.latitude, address.longitude, shop.latitude, shop.longitude)
 
       // Get radius from platform settings (default 10km)
       const { data: radiusSetting } = await supabase
@@ -191,7 +183,7 @@ export async function POST(req: NextRequest) {
     // Calculate delivery charge based on distance
     let deliveryCharge = baseDeliveryCharge
     if (shop.latitude && shop.longitude && address.latitude && address.longitude) {
-      const distance = getDistance(address.latitude, address.longitude, shop.latitude, shop.longitude)
+      const distance = haversineKm(address.latitude, address.longitude, shop.latitude, shop.longitude)
       deliveryCharge = baseDeliveryCharge + Math.ceil(distance) * perKmCharge
     }
 

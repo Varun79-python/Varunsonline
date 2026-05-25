@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 import { pushToUser } from '@/lib/pushHelper'
 import { type SupabaseClient } from '@supabase/supabase-js'
+import { haversineKm } from '@/lib/gps'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,14 +47,6 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
 
     const shopLat = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
     const shopLon = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
-
-    function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-      const R = 6371
-      const dLat = (lat2 - lat1) * Math.PI / 180
-      const dLon = (lon2 - lon1) * Math.PI / 180
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    }
 
     type Agent = { id: string; full_name: string; total_deliveries: number; last_lat: number | null; last_lon: number | null }
 
@@ -137,6 +131,17 @@ async function notifyAgent(
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 20 order actions per minute
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 20,
+      message: 'Too many order actions. Please slow down.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
     const auth = await verifyShopkeeper(req)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -231,16 +236,12 @@ export async function POST(req: NextRequest) {
           .eq('id', assignResult.agentId)
           .single()
 
-        function haversine2(la1: number, lo1: number, la2: number, lo2: number) {
-          const R = 6371, d1 = (la2 - la1) * Math.PI / 180, d2 = (lo2 - lo1) * Math.PI / 180
-          const a = Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2
-          return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2))
-        }
+
 
         const distAgentToShop = (agentGps?.last_lat && agentGps?.last_lon && shopLat2 && shopLon2)
-          ? haversine2(agentGps.last_lat, agentGps.last_lon, shopLat2, shopLon2) : null
+          ? haversineKm(agentGps.last_lat, agentGps.last_lon, shopLat2, shopLon2) : null
         const distShopToCustomer = (shopLat2 && shopLon2 && custLat && custLon)
-          ? haversine2(shopLat2, shopLon2, custLat, custLon) : null
+          ? haversineKm(shopLat2, shopLon2, custLat, custLon) : null
 
         notifyAgent(supabase, assignResult.agentId, orderId, orderNum, shopName, city, distAgentToShop, distShopToCustomer).catch(() => {})
       }

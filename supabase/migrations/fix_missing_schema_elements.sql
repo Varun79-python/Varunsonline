@@ -38,20 +38,44 @@ ALTER TABLE public.shops ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE public.shops ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN DEFAULT FALSE;
 
 -- ============================================================
--- 5. CREATE SUBSCRIPTION_PLANS TABLE
+-- 5. SUBSCRIPTION_PLANS TABLE — reconciled schema
+--    Supports both percentage and fixed-monthly plan types
+--    (used by webhooks, admin panel, and shopkeeper UI)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.subscription_plans (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   description TEXT,
-  plan_type TEXT NOT NULL CHECK (plan_type IN ('monthly','quarterly','half_yearly','yearly')),
-  price NUMERIC(10,2) NOT NULL,
+  plan_type TEXT NOT NULL CHECK (plan_type IN ('percentage','fixed_monthly','monthly','quarterly','half_yearly','yearly')),
+  -- percentage-plan columns (used by shopkeeper UI and webhook)
+  fee_percent NUMERIC(5,2) DEFAULT 0,
+  monthly_fee NUMERIC(10,2) DEFAULT 0,
+  duration_days INT DEFAULT 30,
+  -- fixed-price-plan columns (from earlier schema attempt)
+  price NUMERIC(10,2),
   commission_percent NUMERIC(5,2) DEFAULT 0,
   features JSONB DEFAULT '{}',
+  -- common
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add any missing columns in case table already existed with different schema
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS fee_percent NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS monthly_fee NUMERIC(10,2) DEFAULT 0;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS duration_days INT DEFAULT 30;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price NUMERIC(10,2);
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}';
+
+-- Relax check constraint to accept all plan types (drop old, create new)
+ALTER TABLE public.subscription_plans DROP CONSTRAINT IF EXISTS subscription_plans_plan_type_check;
+ALTER TABLE public.subscription_plans ADD CONSTRAINT subscription_plans_plan_type_check
+  CHECK (plan_type IN ('percentage','fixed_monthly','monthly','quarterly','half_yearly','yearly'));
+
+-- Make price nullable (percentage plans have no fixed price)
+ALTER TABLE public.subscription_plans ALTER COLUMN price DROP NOT NULL;
 
 -- RLS for subscription_plans
 ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
@@ -92,7 +116,7 @@ CREATE POLICY "Admin manages all subscriptions" ON public.shop_subscriptions FOR
 );
 
 -- ============================================================
--- 7. CREATE DEVICE_TOKENS TABLE
+-- 7. DEVICE_TOKENS TABLE — reconciled schema
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.device_tokens (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -105,8 +129,35 @@ CREATE TABLE IF NOT EXISTS public.device_tokens (
   UNIQUE(user_id, token)
 );
 
+-- Reconcile: if table was created by earlier migration with different schema,
+-- add any missing columns and fix FK to reference profiles(id)
+ALTER TABLE public.device_tokens
+  ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'android';
+ALTER TABLE public.device_tokens
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- Recreate FK to profiles(id) if it currently references auth.users(id)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints tc
+    JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+      AND tc.table_name = 'device_tokens'
+      AND tc.table_schema = 'public'
+      AND ccu.table_name = 'users'
+      AND ccu.table_schema = 'auth'
+  ) THEN
+    ALTER TABLE public.device_tokens DROP CONSTRAINT device_tokens_user_id_fkey;
+    ALTER TABLE public.device_tokens ADD FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
 -- RLS for device_tokens
 ALTER TABLE public.device_tokens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "User manages own tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Users manage own device_tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Admin manages all device_tokens" ON public.device_tokens;
 CREATE POLICY "User manages own tokens" ON public.device_tokens FOR ALL USING (user_id = auth.uid());
 
 -- ============================================================
@@ -217,11 +268,13 @@ CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_end_date ON public.shop_subscr
 
 -- ============================================================
 -- 11. SEED DEFAULT SUBSCRIPTION PLANS
+--     Plan types used by code: 'percentage' (per-order commission)
+--     and 'fixed_monthly' (fixed monthly fee)
 -- ============================================================
-INSERT INTO public.subscription_plans (id, name, description, plan_type, price, commission_percent, features, is_active) VALUES
-  (uuid_generate_v4(), 'Basic Monthly', 'Perfect for new shops', 'monthly', 499, 5, '{"listings": 100, "support": "email"}', true),
-  (uuid_generate_v4(), 'Standard Monthly', 'Most popular for growing shops', 'monthly', 999, 3, '{"listings": 500, "support": "priority", "analytics": true}', true),
-  (uuid_generate_v4(), 'Premium Monthly', 'For established businesses', 'monthly', 1999, 2, '{"listings": -1, "support": "phone", "analytics": true, "featured": true}', true)
+INSERT INTO public.subscription_plans (id, name, description, plan_type, fee_percent, monthly_fee, duration_days, price, commission_percent, features, is_active) VALUES
+  (uuid_generate_v4(), 'Basic Percentage', 'Pay-as-you-go — small commission per order', 'percentage', 5, 0, 30, NULL, 5, '{"listings": 100, "support": "email"}', true),
+  (uuid_generate_v4(), 'Standard Monthly', 'Most popular — fixed monthly fee', 'fixed_monthly', 3, 999, 30, 999, 3, '{"listings": 500, "support": "priority", "analytics": true}', true),
+  (uuid_generate_v4(), 'Premium Monthly', 'For established businesses — lowest commission', 'fixed_monthly', 2, 1999, 30, 1999, 2, '{"listings": -1, "support": "phone", "analytics": true, "featured": true}', true)
 ON CONFLICT DO NOTHING;
 
 COMMIT;

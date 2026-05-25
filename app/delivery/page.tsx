@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOrderAlert } from '@/lib/useOrderAlert'
+import { haversineKm } from '@/lib/gps'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
 interface Address { house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }
@@ -18,14 +19,6 @@ interface AvailOrder {
 }
 interface Agent { id: string; is_approved: boolean; is_available: boolean; wallet_balance: number; today_earnings: number; total_deliveries: number }
 type OrderUpdatePayload = { new?: { agent_id?: string }; old?: { agent_id?: string } }
-
-function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 export default function DeliveryDashboard() {
   const supabase = createClient()
@@ -105,9 +98,9 @@ export default function DeliveryDashboard() {
         setAgentLat(lat)
         setAgentLon(lon)
         if (order.address?.latitude > 0 && order.address?.longitude > 0)
-          setDistToCustomer(parseFloat(getDistanceKm(lat, lon, order.address.latitude, order.address.longitude).toFixed(3)))
+          setDistToCustomer(parseFloat(haversineKm(lat, lon, order.address.latitude, order.address.longitude).toFixed(3)))
         if (order.shop?.latitude > 0 && order.shop?.longitude > 0)
-          setDistToShop(parseFloat(getDistanceKm(lat, lon, order.shop.latitude, order.shop.longitude).toFixed(3)))
+          setDistToShop(parseFloat(haversineKm(lat, lon, order.shop.latitude, order.shop.longitude).toFixed(3)))
         if (acc > 100) showToast(`⚠️ GPS accuracy is poor (±${Math.round(acc)}m)`, false)
         setGpsChecking(false)
       },
@@ -128,7 +121,7 @@ export default function DeliveryDashboard() {
           const { latitude, longitude } = pos.coords
           const prev = lastPushedPos.current
           const now = Date.now()
-          const movedEnough = !prev || getDistanceKm(prev.lat, prev.lon, latitude, longitude) * 1000 > 30
+          const movedEnough = !prev || haversineKm(prev.lat, prev.lon, latitude, longitude) * 1000 > 30
           const timeSinceLast = now - lastPushTime.current
           // Write to DB: on first run, or moved > 30m, or > 60s since last write (stationary agents)
           if (isFirst || movedEnough || timeSinceLast > 60000) {
@@ -147,9 +140,9 @@ export default function DeliveryDashboard() {
           setAgentLon(longitude)
           if (activeOrder) {
             if (activeOrder.address?.latitude > 0 && activeOrder.address?.longitude > 0)
-              setDistToCustomer(parseFloat(getDistanceKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
+              setDistToCustomer(parseFloat(haversineKm(latitude, longitude, activeOrder.address.latitude, activeOrder.address.longitude).toFixed(3)))
             if (activeOrder.shop?.latitude > 0 && activeOrder.shop?.longitude > 0)
-              setDistToShop(parseFloat(getDistanceKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
+              setDistToShop(parseFloat(haversineKm(latitude, longitude, activeOrder.shop.latitude, activeOrder.shop.longitude).toFixed(3)))
           }
         },
         () => {},

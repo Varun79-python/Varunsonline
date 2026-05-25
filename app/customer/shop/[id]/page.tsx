@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getCustomerGPSPosition } from '@/lib/customerGps'
+import { haversineKm } from '@/lib/gps'
 
 interface Product {
   id: string; name: string; description: string; price: number; mrp: number
@@ -37,14 +38,6 @@ const FireIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="cur
 const SparkleIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 8.5L22 9.5L16.5 14.5L18 22L12 18L6 22L7.5 14.5L2 9.5L9.5 8.5L12 2Z"/></svg>
 const PopularIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
 const HistoryIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
-
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 export default function ShopPage() {
   const { id } = useParams<{ id: string }>()
@@ -124,7 +117,7 @@ export default function ShopPage() {
 
   // Calculate distance if we have coordinates
   const distance = shop && userLat != null && userLon != null && shop.latitude != null && shop.longitude != null
-    ? getDistance(userLat, userLon, shop.latitude, shop.longitude)
+          ? haversineKm(userLat, userLon, shop.latitude, shop.longitude)
     : null
   
   // Estimate delivery time (roughly 1 min per 200m, min 15 mins)

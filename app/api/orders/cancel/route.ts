@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { createServerClient } from '@supabase/ssr'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,17 @@ const CANCELLABLE_STATUSES = ['placed', 'payment_pending', 'payment_confirmed', 
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 cancellation requests per minute
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 5,
+      message: 'Too many cancellation attempts. Please wait.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
     // Verify customer via cookie session
     const supabaseSsr = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { recalcOrder } from '@/lib/order-calculations'
+import { haversineKm } from '@/lib/gps'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,11 +91,7 @@ export async function POST(req: NextRequest) {
     // Calculate delivery charge based on distance (if coordinates available)
     let serverDeliveryCharge = baseDeliveryCharge
     if (address.latitude && address.longitude && shop.latitude && shop.longitude) {
-      const R = 6371
-      const dLat = (shop.latitude - address.latitude) * Math.PI / 180
-      const dLon = (shop.longitude - address.longitude) * Math.PI / 180
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(address.latitude * Math.PI / 180) * Math.cos(shop.latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-      const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const distance = haversineKm(address.latitude, address.longitude, shop.latitude, shop.longitude)
       serverDeliveryCharge = baseDeliveryCharge + Math.ceil(distance) * perKmCharge
     }
 

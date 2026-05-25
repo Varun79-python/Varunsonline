@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
       amount: Math.round(amount * 100),
       currency: 'INR',
       receipt: orderId ? `vo_${orderId.slice(0, 8)}` : `vo_${Date.now()}`,
+      notes: orderId ? { type: 'order', orderId } : undefined,
     })
 
     logger.payment('order_created', { userId, orderId, razorpayOrderId: order.id, amount })

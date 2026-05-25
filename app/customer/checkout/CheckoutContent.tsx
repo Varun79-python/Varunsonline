@@ -176,7 +176,7 @@ export default function CheckoutContent() {
       const rzpRes = await fetch('/api/payment/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: secureData.totalAmount })
+        body: JSON.stringify({ amount: secureData.totalAmount, orderId: secureData.orderId })
       })
       const rzpData = await rzpRes.json()
       if (!rzpRes.ok || !rzpData.id) throw new Error(rzpData.error || 'Could not create payment order')
