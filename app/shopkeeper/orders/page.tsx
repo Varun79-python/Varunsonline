@@ -8,6 +8,16 @@ interface Order {
   created_at: string; shopkeeper_earning: number
 }
 
+interface OrderItem {
+  id: string; order_id: string; product_name: string; quantity: number
+  unit_price: number; total_price: number; product_image_url?: string
+}
+
+interface PackingState {
+  orderId: string
+  items: { id: string; name: string; checked: boolean }[]
+}
+
 const STATUS_TABS = ['all', 'payment_confirmed', 'shop_accepted', 'order_packed', 'out_for_delivery', 'delivered', 'rejected']
 const STATUS_LABEL: Record<string, string> = {
   all: 'All', payment_confirmed: 'New', shop_accepted: 'Accepted',
@@ -20,6 +30,9 @@ export default function ShopkeeperOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [tab, setTab] = useState('all')
   const [shopId, setShopId] = useState<string | null>(null)
+  const [packing, setPacking] = useState<PackingState | null>(null)
+  const [packingItems, setPackingItems] = useState<OrderItem[]>([])
+  const [packingLoading, setPackingLoading] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -36,25 +49,55 @@ export default function ShopkeeperOrders() {
 
   const filtered = tab === 'all' ? orders : orders.filter(o => o.status === tab)
 
-  async function markPacked(orderId: string) {
+  async function openPackingChecklist(orderId: string) {
+    setPackingLoading(true)
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('id, product_name, quantity, unit_price, total_price, product_image_url')
+      .eq('order_id', orderId)
+    if (items) {
+      setPackingItems(items)
+      setPacking({
+        orderId,
+        items: items.map((i: OrderItem) => ({ id: i.id, name: i.product_name, checked: false }))
+      })
+    }
+    setPackingLoading(false)
+  }
+
+  function toggleCheck(itemId: string) {
+    if (!packing) return
+    setPacking({
+      ...packing,
+      items: packing.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
+    })
+  }
+
+  async function confirmPacked() {
+    if (!packing) return
+    const { orderId, items } = packing
+    const allChecked = items.every(i => i.checked)
+    if (!allChecked) return
+
     await supabase.from('orders').update({ status: 'order_packed', packed_at: new Date().toISOString() }).eq('id', orderId)
     await supabase.from('order_status_history').insert({ order_id: orderId, status: 'order_packed' })
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'order_packed' } : o))
+    setPacking(null)
   }
 
   const getStatusColor = (status: string) => {
-  const colors: Record<string, { bg: string; text: string }> = {
-    payment_confirmed: { bg: '#fef3c7', text: '#d97706' },
-    shop_accepted: { bg: '#dbeafe', text: '#2563eb' },
-    order_packed: { bg: '#e0e7ff', text: '#4f46e5' },
-    out_for_delivery: { bg: '#dcfce7', text: '#16a34a' },
-    delivered: { bg: '#f0fdf4', text: '#16a34a' },
-    rejected: { bg: '#fee2e2', text: '#dc2626' },
+    const colors: Record<string, { bg: string; text: string }> = {
+      payment_confirmed: { bg: '#fef3c7', text: '#d97706' },
+      shop_accepted: { bg: '#dbeafe', text: '#2563eb' },
+      order_packed: { bg: '#e0e7ff', text: '#4f46e5' },
+      out_for_delivery: { bg: '#dcfce7', text: '#16a34a' },
+      delivered: { bg: '#f0fdf4', text: '#16a34a' },
+      rejected: { bg: '#fee2e2', text: '#dc2626' },
+    }
+    return colors[status] || { bg: '#f1f5f9', text: '#64748b' }
   }
-  return colors[status] || { bg: '#f1f5f9', text: '#64748b' }
-}
 
-return (
+  return (
     <div style={{ padding: '0 12px' }}>
       <h2 style={{ marginBottom: 16, fontSize: '1.2rem' }}>📦 Orders</h2>
       
@@ -70,6 +113,57 @@ return (
           </button>
         ))}
       </div>
+
+      {/* Packing Checklist Modal */}
+      {packing && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => setPacking(null)}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400, maxHeight: '80vh', overflow: 'auto' }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: 16, fontSize: '1.05rem' }}>📦 Packing Checklist</h3>
+            <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 16 }}>
+              Check each item as you pack it to ensure nothing is missed.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {packing.items.map(item => (
+                <label key={item.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 12px', borderRadius: 10,
+                  background: item.checked ? '#f0fdf4' : '#f8fafc',
+                  border: `1.5px solid ${item.checked ? '#bbf7d0' : '#e2e8f0'}`,
+                  cursor: 'pointer'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={() => toggleCheck(item.id)}
+                    style={{ width: 20, height: 20, accentColor: '#16a34a', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem', flex: 1, textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? '#16a34a' : '#1e293b' }}>
+                    {item.name}
+                  </span>
+                  {item.checked && <span style={{ color: '#16a34a' }}>✓</span>}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setPacking(null)}
+                style={{ flex: 1, padding: 12, background: '#f1f5f9', border: 'none', borderRadius: 10, fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={confirmPacked} disabled={!packing.items.every(i => i.checked)}
+                style={{
+                  flex: 1, padding: 12, borderRadius: 10, fontWeight: 700, border: 'none',
+                  background: packing.items.every(i => i.checked) ? '#f97316' : '#e2e8f0',
+                  color: packing.items.every(i => i.checked) ? 'white' : '#94a3b8',
+                  cursor: packing.items.every(i => i.checked) ? 'pointer' : 'not-allowed'
+                }}>
+                📦 Mark Packed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Order List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -96,7 +190,9 @@ return (
                   <button onClick={() => router.push(`/shopkeeper/orders/${order.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Details</button>
                   <button onClick={() => router.push(`/shopkeeper/orders/${order.id}`)} style={{ background: '#fff7ed', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#f97316', cursor: 'pointer' }}>💬 Chat</button>
                   {order.status === 'shop_accepted' && (
-                    <button onClick={() => markPacked(order.id)} style={{ background: '#f97316', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, color: 'white', cursor: 'pointer' }}>📦 Pack</button>
+                    <button onClick={() => openPackingChecklist(order.id)} style={{ background: '#f97316', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+                      📦 Pack
+                    </button>
                   )}
                 </div>
               </div>

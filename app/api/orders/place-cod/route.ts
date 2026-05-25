@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Verify user has a customer profile
     const serviceSupabase = createServiceClient()
-    const { data: profile } = await serviceSupabase.from('profiles').select('role').eq('id', user.id).single()
+    const { data: profile } = await serviceSupabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
     if (!profile || profile.role !== 'customer') {
       return NextResponse.json({ error: 'Only customers can place orders' }, { status: 403 })
     }

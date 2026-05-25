@@ -26,6 +26,11 @@ interface Order {
   profiles: { full_name: string; phone: string }
 }
 
+interface OrderItem {
+  id: string; order_id: string; product_name: string; quantity: number
+  unit_price: number; total_price: number; product_image_url?: string
+}
+
 function loadRazorpayScript(): Promise<boolean> {
   return new Promise(resolve => {
     if (document.getElementById('rzp-script')) { resolve(true); return }
@@ -45,6 +50,7 @@ export default function DeliveryOrderDetail() {
   const [order, setOrder] = useState<Order | null>(null)
   const [currentUserId, setCurrentUserId] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [showPaymentOptions, setShowPaymentOptions] = useState(false)
   const [collectingPayment, setCollectingPayment] = useState(false)
   const [paymentMsg, setPaymentMsg] = useState<{ text: string; ok: boolean } | null>(null)
@@ -62,6 +68,13 @@ export default function DeliveryOrderDetail() {
         .single()
       if (!o) return
       setOrder(o as Order)
+
+      // Fetch order items
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('id, order_id, product_name, quantity, unit_price, total_price, product_image_url')
+        .eq('order_id', id)
+      setOrderItems(items || [])
 
       const ch = supabase.channel('dl-order-' + id)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
@@ -244,6 +257,32 @@ export default function DeliveryOrderDetail() {
           &nbsp;|&nbsp;Your earning: <span style={{ color: '#16a34a', fontWeight: 800 }}>₹{order.agent_earning}</span>
         </p>
       </div>
+
+      {/* ── ORDER ITEMS ── */}
+      {orderItems.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 12, fontSize: '1rem' }}>🛍️ Items to Deliver</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {orderItems.map(item => (
+              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                {item.product_image_url ? (
+                  <img src={item.product_image_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📦</div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{item.product_name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>₹{item.unit_price} each</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>×{item.quantity}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹{item.total_price}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {paymentMsg && (
         <div style={{

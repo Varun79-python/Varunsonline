@@ -41,7 +41,14 @@ interface ShopOrder {
 export default function AdminShops() {
   const supabase = createClient()
   const [items, setItems] = useState<UnifiedShop[]>([])
-  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
+  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tabParam = params.get('tab')
+      if (['pending', 'active', 'rejected', 'all'].includes(tabParam || '')) return tabParam as 'pending' | 'active' | 'rejected' | 'all'
+    }
+    return 'pending'
+  })
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<UnifiedShop | null>(null)
   const [shopOrders, setShopOrders] = useState<ShopOrder[]>([])
@@ -446,8 +453,8 @@ export default function AdminShops() {
       <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops & Registrations</h2>
       
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
-        {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ 
+          {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
+          <button key={t} onClick={() => { setTab(t); if (typeof window !== 'undefined') { const url = new URL(window.location.href); url.searchParams.set('tab', t); window.history.replaceState({}, '', url.toString()) } }} style={{ 
             flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
             background: tab === t ? '#f97316' : 'white', borderColor: tab === t ? '#f97316' : '#e2e8f0',
             color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'

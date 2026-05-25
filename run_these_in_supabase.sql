@@ -93,14 +93,17 @@ CREATE INDEX IF NOT EXISTS idx_agent_live_locations_online
 
 ALTER TABLE public.agent_live_locations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Agent can insert own location" ON public.agent_live_locations;
 CREATE POLICY "Agent can insert own location" 
   ON public.agent_live_locations FOR INSERT 
   WITH CHECK (agent_id = auth.uid());
 
+DROP POLICY IF EXISTS "Agent can view own location" ON public.agent_live_locations;
 CREATE POLICY "Agent can view own location" 
   ON public.agent_live_locations FOR SELECT 
   USING (agent_id = auth.uid());
 
+DROP POLICY IF EXISTS "Order participants can view agent location" ON public.agent_live_locations;
 CREATE POLICY "Order participants can view agent location" 
   ON public.agent_live_locations FOR SELECT 
   USING (
@@ -116,7 +119,18 @@ CREATE POLICY "Order participants can view agent location"
     )
   );
 
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.agent_live_locations;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'agent_live_locations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.agent_live_locations;
+  END IF;
+END;
+$$;
 
 -- Add last_updated to delivery_agents
 ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS last_updated TIMESTAMPTZ;
@@ -160,6 +174,7 @@ ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS last_lon DOUBLE PREC
 -- ═══════════════════════════════════════════════════════════
 -- 6. CREATE decrement_product_stock FUNCTION (CRITICAL — stock won't be deducted without this)
 -- ═══════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.decrement_product_stock(UUID, INT);
 CREATE OR REPLACE FUNCTION public.decrement_product_stock(product_id_param UUID, quantity_param INT)
 RETURNS VOID AS $$
 BEGIN
@@ -174,6 +189,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ═══════════════════════════════════════════════════════════
 -- 7. CREATE increment_coupon_usage FUNCTION (needed when coupons are used)
 -- ═══════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.increment_coupon_usage(TEXT);
 CREATE OR REPLACE FUNCTION public.increment_coupon_usage(coupon_code_param TEXT)
 RETURNS VOID AS $$
 BEGIN
@@ -199,7 +215,33 @@ CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_shop_id ON public.shop_subscri
 CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_end_date ON public.shop_subscriptions(end_date);
 
 -- ═══════════════════════════════════════════════════════════
--- 9. VERIFY everything works
+-- 9a. GEO INDEXES for distance queries
+-- ═══════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_shops_lat_lon
+  ON public.shops (latitude, longitude)
+  WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_delivery_agents_last_lat_lon
+  ON public.delivery_agents (last_lat, last_lon)
+  WHERE last_lat IS NOT NULL AND last_lon IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_delivery_agents_avail_lat_lon
+  ON public.delivery_agents (is_available, last_lat, last_lon)
+  WHERE is_available = TRUE AND last_lat IS NOT NULL AND last_lon IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_orders_packed_unassigned
+  ON public.orders (status, agent_id, placed_at)
+  WHERE status = 'order_packed' AND agent_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_orders_agent_status
+  ON public.orders (agent_id, status)
+  WHERE agent_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_agent_live_locations_recency
+  ON public.agent_live_locations (agent_id, recorded_at DESC);
+
+-- ═══════════════════════════════════════════════════════════
+-- 10. VERIFY everything works
 -- ═══════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════
 SELECT '✅ increment_rate_limit function:' AS test, increment_rate_limit('test', 'verify', 60000) AS result;

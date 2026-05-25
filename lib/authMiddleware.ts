@@ -69,8 +69,8 @@ export async function verifyAdmin(request: NextRequest): Promise<{ error?: strin
   }
   
   // Check profiles table
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  if (!profile || profile?.role !== 'admin') {
     logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
     return { error: 'Not authorized - admin access required' }
   }
@@ -97,8 +97,8 @@ export async function verifyShopkeeper(request: NextRequest): Promise<{ error?: 
   // Check if shopkeeper
   const metaRole = user.user_metadata?.role
   if (metaRole !== 'shopkeeper') {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'shopkeeper') {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (!profile || profile?.role !== 'shopkeeper') {
       logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
       return { error: 'Not authorized - shopkeeper access required' }
     }
@@ -129,15 +129,15 @@ export async function verifyDeliveryAgent(request: NextRequest): Promise<{ error
   // Check if delivery agent
   const metaRole = user.user_metadata?.role
   if (metaRole !== 'delivery_agent') {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'delivery_agent') {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (!profile || profile?.role !== 'delivery_agent') {
       logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
       return { error: 'Not authorized - delivery agent access required' }
     }
   }
   
   // Get agent ID
-  const { data: agent } = await supabase.from('delivery_agents').select('id').eq('id', user.id).single()
+  const { data: agent } = await supabase.from('delivery_agents').select('id').eq('id', user.id).maybeSingle()
   if (!agent) {
     logger.auth('no_agent_profile', { userId: user.id })
     return { error: 'No agent profile found' }
@@ -165,8 +165,8 @@ export async function verifyCustomer(request: NextRequest): Promise<{ error?: st
   const metaRole = user.user_metadata?.role
   if (metaRole === 'customer') return { userId: user.id }
   
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'customer') {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  if (!profile || profile?.role !== 'customer') {
     logger.auth('wrong_role', { userId: user.id, actualRole: profile?.role })
     return { error: 'Not authorized - customer access required' }
   }

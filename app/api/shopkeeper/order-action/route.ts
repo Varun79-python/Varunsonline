@@ -28,7 +28,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
 
     let query = supabase
       .from('delivery_agents')
-      .select('id, full_name, total_deliveries')
+      .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
 
@@ -39,6 +39,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
     const { data: agents } = await query
     if (!agents || agents.length === 0) return { error: 'no_agents' }
 
+    // Get shop GPS coordinates for distance calculation
     const { data: ord } = await supabase
       .from('orders')
       .select('shops:shop_id(latitude, longitude)')
@@ -48,11 +49,37 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
     const shopLat = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
     const shopLon = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
-    type Agent = { id: string; full_name: string; total_deliveries: number }
+    type Agent = { id: string; full_name: string; total_deliveries: number; last_lat?: number | null; last_lon?: number | null }
 
-    // Score: prefer agents with more deliveries (experience)
-    const best = (agents as Agent[])
-      .sort((a, b) => (b.total_deliveries || 0) - (a.total_deliveries || 0))
+    // Filter agents by 5km radius from shop (strict delivery radius)
+    let eligibleAgents = agents as Agent[]
+    if (shopLat != null && shopLon != null) {
+      eligibleAgents = (agents as Agent[]).filter(a => {
+        if (a.last_lat == null || a.last_lon == null) return false // skip agents without GPS
+        const dist = haversineKm(shopLat, shopLon, a.last_lat, a.last_lon)
+        return dist <= 5 // strict 5km radius
+      })
+    }
+    // If no agents within 5km (or shop has no GPS), fall back to any available agent
+    if (eligibleAgents.length === 0) {
+      eligibleAgents = agents as Agent[]
+    }
+
+    if (eligibleAgents.length === 0) return { error: 'no_agents' }
+
+    // Score: prefer agents with more deliveries (experience), then nearest
+    const best = (eligibleAgents as Agent[])
+      .sort((a, b) => {
+        const deliveriesDiff = (b.total_deliveries || 0) - (a.total_deliveries || 0)
+        if (deliveriesDiff !== 0) return deliveriesDiff
+        // If tied on deliveries, prefer the agent nearer to the shop
+        if (shopLat != null && shopLon != null && a.last_lat != null && a.last_lon != null && b.last_lat != null && b.last_lon != null) {
+          const distA = haversineKm(shopLat, shopLon, a.last_lat, a.last_lon)
+          const distB = haversineKm(shopLat, shopLon, b.last_lat, b.last_lon)
+          return distA - distB
+        }
+        return 0
+      })
       [0]
 
     // Final race-condition check — verify agent still idle
@@ -65,6 +92,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
 
     if (agentBusy) return { error: 'race_condition' }
 
+    // Atomic assignment: only succeeds if agent_id IS NULL (prevents double-assignment)
     const { data: updated } = await supabase
       .from('orders')
       .update({ agent_id: best.id, status: 'agent_assigned' })
