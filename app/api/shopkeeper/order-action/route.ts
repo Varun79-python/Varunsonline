@@ -28,7 +28,7 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
 
     let query = supabase
       .from('delivery_agents')
-      .select('id, full_name, total_deliveries, last_lat, last_lon')
+      .select('id, full_name, total_deliveries')
       .eq('is_approved', true)
       .eq('is_available', true)
 
@@ -48,22 +48,12 @@ async function autoAssignAgent(orderId: string): Promise<{ agentId?: string; age
     const shopLat = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
     const shopLon = (ord?.shops as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
-    type Agent = { id: string; full_name: string; total_deliveries: number; last_lat: number | null; last_lon: number | null }
+    type Agent = { id: string; full_name: string; total_deliveries: number }
 
-    const NEARBY_RADIUS_KM = 5
-
+    // Score: prefer agents with more deliveries (experience)
     const best = (agents as Agent[])
-      .map(a => {
-        const dist = (shopLat && shopLon && a.last_lat && a.last_lon)
-          ? haversineKm(a.last_lat, a.last_lon, shopLat, shopLon) : 9999
-        return { ...a, distScore: dist, score: dist * 1000 + (a.total_deliveries || 0) }
-      })
-      .sort((a, b) => a.score - b.score)
-      // Prefer agents within 5km radius; fall back to all if none
-      .filter((a, _i, arr) => {
-        const hasNearby = arr.some(x => x.distScore <= NEARBY_RADIUS_KM)
-        return hasNearby ? a.distScore <= NEARBY_RADIUS_KM : true
-      })[0]
+      .sort((a, b) => (b.total_deliveries || 0) - (a.total_deliveries || 0))
+      [0]
 
     // Final race-condition check — verify agent still idle
     const { data: agentBusy } = await supabase
@@ -229,17 +219,18 @@ export async function POST(req: NextRequest) {
         const custLat = (orderDetails?.addresses as unknown as { latitude: number; longitude: number } | null)?.latitude ?? null
         const custLon = (orderDetails?.addresses as unknown as { latitude: number; longitude: number } | null)?.longitude ?? null
 
-        // Get agent's last known GPS
+        // Agent GPS is stored in agent_live_locations table (most recent)
         const { data: agentGps } = await supabase
-          .from('delivery_agents')
-          .select('last_lat, last_lon')
-          .eq('id', assignResult.agentId)
-          .single()
+          .from('agent_live_locations')
+          .select('latitude, longitude')
+          .eq('agent_id', assignResult.agentId)
+          .eq('is_online', true)
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-
-
-        const distAgentToShop = (agentGps?.last_lat && agentGps?.last_lon && shopLat2 && shopLon2)
-          ? haversineKm(agentGps.last_lat, agentGps.last_lon, shopLat2, shopLon2) : null
+        const distAgentToShop = (agentGps?.latitude && agentGps?.longitude && shopLat2 && shopLon2)
+          ? haversineKm(agentGps.latitude, agentGps.longitude, shopLat2, shopLon2) : null
         const distShopToCustomer = (shopLat2 && shopLon2 && custLat && custLon)
           ? haversineKm(shopLat2, shopLon2, custLat, custLon) : null
 

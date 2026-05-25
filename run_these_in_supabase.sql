@@ -152,7 +152,55 @@ SELECT uuid_generate_v4(), 'Premium Monthly', 'For established businesses — lo
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_type = 'fixed_monthly' AND monthly_fee = 1999 LIMIT 1);
 
 -- ═══════════════════════════════════════════════════════════
--- 5. VERIFY everything works
+-- 5. ADD MISSING DELIVERY AGENT GPS COLUMNS (CRITICAL — autoAssignAgent will crash without these)
+-- ═══════════════════════════════════════════════════════════
+ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS last_lat DOUBLE PRECISION;
+ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS last_lon DOUBLE PRECISION;
+
+-- ═══════════════════════════════════════════════════════════
+-- 6. CREATE decrement_product_stock FUNCTION (CRITICAL — stock won't be deducted without this)
+-- ═══════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.decrement_product_stock(product_id_param UUID, quantity_param INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.products
+  SET stock_quantity = GREATEST(0, stock_quantity - quantity_param),
+      is_available = CASE WHEN stock_quantity - quantity_param <= 0 THEN FALSE ELSE is_available END,
+      updated_at = NOW()
+  WHERE id = product_id_param;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ═══════════════════════════════════════════════════════════
+-- 7. CREATE increment_coupon_usage FUNCTION (needed when coupons are used)
+-- ═══════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.increment_coupon_usage(coupon_code_param TEXT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.coupons
+  SET used_count = used_count + 1
+  WHERE code = coupon_code_param;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ═══════════════════════════════════════════════════════════
+-- 8. ADD PERFORMANCE INDEXES
+-- ═══════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_shop_id ON public.orders(shop_id);
+CREATE INDEX IF NOT EXISTS idx_orders_agent_id ON public.orders(agent_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_placed_at ON public.orders(placed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON public.products(shop_id);
+CREATE INDEX IF NOT EXISTS idx_products_is_available ON public.products(is_available);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON public.device_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_shop_id ON public.shop_subscriptions(shop_id);
+CREATE INDEX IF NOT EXISTS idx_shop_subscriptions_end_date ON public.shop_subscriptions(end_date);
+
+-- ═══════════════════════════════════════════════════════════
+-- 9. VERIFY everything works
+-- ═══════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════
 SELECT '✅ increment_rate_limit function:' AS test, increment_rate_limit('test', 'verify', 60000) AS result;
 SELECT '✅ rate_limits table:' AS test, COUNT(*) FROM rate_limits;

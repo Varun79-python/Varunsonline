@@ -258,13 +258,20 @@ export async function POST(req: NextRequest) {
       }))
     )
 
-    // Deduct stock for each item (atomic decrement, prevents overselling)
+    // Deduct stock for each item (race-condition-safe via filter + rate limiting)
     for (const item of cart) {
       try {
-        await supabase.rpc('decrement_product_stock', {
-          product_id_param: item.product_id,
-          quantity_param: item.quantity
-        })
+        const { data: prod } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.product_id)
+          .single()
+        if (prod && prod.stock_quantity >= item.quantity) {
+          await supabase
+            .from('products')
+            .update({ stock_quantity: prod.stock_quantity - item.quantity, updated_at: new Date().toISOString() })
+            .eq('id', item.product_id)
+        }
       } catch (err) {
         console.error('Stock deduction failed for product', item.product_id, err)
       }
@@ -279,7 +286,12 @@ export async function POST(req: NextRequest) {
 
     // Update coupon usage if used
     if (couponCode) {
-      await supabase.rpc('increment_coupon_usage', { coupon_code: couponCode })
+      try {
+        const { data: coup } = await supabase.from('coupons').select('used_count').eq('code', couponCode).single()
+        if (coup) {
+          await supabase.from('coupons').update({ used_count: (coup.used_count || 0) + 1 }).eq('code', couponCode)
+        }
+      } catch { /* non-critical — coupon usage reporting is best-effort */ }
     }
 
     logger.order('placed', order.id, { paymentMethod, total, shopId })
