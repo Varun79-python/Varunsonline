@@ -192,25 +192,28 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
     const supabase = await createAdminClient()
 
     // 1. Mark documents approved
-    await supabase.from('shop_documents').update({ status: 'approved' }).eq('id', docId)
+    const { error: docErr } = await supabase
+      .from('shop_documents').update({ status: 'approved' }).eq('id', docId)
+    if (docErr) return { error: `Failed to update document: ${docErr.message}` }
 
     // 2. Activate the shop (already created when docs were submitted)
     const { data: existingShop } = await supabase
       .from('shops').select('id').eq('owner_id', userId).maybeSingle()
 
     if (existingShop) {
-      await supabase.from('shops')
+      const { error: shopErr } = await supabase.from('shops')
         .update({ is_approved: true, is_active: true, rejection_reason: null })
         .eq('owner_id', userId)
+      if (shopErr) return { error: `Failed to activate shop: ${shopErr.message}` }
     } else {
-      // Fallback: shop wasn't pre-created, create it now
+      // Fallback: shop wasn’t pre-created, create it now
       const { data: doc } = await supabase
         .from('shop_documents')
         .select('shop_name, owner_name, category, shop_photo_url')
         .eq('id', docId).maybeSingle()
       const { data: profile } = await supabase
         .from('profiles').select('phone, email').eq('id', userId).maybeSingle()
-      await supabase.from('shops').insert({
+      const { error: shopErr } = await supabase.from('shops').insert({
         owner_id: userId,
         name: doc?.shop_name || 'My Shop',
         phone: profile?.phone || '',
@@ -220,6 +223,7 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
         is_approved: true,
         is_active: true,
       })
+      if (shopErr) return { error: `Failed to create shop: ${shopErr.message}` }
     }
 
     // 3. Notify shopkeeper
@@ -239,7 +243,9 @@ export async function approveShopkeeperDocuments(docId: string, userId: string) 
 export async function rejectShopkeeperDocuments(docId: string, userId: string, reason: string) {
   try {
     const supabase = await createAdminClient()
-    await supabase.from('shop_documents').update({ status: 'rejected' }).eq('id', docId)
+    const { error: docErr } = await supabase
+      .from('shop_documents').update({ status: 'rejected' }).eq('id', docId)
+    if (docErr) return { error: `Failed to update document: ${docErr.message}` }
     await supabase.from('notifications').insert({
       user_id: userId,
       title: '❌ Registration Rejected',
@@ -633,6 +639,134 @@ export async function unblockShopkeeperShop(userId: string) {
       title: '🎉 Shop Unblocked',
       body: 'Your shop has been unblocked by the admin. You can resume your business now!',
       type: 'shop_approved'
+    })
+
+    return { success: true }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── Approves an already-created shop record (type === 'shop') ─────────────────
+export async function approveShop(shopId: string, userId: string) {
+  try {
+    const supabase = await createAdminClient()
+
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_approved: true, is_active: true, rejection_reason: null })
+      .eq('id', shopId)
+
+    if (error) return { error: `DB update failed: ${error.message}` }
+
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '🎉 Shop Approved!',
+      body: 'Your shop has been approved. Start selling now!',
+      type: 'shop_approved',
+    })
+
+    return { success: true }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── Rejects an already-created shop record (type === 'shop') ──────────────────
+export async function rejectShop(shopId: string, userId: string, reason: string) {
+  try {
+    const supabase = await createAdminClient()
+
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_approved: false, is_active: false, rejection_reason: reason })
+      .eq('id', shopId)
+
+    if (error) return { error: `DB update failed: ${error.message}` }
+
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '❌ Registration Rejected',
+      body: reason,
+      type: 'shop_rejected',
+    })
+
+    return { success: true }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── Toggles is_active on an approved shop ─────────────────────────────────────
+export async function toggleShopActive(shopId: string, currentIsActive: boolean) {
+  try {
+    const supabase = await createAdminClient()
+
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_active: !currentIsActive })
+      .eq('id', shopId)
+
+    if (error) return { error: `DB update failed: ${error.message}` }
+
+    return { success: true, newState: !currentIsActive }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── Re-approves a shop (e.g. after manual pause or rejection) ─────────────────
+export async function reapproveShopRecord(
+  item: { id: string; type: 'shop' | 'document'; user_id: string; name: string }
+) {
+  try {
+    const supabase = await createAdminClient()
+
+    if (item.type === 'document') {
+      // Mark doc approved
+      const { error: docErr } = await supabase
+        .from('shop_documents')
+        .update({ status: 'approved' })
+        .eq('id', item.id)
+      if (docErr) return { error: `Doc update failed: ${docErr.message}` }
+
+      const { data: profile } = await supabase
+        .from('profiles').select('full_name, phone, email').eq('id', item.user_id).maybeSingle()
+
+      const { data: existingShop } = await supabase
+        .from('shops').select('id').eq('owner_id', item.user_id).maybeSingle()
+
+      if (!existingShop) {
+        const { error: shopErr } = await supabase.from('shops').insert({
+          owner_id: item.user_id,
+          name: profile?.full_name ? `${profile.full_name}'s Shop` : item.name || 'My Shop',
+          full_name: profile?.full_name || '',
+          phone: profile?.phone || '',
+          email: profile?.email || '',
+          is_approved: true,
+          is_active: true,
+        })
+        if (shopErr) return { error: `Shop insert failed: ${shopErr.message}` }
+      } else {
+        const { error: shopErr } = await supabase
+          .from('shops')
+          .update({ is_approved: true, is_active: true, rejection_reason: null })
+          .eq('owner_id', item.user_id)
+        if (shopErr) return { error: `Shop update failed: ${shopErr.message}` }
+      }
+    } else {
+      const { error } = await supabase
+        .from('shops')
+        .update({ is_approved: true, is_active: true, rejection_reason: null })
+        .eq('id', item.id)
+      if (error) return { error: `Shop update failed: ${error.message}` }
+    }
+
+    await supabase.from('notifications').insert({
+      user_id: item.user_id,
+      title: '🎉 Registration Re-approved!',
+      body: 'Your registration has been re-approved!',
+      type: 'shop_approved',
     })
 
     return { success: true }

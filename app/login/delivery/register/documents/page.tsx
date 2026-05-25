@@ -123,10 +123,21 @@ export default function DeliveryDocumentsPage() {
     setSaving(true)
     setError('')
 
-    // Use API to bypass RLS
+    // Get the current session JWT to authenticate the API call.
+    // The API route verifies this Bearer token server-side before writing to DB.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setError('Session expired. Please log in again.')
+      setSaving(false)
+      return
+    }
+
     const res = await fetch('/api/delivery/update-documents', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ userId, aadharUrl })
     })
 

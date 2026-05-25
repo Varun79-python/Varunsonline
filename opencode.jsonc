@@ -17,7 +17,7 @@
   "default_agent": "openwork",
   "permission": {
     "external_directory": {
-      "C:/BACKUP_VARUN/*": "allow"
+      "C:/Users/venka/.gemini/antigravity/scratch/*": "allow"
     }
   }
 }
