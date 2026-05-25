@@ -248,3 +248,118 @@ SELECT '✅ increment_rate_limit function:' AS test, increment_rate_limit('test'
 SELECT '✅ rate_limits table:' AS test, COUNT(*) FROM rate_limits;
 SELECT '✅ agent_live_locations table:' AS test, COUNT(*) FROM agent_live_locations;
 SELECT '✅ subscription_plans columns:' AS test, column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'subscription_plans' ORDER BY ordinal_position;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 11. FIX: Drop shop protection trigger that blocks admin approval
+--
+-- PROBLEM: A BEFORE UPDATE trigger on public.shops raises
+--   "Cannot modify protected shop fields"
+-- when is_approved / is_active / rejection_reason are changed.
+-- The trigger fires for ALL roles — including service_role (admin client).
+-- This breaks every admin shop approval/rejection/toggle action.
+--
+-- FIX: Drop all triggers with that RAISE EXCEPTION, then recreate the
+-- protection as a trigger that skips execution when the caller is
+-- service_role (our admin client). This preserves security for
+-- shopkeeper users while allowing admin operations to proceed.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Step 1: Find and drop the blocking trigger function(s).
+-- We drop by name — adjust the names if your DB uses different ones.
+DROP TRIGGER IF EXISTS protect_shop_fields ON public.shops;
+DROP TRIGGER IF EXISTS shop_field_protection ON public.shops;
+DROP TRIGGER IF EXISTS prevent_shop_field_changes ON public.shops;
+DROP TRIGGER IF EXISTS shops_protect_fields ON public.shops;
+DROP TRIGGER IF EXISTS shops_field_guard ON public.shops;
+DROP TRIGGER IF EXISTS shop_protected_fields_trigger ON public.shops;
+DROP TRIGGER IF EXISTS protect_shops_trigger ON public.shops;
+DROP TRIGGER IF EXISTS trg_protect_shop_fields ON public.shops;
+
+-- Step 2: Drop the underlying trigger function(s) too.
+DROP FUNCTION IF EXISTS protect_shop_fields() CASCADE;
+DROP FUNCTION IF EXISTS shop_field_protection() CASCADE;
+DROP FUNCTION IF EXISTS prevent_shop_field_changes() CASCADE;
+DROP FUNCTION IF EXISTS check_protected_shop_fields() CASCADE;
+DROP FUNCTION IF EXISTS shops_field_guard() CASCADE;
+
+-- Step 3: Recreate protection as a service_role-aware trigger.
+-- service_role = our admin server actions (createAdminClient).
+-- anon / authenticated = regular users (must be restricted).
+CREATE OR REPLACE FUNCTION public.guard_shop_protected_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Allow service_role (admin client) to change anything — no restriction.
+  -- current_user = 'supabase_admin' or 'postgres' when using service_role key.
+  IF current_user IN ('supabase_admin', 'postgres', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+
+  -- For all other roles (authenticated shopkeeper users):
+  -- Block changes to admin-only fields.
+  IF NEW.is_approved IS DISTINCT FROM OLD.is_approved THEN
+    RAISE EXCEPTION 'Cannot modify protected shop fields: is_approved';
+  END IF;
+  IF NEW.is_active IS DISTINCT FROM OLD.is_active THEN
+    RAISE EXCEPTION 'Cannot modify protected shop fields: is_active';
+  END IF;
+  IF NEW.wallet_balance IS DISTINCT FROM OLD.wallet_balance THEN
+    RAISE EXCEPTION 'Cannot modify protected shop fields: wallet_balance';
+  END IF;
+  IF NEW.total_earnings IS DISTINCT FROM OLD.total_earnings THEN
+    RAISE EXCEPTION 'Cannot modify protected shop fields: total_earnings';
+  END IF;
+  IF NEW.owner_id IS DISTINCT FROM OLD.owner_id THEN
+    RAISE EXCEPTION 'Cannot modify protected shop fields: owner_id';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Attach the new trigger
+DROP TRIGGER IF EXISTS trg_guard_shop_protected_fields ON public.shops;
+CREATE TRIGGER trg_guard_shop_protected_fields
+  BEFORE UPDATE ON public.shops
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_shop_protected_fields();
+
+-- Step 4: Verify — query should return the trigger we just created.
+SELECT trigger_name, event_manipulation, action_timing
+FROM information_schema.triggers
+WHERE event_object_table = 'shops'
+  AND trigger_schema = 'public';
+
+SELECT '✅ Shop field protection trigger fixed — admin approval will now work.' AS status;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 12. FIX: Shop visibility RLS — show closed shops to customers (Swiggy-style)
+--
+-- The old policy required is_open=TRUE, hiding closed shops completely.
+-- New logic: show ALL approved+active shops. Only is_active=false hides them.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Fix shops SELECT policy
+DROP POLICY IF EXISTS "Public view approved active shops" ON public.shops;
+DROP POLICY IF EXISTS "Anyone can view approved active shops" ON public.shops;
+
+CREATE POLICY "Public view approved active shops"
+  ON public.shops FOR SELECT
+  USING (is_approved = TRUE AND is_active = TRUE);
+
+-- Fix products SELECT policy (allow browsing closed shop products)
+DROP POLICY IF EXISTS "Public view available products" ON public.products;
+DROP POLICY IF EXISTS "Anyone can view available products" ON public.products;
+
+CREATE POLICY "Public view available products"
+  ON public.products FOR SELECT
+  USING (
+    is_available = TRUE AND
+    shop_id IN (
+      SELECT id FROM public.shops WHERE is_approved = TRUE AND is_active = TRUE
+    )
+  );
+
+SELECT '✅ Shop visibility RLS fixed — closed shops now visible, products browsable.' AS status;

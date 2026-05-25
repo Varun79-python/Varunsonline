@@ -234,7 +234,7 @@ export default function AdminAgents() {
 
   async function deleteAgentPermanently(agent: Agent) {
     if (!confirm(`⚠️ PERMANENTLY DELETE ${agent.full_name || 'this agent'}? This will:\n\n• Delete all agent data\n• Delete uploaded documents\n• Allow them to register again\n\nThis cannot be undone!`)) return
-    
+
     setProcessing(true)
     try {
       // Delete agent documents from storage
@@ -247,16 +247,25 @@ export default function AdminAgents() {
           }
         } catch (e) { console.error('Delete file error:', e) }
       }
-      
+
       // Delete agent from database
-      await supabase.from('delivery_agents').delete().eq('id', agent.id)
-      
-      alert(`✅ Agent "${agent.full_name}" has been permanently deleted. They can now register again.`)
+      const { error } = await supabase.from('delivery_agents').delete().eq('id', agent.id)
+      if (error) throw error
+
+      // ── INSTANT UI UPDATE ──────────────────────────────────────────────
+      // Close modal first so user sees the list immediately
       setSelected(null)
+      // Remove agent from local state immediately — no wait for re-fetch
+      setAgents(prev => prev.filter(a => a.id !== agent.id))
+      // Show success toast (non-blocking — unlike alert())
+      showToast(`✅ "${agent.full_name}" permanently deleted.`)
+      // Reset loadingRef guard so the follow-up load() actually runs
+      loadingRef.current = false
+      // Re-fetch to sync with server (catches any edge cases)
       load()
     } catch (err) {
       console.error('Delete error:', err)
-      alert('Failed to delete agent. Please try again.')
+      showToast('❌ Failed to delete agent. Please try again.', false)
     } finally {
       setProcessing(false)
     }

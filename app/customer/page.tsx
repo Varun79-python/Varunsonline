@@ -13,6 +13,17 @@ interface Shop {
   delivery_rating?: number | null
   total_ratings?: number | null
   is_open?: boolean | null
+  is_active?: boolean | null
+  subscription_end_date?: string | null
+}
+
+// Derive a unified shop status for sorting + display
+type ShopStatus = 'open' | 'closed' | 'unavailable'
+function getShopStatus(s: Shop): ShopStatus {
+  if (!s.is_active) return 'unavailable'  // blocked/inactive by admin
+  if (s.subscription_end_date && new Date(s.subscription_end_date) < new Date()) return 'unavailable'
+  if (!s.is_open) return 'closed'
+  return 'open'
 }
 
 const CATEGORIES = [
@@ -130,8 +141,13 @@ export default function CustomerHome() {
 
   async function loadShops(lat: number, lon: number, radius?: number) {
     setLoading(true)
-    // Only filter by approved + active — is_open affects badge display, not visibility
-    const { data } = await supabase.from('shops').select('*').eq('is_approved', true).eq('is_active', true)
+    // Fetch ALL approved shops — is_active=false means blocked/rejected (hide completely)
+    // is_open=false means closed (show with Closed badge, disable ordering)
+    const { data } = await supabase
+      .from('shops')
+      .select('id,name,category,description,shop_image_url,rating,total_orders,address_line1,city,latitude,longitude,shop_rating,delivery_rating,total_ratings,is_open,is_active,subscription_end_date')
+      .eq('is_approved', true)
+      .eq('is_active', true)  // is_active=false = blocked/rejected → hide completely
     if (data) {
       const activeRadius = radius ?? radiusKm ?? 10
       const withDist = data.map((s: Shop) => ({
@@ -139,9 +155,13 @@ export default function CustomerHome() {
         distance: s.latitude != null && s.longitude != null
           ? haversineKm(lat, lon, s.latitude, s.longitude) : null
       }))
-      // Show shops within radius; if shop has no GPS coords, still show it (null distance = show)
+      // Show shops within radius; no GPS coords → still show (null distance included)
       const inRange = withDist.filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)
+      // Sort: 1) open first, 2) closed, 3) unavailable (sub expired etc), then nearest within each group
+      const statusOrder: Record<ShopStatus, number> = { open: 0, closed: 1, unavailable: 2 }
       const sorted = inRange.sort((a: Shop, b: Shop) => {
+        const statusDiff = statusOrder[getShopStatus(a)] - statusOrder[getShopStatus(b)]
+        if (statusDiff !== 0) return statusDiff
         if (a.distance === null && b.distance === null) return 0
         if (a.distance === null) return 1
         if (b.distance === null) return -1
@@ -149,7 +169,7 @@ export default function CustomerHome() {
       })
       setShops(sorted)
       setFiltered(sorted)
-      console.log(`[Shops] Loaded ${sorted.length} shops within ${activeRadius}km (total available: ${data.length})`)
+      console.log(`[Shops] Loaded ${sorted.length} shops within ${activeRadius}km (total: ${data.length})`)
     }
     setLoading(false)
   }
@@ -338,9 +358,9 @@ export default function CustomerHome() {
         {!loading && gpsReady && filtered.length === 0 && (
           <div className="ch-empty">
             <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🏪</div>
-            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No Shops Available</h3>
+            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No Shops Nearby</h3>
             <p style={{ fontSize: '0.83rem', color: '#64748b', marginBottom: 14 }}>
-              No shops are open in your area right now ({radiusKm} km radius). Check back soon!
+              No shops found within {radiusKm} km. Check back soon!
             </p>
           </div>
         )}
@@ -348,65 +368,94 @@ export default function CustomerHome() {
         {/* Shop cards */}
         {!loading && filtered.length > 0 && (
           <div className="ch-grid">
-            {filtered.map(shop => (
-              <div
-                key={shop.id}
-                onClick={() => router.push(`/customer/shop/${shop.id}`)}
-                className="ch-shop-card"
-              >
-                {/* Image */}
-                <div className="ch-card-img-wrap">
-                  {shop.shop_image_url
-                    ? <img src={shop.shop_image_url} alt={shop.name} className="ch-card-img" />
-                    : <div className="ch-card-img-fallback">
-                        <span style={{ fontSize: '2rem' }}>
-                          {CATEGORIES.find(c => c.label === shop.category)?.icon || '🏪'}
-                        </span>
-                      </div>
-                  }
-                  {/* Category pill */}
-                  <div
-                    className="ch-card-cat-pill"
-                    style={{ background: CAT_COLOR[shop.category] || '#64748b', bottom: shop.is_open === false ? 28 : 5 }}
-                  >{shop.category}</div>
-                  {/* Closed badge */}
-                  {shop.is_open === false && (
-                    <div style={{
-                      position: 'absolute', bottom: 5, left: 6,
-                      background: 'rgba(0,0,0,0.75)', color: '#fca5a5',
-                      fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
-                      borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
-                    }}>🔴 Closed</div>
-                  )}
-                </div>
+            {filtered.map(shop => {
+              const status = getShopStatus(shop)
+              const isUnavailable = status === 'unavailable'
+              const isClosed = status === 'closed'
+              return (
+                <div
+                  key={shop.id}
+                  onClick={() => router.push(`/customer/shop/${shop.id}`)}
+                  className="ch-shop-card"
+                  style={isClosed || isUnavailable ? { opacity: 0.82 } : {}}
+                >
+                  {/* Image */}
+                  <div className="ch-card-img-wrap">
+                    {shop.shop_image_url
+                      ? <img src={shop.shop_image_url} alt={shop.name} className="ch-card-img"
+                          style={isClosed || isUnavailable ? { filter: 'grayscale(30%)' } : {}}
+                        />
+                      : <div className="ch-card-img-fallback">
+                          <span style={{ fontSize: '2rem' }}>
+                            {CATEGORIES.find(c => c.label === shop.category)?.icon || '🏪'}
+                          </span>
+                        </div>
+                    }
+                    {/* Category pill */}
+                    <div
+                      className="ch-card-cat-pill"
+                      style={{
+                        background: CAT_COLOR[shop.category] || '#64748b',
+                        bottom: (isClosed || isUnavailable) ? 28 : 5
+                      }}
+                    >{shop.category}</div>
 
-                {/* Info */}
-                <div className="ch-card-body">
-                  <div className="ch-card-name">{shop.name}</div>
-                  <div className="ch-card-meta">
-                    {(shop.shop_rating || shop.rating || 0) > 0 && (
-                      <span className="ch-card-rating" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        ⭐ <span style={{ fontWeight: 700 }}>{(shop.shop_rating || shop.rating)}</span>
-                        {shop.total_ratings && shop.total_ratings > 0 && (
-                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({shop.total_ratings})</span>
-                        )}
-                      </span>
+                    {/* Status badge overlay */}
+                    {status === 'open' && (
+                      <div style={{
+                        position: 'absolute', bottom: 5, left: 6,
+                        background: 'rgba(22,163,74,0.92)', color: 'white',
+                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
+                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>🟢 Open</div>
                     )}
-                    {shop.distance != null && (
-                      <span className="ch-card-dist" style={{
-                        color: (shop.distance as number) < 2 ? '#16a34a'
-                          : (shop.distance as number) < 5 ? '#d97706' : '#dc2626'
-                      }}>
-                        📍 {(shop.distance as number) < 1
-                          ? `${Math.round((shop.distance as number) * 1000)}m`
-                          : `${(shop.distance as number).toFixed(1)} km`}
-                      </span>
+                    {isClosed && (
+                      <div style={{
+                        position: 'absolute', bottom: 5, left: 6,
+                        background: 'rgba(0,0,0,0.78)', color: '#fca5a5',
+                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
+                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
+                      }}>🔴 Closed</div>
                     )}
-                    {!shop.distance && shop.city && <span className="ch-card-city">{shop.city}</span>}
+                    {isUnavailable && (
+                      <div style={{
+                        position: 'absolute', bottom: 5, left: 6,
+                        background: 'rgba(120,80,0,0.85)', color: '#fde68a',
+                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
+                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
+                      }}>⚠️ Unavailable</div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="ch-card-body">
+                    <div className="ch-card-name">{shop.name}</div>
+                    <div className="ch-card-meta">
+                      {(shop.shop_rating || shop.rating || 0) > 0 && (
+                        <span className="ch-card-rating" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          ⭐ <span style={{ fontWeight: 700 }}>{(shop.shop_rating || shop.rating)}</span>
+                          {shop.total_ratings && shop.total_ratings > 0 && (
+                            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({shop.total_ratings})</span>
+                          )}
+                        </span>
+                      )}
+                      {shop.distance != null && (
+                        <span className="ch-card-dist" style={{
+                          color: (shop.distance as number) < 2 ? '#16a34a'
+                            : (shop.distance as number) < 5 ? '#d97706' : '#dc2626'
+                        }}>
+                          📍 {(shop.distance as number) < 1
+                            ? `${Math.round((shop.distance as number) * 1000)}m`
+                            : `${(shop.distance as number).toFixed(1)} km`}
+                        </span>
+                      )}
+                      {!shop.distance && shop.city && <span className="ch-card-city">{shop.city}</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

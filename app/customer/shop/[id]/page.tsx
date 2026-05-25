@@ -15,6 +15,8 @@ interface Product {
 interface Shop {
   id: string; name: string; category: string; shop_image_url: string
   description: string; rating: number; address_line1: string; city: string; is_open: boolean
+  is_active?: boolean | null
+  subscription_end_date?: string | null
   distance?: number | null
   latitude?: number | null
   longitude?: number | null
@@ -71,7 +73,9 @@ export default function ShopPage() {
         supabase.from('shops').select('*').eq('id', id).single(),
         supabase.from('products').select('*').eq('shop_id', id).eq('is_available', true).order('created_at', { ascending: false })
       ])
-      if (shopData && shopData.is_approved && shopData.is_active) {
+      // Show shop if approved — even if closed or subscription expired (customer can browse)
+      // Only hide if not approved at all (rejected/deleted)
+      if (shopData && shopData.is_approved) {
         setShop(shopData)
         setProducts(prodData || [])
         setFiltered(prodData || [])
@@ -93,7 +97,15 @@ export default function ShopPage() {
 
   function updateCart(product: Product, delta: number) {
     if (!shop) return
-    if (!shop.is_open) { alert('This shop is currently closed. Please check back later.'); return }
+    const subExpired = shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()
+    if (!shop.is_open || subExpired) {
+      if (subExpired) {
+        alert('This shop is temporarily unavailable. Please check back later.')
+      } else {
+        alert('This shop is currently closed. Please check back later.')
+      }
+      return
+    }
     setCart(prev => {
       let updated = [...prev]
       if (updated.length > 0 && updated[0].shop_id !== id) {
@@ -260,27 +272,43 @@ export default function ShopPage() {
         </div>
       </div>
 
-      {/* Closed Banner */}
-      {!shop.is_open && (
-        <div style={{ 
-          margin: '16px 16px 0', 
-          background: '#fef2f2', 
-          border: '1px solid #fecaca', 
-          borderRadius: 14, 
-          padding: 14, 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 12 
-        }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '1.3rem' }}>🔴</span>
+      {/* Status banners — shown based on shop state */}
+      {(() => {
+        const subExpired = shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()
+        if (subExpired) return (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#fefce8', border: '1px solid #fde047',
+            borderRadius: 14, padding: 14,
+            display: 'flex', alignItems: 'center', gap: 12
+          }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '1.3rem' }}>⚠️</span>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#92400e', fontSize: '0.95rem' }}>Temporarily Unavailable</div>
+              <div style={{ fontSize: '0.8rem', color: '#a16207' }}>You can browse but cannot place orders right now</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '0.95rem' }}>Shop is Currently Closed</div>
-            <div style={{ fontSize: '0.8rem', color: '#ef4444' }}>Browse products but cannot place order</div>
+        )
+        if (!shop.is_open) return (
+          <div style={{
+            margin: '16px 16px 0',
+            background: '#fef2f2', border: '1px solid #fecaca',
+            borderRadius: 14, padding: 14,
+            display: 'flex', alignItems: 'center', gap: 12
+          }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '1.3rem' }}>🔴</span>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '0.95rem' }}>Shop is Currently Closed</div>
+              <div style={{ fontSize: '0.8rem', color: '#ef4444' }}>Browse products — ordering will resume when the shop opens</div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+        return null
+      })()}
 
       {/* Premium Search Bar */}
       <div style={{ padding: '16px 16px 12px' }}>
@@ -503,80 +531,34 @@ export default function ShopPage() {
                     <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: '#f1f5f9', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>
                       Unavailable
                     </div>
-                  ) : !shop.is_open ? (
-                    <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: '#fef3c7', color: '#d97706', fontSize: '0.8rem', fontWeight: 600 }}>
-                      Closed
-                    </div>
-                  ) : qty === 0 ? (
-                    <button 
-                      onClick={() => updateCart(p, 1)}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        borderRadius: 10,
-                        border: '1.5px solid #f97316',
-                        background: 'white',
-                        color: '#f97316',
-                        fontWeight: 700,
-                        fontSize: '0.85rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseDown={(e) => e.currentTarget.style.background = '#fff7ed'}
-                      onMouseUp={(e) => e.currentTarget.style.background = 'white'}
-                    >
-                      Add to Cart
-                    </button>
-                  ) : (
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between',
-                      background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                      borderRadius: 10,
-                      padding: '4px',
-                    }}>
-                      <button 
-                        onClick={() => updateCart(p, -1)}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          border: 'none',
-                          background: 'white',
-                          color: '#f97316',
-                          fontWeight: 700,
-                          fontSize: '1.2rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        −
-                      </button>
-                      <span style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem' }}>{qty}</span>
-                      <button 
+                  ) : (() => {
+                    const subExpired = shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()
+                    if (subExpired) return (
+                      <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: '#fef9c3', color: '#a16207', fontSize: '0.8rem', fontWeight: 600 }}>
+                        ⚠️ Unavailable
+                      </div>
+                    )
+                    if (!shop.is_open) return (
+                      <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: '#fef3c7', color: '#d97706', fontSize: '0.8rem', fontWeight: 600 }}>
+                        🔴 Closed
+                      </div>
+                    )
+                    if (qty === 0) return (
+                      <button
                         onClick={() => updateCart(p, 1)}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          border: 'none',
-                          background: 'white',
-                          color: '#f97316',
-                          fontWeight: 700,
-                          fontSize: '1.2rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
+                        style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1.5px solid #f97316', background: 'white', color: '#f97316', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseDown={(e) => e.currentTarget.style.background = '#fff7ed'}
+                        onMouseUp={(e) => e.currentTarget.style.background = 'white'}
+                      >Add to Cart</button>
+                    )
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', borderRadius: 10, padding: '4px' }}>
+                        <button onClick={() => updateCart(p, -1)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'white', color: '#f97316', fontWeight: 700, fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                        <span style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem' }}>{qty}</span>
+                        <button onClick={() => updateCart(p, 1)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'white', color: '#f97316', fontWeight: 700, fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )
