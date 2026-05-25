@@ -11,6 +11,41 @@ export function createServiceClient() {
   return createClient(SUPABASE_URL, SERVICE_KEY)
 }
 
+/**
+ * CSRF protection: validate Origin header matches the app URL.
+ * Call at the start of state-changing API routes (POST, PUT, DELETE).
+ * Skips validation if APP_URL is not set (development mode).
+ */
+export function validateOrigin(request: NextRequest): { valid: boolean; error?: string } {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  // Skip in development — Origin header is often absent/null
+  if (!appUrl || appUrl.includes('localhost')) {
+    return { valid: true }
+  }
+
+  const origin = request.headers.get('origin')
+  const referer = request.headers.get('referer')
+
+  // Check Origin first, fall back to Referer
+  const source = origin || referer
+  if (!source) {
+    return { valid: false, error: 'Missing origin header' }
+  }
+
+  try {
+    const sourceUrl = new URL(source)
+    const allowedUrl = new URL(appUrl)
+    if (sourceUrl.origin !== allowedUrl.origin) {
+      logger.auth('csrf_rejected', { source: sourceUrl.origin, allowed: allowedUrl.origin })
+      return { valid: false, error: 'Cross-origin request rejected' }
+    }
+  } catch {
+    return { valid: false, error: 'Invalid origin header' }
+  }
+
+  return { valid: true }
+}
+
 export async function verifyAdmin(request: NextRequest): Promise<{ error?: string; userId?: string }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {

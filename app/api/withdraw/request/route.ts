@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
 
     if (authErr || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // CSRF protection (production only)
+    const csrf = validateOrigin(req)
+    if (!csrf.valid) {
+      return NextResponse.json({ error: csrf.error }, { status: 403 })
     }
 
     const { user_id, user_type, amount, payment_method, upi_id, bank_account_number, bank_ifsc } = await req.json()

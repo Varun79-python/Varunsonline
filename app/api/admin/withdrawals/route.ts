@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
 import { verifyAdmin } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServiceClient()
+
+    // CSRF protection (production only)
+    const csrf = validateOrigin(req)
+    if (!csrf.valid) {
+      return NextResponse.json({ error: csrf.error }, { status: 403 })
+    }
+
     const { id, action, admin_note } = await req.json()
     if (!id || !action) return NextResponse.json({ error: 'Missing id or action' }, { status: 400 })
     if (!['paid', 'rejected'].includes(action)) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -62,15 +69,17 @@ export async function POST(req: NextRequest) {
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
     if (action === 'paid') {
-      // Debit the wallet
+      // ── PAID: Do NOT deduct wallet (funds already locked at request time) ──
+      // Only record total_withdrawn and add wallet transaction for audit trail
       const table = wr.user_type === 'shopkeeper' ? 'shops' : 'delivery_agents'
       const idCol = wr.user_type === 'shopkeeper' ? 'owner_id' : 'id'
 
-      const { data: acct } = await supabase.from(table).select('wallet_balance').eq(idCol, wr.user_id).single()
-      const currentBalance = acct?.wallet_balance || 0
-      const newBalance = Math.max(0, currentBalance - wr.amount)
-
-      await supabase.from(table).update({ wallet_balance: newBalance }).eq(idCol, wr.user_id)
+      // Update total_withdrawn counter
+      const { data: acct } = await supabase.from(table).select('total_withdrawn').eq(idCol, wr.user_id).single()
+      const currentWithdrawn = acct?.total_withdrawn || 0
+      await supabase.from(table).update({
+        total_withdrawn: currentWithdrawn + wr.amount
+      }).eq(idCol, wr.user_id)
 
       // Record wallet transaction
       await supabase.from('wallet_transactions').insert({
@@ -79,6 +88,28 @@ export async function POST(req: NextRequest) {
         type: 'debit',
         amount: wr.amount,
         description: `Withdrawal paid via ${wr.payment_method === 'upi' ? `UPI (${wr.upi_id})` : `Bank Transfer`}`,
+      })
+    }
+
+    if (action === 'rejected') {
+      // ── REJECTED: RESTORE wallet balance (funds were locked at request time) ──
+      const table = wr.user_type === 'shopkeeper' ? 'shops' : 'delivery_agents'
+      const idCol = wr.user_type === 'shopkeeper' ? 'owner_id' : 'id'
+
+      const { data: acct } = await supabase.from(table).select('wallet_balance').eq(idCol, wr.user_id).single()
+      const currentBalance = acct?.wallet_balance || 0
+
+      await supabase.from(table).update({
+        wallet_balance: currentBalance + wr.amount
+      }).eq(idCol, wr.user_id)
+
+      // Record refund transaction
+      await supabase.from('wallet_transactions').insert({
+        user_id: wr.user_id,
+        user_type: wr.user_type,
+        type: 'credit',
+        amount: wr.amount,
+        description: `Withdrawal rejected — funds restored to wallet`,
       })
     }
 
