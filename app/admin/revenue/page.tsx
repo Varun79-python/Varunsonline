@@ -31,7 +31,7 @@ interface AnalyticsData {
   admin: {
     totalRevenue: number; orderEarnings: number; platformFeeEarnings: number
     deliveryCommissionEarnings: number; subscriptionEarnings: number
-    couponLoss: number; cancelledLoss: number; refundLoss: number
+    couponCost: number; cancelledLoss: number; refundLoss: number
     grossInflow: number; grossOutflow: number; netRevenue: number
     netProfit: number; totalLosses: number
   }
@@ -372,7 +372,7 @@ export default function AdminRevenueAnalytics() {
             </Card>
             <Card accent="#ef4444">
               <div style={{ fontWeight: 700, marginBottom: 12, color: '#ef4444' }}>📉 Losses / Deductions</div>
-              <Row label="Coupon Discounts (admin bore)" value={`− ${fmt(data.admin.couponLoss)}`} color="#ef4444" />
+              <Row label="Coupon Discounts (cost to platform)" value={`− ${fmt(data.admin.couponCost)}`} color="#ef4444" />
               <Row label="Cancelled Order Fee Loss" value={`− ${fmt(data.admin.cancelledLoss)}`} color="#ef4444" />
               <Row label="Refunded Transactions" value={`${data.admin.refundLoss} events`} color="#f59e0b" />
               <div style={{ borderTop: '2px solid #e2e8f0', marginTop: 8, paddingTop: 8 }}>
@@ -382,22 +382,22 @@ export default function AdminRevenueAnalytics() {
             <Card>
               <div style={{ fontWeight: 700, marginBottom: 12, color: '#1e293b' }}>⚖️ P&L Summary</div>
               <Row label="Gross Inflow (customer + subs)" value={fmt(data.admin.grossInflow)} />
-              <Row label="Gross Outflow (shops + agents + coupons)" value={`− ${fmt(data.admin.grossOutflow)}`} color="#ef4444" />
+              <Row label="Gross Outflow (shops + agents)" value={`− ${fmt(data.admin.grossOutflow)}`} color="#ef4444" />
               <div style={{ borderTop: '2px solid #e2e8f0', marginTop: 8, paddingTop: 8 }}>
                 <Row label="Net Revenue" value={fmt(data.admin.netRevenue)} bold color="#0ea5e9" />
                 <Row label="Net Admin Profit" value={fmt(data.admin.netProfit)} bold color="#7c3aed" />
               </div>
               <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 12 }}>
-                * Net Admin Profit = order-based admin_earning + subscription revenue.<br />
-                admin_earning already deducts coupon loss — no double counting.
+                * Admin earns ONLY platform fee + subscriptions (coupons absorbed by platform).<br />
+                Coupon cost (₹{data.admin.couponCost || 0}) is reported as a marketing expense below.
               </p>
             </Card>
             <Card>
               <div style={{ fontWeight: 700, marginBottom: 12, color: '#1e293b' }}>📊 Platform Share</div>
               <Row label="Admin share of customer spend" value={pct(data.admin.netProfit, data.customer.totalCustomerPaid)} bold />
               <Row label="Platform fee % contribution" value={pct(data.admin.platformFeeEarnings, data.admin.netProfit)} />
-              <Row label="Delivery commission % contribution" value={pct(data.admin.deliveryCommissionEarnings, data.admin.netProfit)} />
               <Row label="Subscription % contribution" value={pct(data.admin.subscriptionEarnings, data.admin.netProfit)} />
+              <Row label="Coupon cost as % of revenue" value={pct(data.admin.couponCost, data.admin.netProfit)} color="#ef4444" />
             </Card>
           </div>
         </div>

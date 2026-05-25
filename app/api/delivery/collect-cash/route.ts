@@ -4,6 +4,18 @@ import { processEarnings } from '../utils'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * POST /api/delivery/collect-cash
+ * Handles COD payment collection at delivery time.
+ * Two payment methods:
+ *   1. 'cash' — agent collects physical cash
+ *   2. 'qr' — customer pays via Razorpay QR/UPI (verified via webhook)
+ *
+ * CRITICAL BUSINESS RULES:
+ *   - Cash: agent owes (total_amount - agent_earning) to platform
+ *   - QR: customer paid platform directly, no settlement due
+ *   - COD settlement ledger tracks all dues
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await verifyDeliveryAgent(req)
@@ -11,16 +23,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
 
-    const { orderId, paymentMethod } = await req.json()
-    // paymentMethod: 'qr' (UPI) | 'cash'
+    const { orderId, paymentMethod, idempotencyKey } = await req.json()
+    // paymentMethod: 'qr' (UPI/Razorpay QR) | 'cash'
     if (!orderId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
     const supabase = createServiceClient()
 
+    // Idempotency: reject if already processed
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('agent_cod_settlement_ledger')
+        .select('id')
+        .eq('order_id', orderId)
+        .maybeSingle()
+      if (existing) {
+        return NextResponse.json({ error: 'Payment already collected for this order' }, { status: 409 })
+      }
+    }
+
     // Fetch order — must be COD, OTP verified, not yet delivered
     const { data: order } = await supabase
       .from('orders')
-      .select('id, agent_id, total_amount, payment_status, payment_method, order_number, status, otp_verified, agent_earning')
+      .select('id, agent_id, total_amount, payment_status, payment_method, order_number, status, otp_verified, agent_earning, shopkeeper_earning, subtotal, platform_fee, delivery_charge')
       .eq('id', orderId)
       .eq('status', 'out_for_delivery')
       .single()
@@ -32,81 +56,115 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString()
     const collectedAmount = Math.max(0, order.total_amount)
+    const agentEarning = Math.max(0, order.agent_earning)
     const method = paymentMethod || 'cash'
 
-    // 1. Mark order as delivered + payment collected
+    if (method === 'qr') {
+      // ── QR PAYMENT ──────────────────────────────────────────────────────
+      // Customer pays the platform directly via Razorpay QR.
+      // Payment is verified via webhook before order completes.
+      // Mark order as cod_qr_pending — awaiting webhook confirmation
+      await supabase.from('orders').update({
+        status: 'cod_pending',
+        payment_status: 'cod_qr_pending',
+        cod_collected_at: now,
+        cod_payment_method: 'qr',
+      }).eq('id', orderId)
+
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'cod_pending',
+        changed_by: auth.agentId,
+        notes: 'QR payment initiated — awaiting webhook verification'
+      })
+
+      return NextResponse.json({
+        success: true,
+        method: 'qr',
+        message: 'QR payment initiated. Waiting for customer to complete payment.',
+        requiresVerification: true,
+        totalAmount: collectedAmount,
+      })
+    }
+
+    // ── CASH PAYMENT ──────────────────────────────────────────────────────
+    // Agent collected physical cash. Calculate settlement due.
+    // settlement_due = total_amount - agent_earning (agent keeps their fee)
+
+    // 1. Mark order as delivered + cash collected
     await supabase.from('orders').update({
       status: 'delivered',
-      payment_status: 'paid',
+      payment_status: 'cod_cash_collected',
       cod_collected_at: now,
       delivered_at: now,
-      cod_payment_method: method,  // 'qr' or 'cash'
+      cod_payment_method: 'cash',
     }).eq('id', orderId)
 
     await supabase.from('order_status_history').insert({
       order_id: orderId,
       status: 'delivered',
-      changed_by: auth.agentId
+      changed_by: auth.agentId,
+      notes: 'Cash collected at delivery'
     })
 
     // 2. Credit shop + agent earnings (processEarnings handles wallet credits)
     await processEarnings(supabase, orderId)
 
-    // 3. Handle agent cash accountability
-    // Re-fetch agent wallet AFTER processEarnings (earnings just credited)
-    const { data: agent } = await supabase
-      .from('delivery_agents')
-      .select('wallet_balance')
-      .eq('id', auth.agentId)
-      .single()
+    // 3. Calculate settlement: agent owes (total_amount - agent_earning) to platform
+    //    Agent keeps their delivery earning.
+    const settlementDue = collectedAmount - agentEarning
 
-    const balanceAfterEarnings = agent?.wallet_balance || 0
+    // 4. Create COD settlement ledger entry
+    const { data: existingLedger } = await supabase
+      .from('agent_cod_settlement_ledger')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle()
 
-    let newBalance: number
-    let settlementNote: string
-
-    if (method === 'qr') {
-      // QR / UPI — customer paid the platform directly via UPI
-      // Agent doesn't owe cash — just record the transaction
-      newBalance = balanceAfterEarnings
-      settlementNote = `QR/UPI payment collected for order ${order.order_number}`
-
-      await supabase.from('wallet_transactions').insert({
-        user_id: auth.agentId,
-        user_type: 'delivery_agent',
-        type: 'info',
-        amount: collectedAmount,
-        description: settlementNote,
-        order_id: orderId
-      })
-    } else {
-      // Cash — agent collected cash on behalf of platform
-      // Deduct from wallet: agent owes this cash to platform
-      newBalance = balanceAfterEarnings - collectedAmount
-      settlementNote = `Cash collected for order ${order.order_number} — remit ₹${collectedAmount} to platform`
-
-      await supabase.from('delivery_agents')
-        .update({ wallet_balance: newBalance })
-        .eq('id', auth.agentId)
-
-      await supabase.from('wallet_transactions').insert({
-        user_id: auth.agentId,
-        user_type: 'delivery_agent',
-        type: 'debit',
-        amount: collectedAmount,
-        description: settlementNote,
-        order_id: orderId
+    if (!existingLedger) {
+      await supabase.from('agent_cod_settlement_ledger').insert({
+        agent_id: auth.agentId,
+        order_id: orderId,
+        cash_collected: collectedAmount,
+        amount_owed_to_platform: settlementDue,
+        settled_amount: 0,
+        pending_amount: settlementDue,
+        status: settlementDue > 0 ? 'pending' : 'settled',
       })
     }
 
+    // 5. Update agent's pending_cod_due by summing ledger
+    const { data: totalDueData } = await supabase
+      .from('agent_cod_settlement_ledger')
+      .select('pending_amount')
+      .eq('agent_id', auth.agentId)
+      .in('status', ['pending', 'partially_paid'])
+    
+    const totalPending = (totalDueData || []).reduce((s, r) => s + Number(r.pending_amount || 0), 0)
+    
+    await supabase.from('delivery_agents')
+      .update({ pending_cod_due: totalPending })
+      .eq('id', auth.agentId)
+
+    // 6. Record informational transaction for settlement tracking
+    // (No wallet deduction — settlement is tracked via agent_cod_settlement_ledger
+    //  and auto-recovered from future earnings via processEarnings)
+    await supabase.from('wallet_transactions').insert({
+      user_id: auth.agentId,
+      user_type: 'delivery_agent',
+      type: 'info',
+      amount: settlementDue,
+      description: `COD settlement due for order ${order.order_number} — ₹${settlementDue.toFixed(2)} will be auto-recovered from future earnings`,
+      order_id: orderId
+    })
+
     return NextResponse.json({
       success: true,
-      newWalletBalance: newBalance,
-      isNegative: newBalance < 0,
-      method,
-      message: newBalance < 0
-        ? `⚠️ Cash recorded! You owe ₹${Math.abs(newBalance)} to the platform. Settle via Wallet page.`
-        : `✅ ${method === 'qr' ? 'UPI payment' : 'Cash'} recorded! Wallet balance: ₹${newBalance.toFixed(2)}`
+      newWalletBalance: 0, // Will be refreshed from UI
+      method: 'cash',
+      settlementDue,
+      agentKept: agentEarning,
+      message: `✅ Cash collected! You keep ₹${agentEarning.toFixed(2)}. Settlement due: ₹${settlementDue.toFixed(2)}. This will be auto-recovered from future earnings.`
     })
   } catch (err) {
     console.error('Collect cash error:', err)

@@ -60,11 +60,11 @@ export async function POST(req: NextRequest) {
 
     // ── SERVER-SIDE RECALCULATION (never trust client financials) ──────────────
 
-    // Fetch product prices from DB to verify subtotal
+    // Fetch product prices & stock from DB to verify subtotal and for stock deduction
     const productIds = cart.map((i: { product_id: string }) => i.product_id)
     const { data: products } = await serviceSupabase
       .from('products')
-      .select('id, name, price')
+      .select('id, name, price, stock_quantity')
       .in('id', productIds)
 
     const productMap = new Map((products || []).map(p => [p.id, p]))
@@ -188,6 +188,40 @@ export async function POST(req: NextRequest) {
         })
       }
     } catch { /* optional */ }
+
+    // ── Deduct stock for each item atomically ────────────────────────────────
+    for (const item of cart) {
+      try {
+        const { data: success, error: stockErr } = await serviceSupabase
+          .rpc('decrement_stock', {
+            p_product_id: item.product_id,
+            p_quantity: item.quantity
+          })
+        if (stockErr) {
+          // RPC not available — fall back to direct UPDATE with stock check
+          const currentStock = productMap.get(item.product_id)?.stock_quantity ?? 0
+          if (currentStock >= item.quantity) {
+            const { error: fallbackErr } = await serviceSupabase
+              .from('products')
+              .update({ 
+                stock_quantity: currentStock - item.quantity,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+              .gte('stock_quantity', item.quantity)
+            if (fallbackErr) {
+              console.error('Stock deduction failed for product', item.product_id, fallbackErr)
+            }
+          } else {
+            console.error('Insufficient stock for product', item.product_id, 'have', currentStock, 'need', item.quantity)
+          }
+        } else if (success === false) {
+          console.error('Insufficient stock for product', item.product_id)
+        }
+      } catch (err) {
+        console.error('Stock deduction failed for product', item.product_id, err)
+      }
+    }
 
     return NextResponse.json({ success: true, orderId: order.id })
   } catch (err) {

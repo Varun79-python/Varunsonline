@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getAdminShops, approveShopkeeperDocuments, rejectShopkeeperDocuments, deleteShopkeeperShop, blockShopkeeperShop, unblockShopkeeperShop } from '@/app/admin/actions'
+import { SkeletonCard, Skeleton } from '@/components/ui/skeleton'
 
 interface UnifiedShop {
   id: string // shop.id or shop_documents.id
@@ -469,7 +470,7 @@ export default function AdminShops() {
         </div>
       )}
 
-      {loading ? <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div> : (
+      {loading ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {items.length === 0 && (
             <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>

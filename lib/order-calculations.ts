@@ -1,12 +1,15 @@
 /**
  * lib/order-calculations.ts
- * Server-side only — SHARED order pricing logic (single source of truth).
+ * Server-side only — SINGLE SOURCE OF TRUTH for all payment calculations.
  * ALL order creation/modification paths MUST use recalcOrder() for financial fields.
  * DO NOT import this on the client — it uses service-role patterns.
  *
- * adminEarning formula:
- *   platform_fee + delivery_commission - coupon_discount
- *   where delivery_commission = delivery_charge - agent_earning (20% of delivery_charge)
+ * STRICT BUSINESS RULES (SOURCE OF TRUTH):
+ *   shopkeeperEarning = subtotal (100% of items total — NO deductions)
+ *   agentEarning       = deliveryCharge (100% of delivery charge — NO deductions)
+ *   adminEarning       = platformFee (100% of platform fee — NO deductions)
+ *   totalAmount        = subtotal + platformFee + deliveryCharge - couponDiscount
+ *   Coupon discount cost is ABSORBED by the platform (admin).
  */
 import { createServiceClient } from '@/lib/authMiddleware'
 
@@ -25,21 +28,6 @@ export interface RecalcResult {
   shopkeeperEarning: number
   agentEarning: number
   adminEarning: number
-}
-
-/** Haversine distance in km */
-export function haversineKm(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number
-): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 /** Load platform settings once */
@@ -71,11 +59,12 @@ export function recalcOrder(
 ): RecalcResult {
   const platformFee = Math.round((subtotal * platformFeePercent) / 100)
   const totalAmount = Math.max(0, subtotal + deliveryCharge + platformFee - existingDiscount)
-  const agentEarning = Math.round(deliveryCharge * 0.8)
-  // adminEarning = platform_fee + delivery_commission - coupon_discount
-  const adminEarning = platformFee + (deliveryCharge - agentEarning) - existingDiscount
-  // Shopkeeper earns the subtotal (before platform fee; platform fee deducted separately)
+  // STRICT: shopkeeper gets 100% of items total
   const shopkeeperEarning = subtotal
+  // STRICT: agent gets 100% of delivery charge
+  const agentEarning = deliveryCharge
+  // STRICT: admin gets only platform fee (coupon cost absorbed by platform)
+  const adminEarning = platformFee
 
   return {
     subtotal: parseFloat(subtotal.toFixed(2)),

@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getAdminAgents } from '@/app/admin/actions'
+import { SkeletonBlock, Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 
 interface Agent {
   id: string
@@ -81,11 +82,8 @@ function DocPreview({ url, label, fallback = 'Document not uploaded', getSignedU
   return (
     <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
       {loading ? (
-        <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 24, height: 24, border: '2px solid #e2e8f0', borderTopColor: '#22c55e', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
-            <span style={{ fontSize: '0.75rem' }}>Loading...</span>
-          </div>
+        <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+          <Skeleton width={160} height={120} borderRadius={8} />
         </div>
       ) : (
         <img
@@ -338,7 +336,7 @@ export default function AdminAgents() {
 
       {/* Agents List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Loading...</div>}
+        {loading && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div>}
         {!loading && agents.length === 0 && (
           <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🛵</div>

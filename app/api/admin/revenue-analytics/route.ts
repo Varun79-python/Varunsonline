@@ -39,6 +39,16 @@ export async function GET(req: NextRequest) {
 
     const db = await createAdminClient()
 
+    // Verify the user has admin role
+    const { data: profile } = await db
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // ── Run all analytics queries in parallel ──────────────────────────────
     const [
       deliveredOrders,
@@ -187,10 +197,12 @@ export async function GET(req: NextRequest) {
     const expiredSubCount = paidSubs.length - activeSubCount
 
     // ── ADMIN TOTAL REVENUE (ORDER + SUBSCRIPTIONS) ───────────────────────
-    // admin_earning already includes platform_fee + delivery_commission - coupon_discount
-    // Subscription revenue is a separate stream using actual amount_paid
-    const totalAdminRevenue = totalAdminOrderEarning + totalSubRevenue
-    const totalDeliveryCommission = totalDeliveryFee - totalAgentEarnings
+    // STRICT: admin earns only platform_fee + subscriptions
+    // Use totalPlatformFee (column) not admin_earning (which has old formula for historical orders)
+    const totalAdminOrderRevenue = totalPlatformFee  // platform_fee is always correct
+    const totalAdminRevenue = totalAdminOrderRevenue + totalSubRevenue
+    // delivery_commission = delivery_fee - agent_earning → 0 with new formula (agent gets 100%)
+    const totalDeliveryCommission = Math.max(0, totalDeliveryFee - totalAgentEarnings)
 
     // ── WITHDRAWAL ANALYTICS ──────────────────────────────────────────────
     const shopWithdrawals = wdRequests.filter(w => w.user_type === 'shopkeeper')
@@ -220,9 +232,13 @@ export async function GET(req: NextRequest) {
     const pendingCodSettlement = codCashOwed
 
     // ── GROSS FLOW vs NET PROFIT ──────────────────────────────────────────
+    // Inflow = money received by platform
     const grossInflow = totalCustomerPaid + totalSubRevenue
-    const grossOutflow = totalShopkeeperEarnings + totalAgentEarnings + totalCouponDiscount
+    // Outflow = money paid out by platform (coupon discount is NOT an outflow — it's revenue foregone)
+    const grossOutflow = totalShopkeeperEarnings + totalAgentEarnings
+    // Net = what platform keeps
     const netRevenue = grossInflow - grossOutflow
+    // Losses = platform costs (coupons absorbed, cancelled platform fees)
     const totalLosses = totalCouponDiscount + cancelledLoss
 
     return NextResponse.json({
@@ -277,21 +293,21 @@ export async function GET(req: NextRequest) {
         activeSubscriptions: activeSubCount,
         expiredSubscriptions: expiredSubCount,
       },
-      // Admin earnings
+      // Admin earnings (STRICT: platform_fee + subscriptions only)
       admin: {
         totalRevenue: Math.round(totalAdminRevenue),
-        orderEarnings: Math.round(totalAdminOrderEarning),
+        orderEarnings: Math.round(totalAdminOrderRevenue),
         platformFeeEarnings: Math.round(totalPlatformFee),
         deliveryCommissionEarnings: Math.round(totalDeliveryCommission),
         subscriptionEarnings: Math.round(totalSubRevenue),
-        couponLoss: Math.round(totalCouponDiscount),
+        couponCost: Math.round(totalCouponDiscount),
         cancelledLoss: Math.round(cancelledLoss),
         refundLoss: refundedPayments,
         // P&L summary
         grossInflow: Math.round(grossInflow),
         grossOutflow: Math.round(grossOutflow),
         netRevenue: Math.round(netRevenue),
-        netProfit: Math.round(totalAdminRevenue),
+        netProfit: Math.round(netRevenue),  // same as netRevenue
         totalLosses: Math.round(totalLosses),
       },
       // Trend data
@@ -301,6 +317,24 @@ export async function GET(req: NextRequest) {
         lowestRevenueDay: lowestRevenueDayWithOrders.revenue === Infinity
           ? { date: '', revenue: 0 }
           : lowestRevenueDayWithOrders,
+      },
+      // Plan-wise subscription revenue breakdown
+      subscriptionPlans: (() => {
+        const planMap: Record<string, { name: string; count: number; revenue: number }> = {}
+        for (const sub of paidSubs as any[]) {
+          const planName = (sub as any).subscription_plans?.name || 'Unknown'
+          if (!planMap[planName]) planMap[planName] = { name: planName, count: 0, revenue: 0 }
+          planMap[planName].count++
+          planMap[planName].revenue += Number(sub.amount_paid) || 0
+        }
+        return Object.values(planMap).sort((a, b) => b.revenue - a.revenue)
+      })(),
+      // COD settlement summary
+      codSettlements: {
+        totalOwedToPlatform: Math.round(totalCodAmount - totalAgentEarnings),
+        pendingFromAgents: Math.round(pendingCodSettlement),
+        collectedByAgents: Math.round(agentCodSettlements),
+        agentsWithNegativeBalance: negativeBalanceAgents,
       },
     })
   } catch (err) {

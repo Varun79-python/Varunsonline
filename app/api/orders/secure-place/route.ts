@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
-import { recalcOrder, haversineKm } from '@/lib/order-calculations'
+import { recalcOrder } from '@/lib/order-calculations'
+import { haversineKm } from '@/lib/gps'
 
 function createServiceClient() {
   return createClient(
@@ -258,19 +259,34 @@ export async function POST(req: NextRequest) {
       }))
     )
 
-    // Deduct stock for each item (race-condition-safe via filter + rate limiting)
+    // Deduct stock for each item — atomic RPC prevents race condition
     for (const item of cart) {
       try {
-        const { data: prod } = await supabase
-          .from('products')
-          .select('stock_quantity')
-          .eq('id', item.product_id)
-          .single()
-        if (prod && prod.stock_quantity >= item.quantity) {
-          await supabase
-            .from('products')
-            .update({ stock_quantity: prod.stock_quantity - item.quantity, updated_at: new Date().toISOString() })
-            .eq('id', item.product_id)
+        const { data: success, error: stockErr } = await supabase
+          .rpc('decrement_stock', { 
+            p_product_id: item.product_id, 
+            p_quantity: item.quantity 
+          })
+        if (stockErr) {
+          // RPC not available — fall back to direct UPDATE with stock check
+          const currentStock = productMap.get(item.product_id)?.stock_quantity ?? 0
+          if (currentStock >= item.quantity) {
+            const { error: fallbackErr } = await supabase
+              .from('products')
+              .update({ 
+                stock_quantity: currentStock - item.quantity,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+              .gte('stock_quantity', item.quantity)
+            if (fallbackErr) {
+              console.error('Stock deduction fallback failed for product', item.product_id, fallbackErr)
+            }
+          } else {
+            console.error('Insufficient stock for product', item.product_id, 'have', currentStock, 'need', item.quantity)
+          }
+        } else if (success === false) {
+          console.error('Insufficient stock for product', item.product_id)
         }
       } catch (err) {
         console.error('Stock deduction failed for product', item.product_id, err)

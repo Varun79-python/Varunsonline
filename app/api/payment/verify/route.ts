@@ -19,14 +19,15 @@ function safeCompare(a: string, b: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.RAZORPAY_KEY_SECRET
-  if (!secret) {
-    logger.payment('verify_not_configured')
-    return NextResponse.json({ error: 'Payment verification is not configured' }, { status: 500 })
-  }
+  try {
+    const secret = process.env.RAZORPAY_KEY_SECRET
+    if (!secret) {
+      logger.payment('verify_not_configured')
+      return NextResponse.json({ error: 'Payment verification is not configured' }, { status: 500 })
+    }
 
-  const payload = await req.json() as VerifyPaymentPayload
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = payload
+    const payload = await req.json() as VerifyPaymentPayload
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = payload
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     logger.payment('verify_missing_fields', { hasOrderId: !!razorpay_order_id, hasPaymentId: !!razorpay_payment_id, hasSig: !!razorpay_signature })
@@ -78,6 +79,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  logger.payment('verify_success', { razorpay_order_id, razorpay_payment_id, orderId })
-  return NextResponse.json({ verified: true })
+    logger.payment('verify_success', { razorpay_order_id, razorpay_payment_id, orderId })
+    return NextResponse.json({ verified: true })
+  } catch (err) {
+    logger.error('verify_unexpected_error', { error: String(err) })
+    return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
+  }
 }

@@ -444,7 +444,7 @@ export default function ShopkeeperDashboard() {
                     <span style={{ background: badge.bg, color: badge.color, fontSize: '0.65rem', fontWeight: 800, padding: '3px 9px', borderRadius: 99, border: `1px solid ${badge.border}` }}>
                       {badge.icon} {badge.label}
                     </span>
-                    <span style={{ fontWeight: 800, color: '#f97316', fontSize: '1rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
+                    <span style={{ fontWeight: 800, color: '#f97316', fontSize: '1rem' }}>₹{order.shopkeeper_earning ?? order.total_amount}</span>
                   </div>
                 </div>
 
@@ -479,7 +479,7 @@ export default function ShopkeeperDashboard() {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: '#fff7ed', borderTop: '1px solid #f1f5f9' }}>
                       <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>Your Earnings</span>
-                      <span style={{ fontWeight: 800, color: '#f97316', fontSize: '0.8rem' }}>₹{order.shopkeeper_earning || order.subtotal || order.total_amount}</span>
+                      <span style={{ fontWeight: 800, color: '#f97316', fontSize: '0.8rem' }}>₹{order.shopkeeper_earning ?? order.total_amount}</span>
                     </div>
                   </div>
                 )}

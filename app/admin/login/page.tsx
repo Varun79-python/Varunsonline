@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function AdminLoginPage() {
   const supabase = createClient()
@@ -117,11 +118,14 @@ export default function AdminLoginPage() {
   if (initializing) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 40, height: 40, border: '3px solid #334155', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-          <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Skeleton width={180} height={28} borderRadius={8} style={{ margin: '0 auto' }} />
+          <Skeleton width={120} height={14} borderRadius={6} style={{ margin: '0 auto' }} />
+          <div style={{ height: 12 }} />
+          <Skeleton width="100%" height={48} borderRadius={8} />
+          <Skeleton width="100%" height={48} borderRadius={8} />
+          <Skeleton width={100} height={40} borderRadius={8} style={{ margin: '0 auto' }} />
         </div>
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }

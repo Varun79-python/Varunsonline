@@ -14,7 +14,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { POST } from './route'
-import { haversineKm, recalcOrder } from '@/lib/order-calculations'
+import { recalcOrder } from '@/lib/order-calculations'
+import { haversineKm } from '@/lib/gps'
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -169,15 +170,16 @@ describe('Order calculation (secure-place logic)', () => {
       expect(r.deliveryCharge).toBe(35)
       expect(r.platformFee).toBe(10)         // 200 × 5% = 10
       expect(r.totalAmount).toBe(245)        // 200 + 35 + 10
-      expect(r.agentEarning).toBe(28)        // 35 × 0.8 = 28
-      expect(r.adminEarning).toBe(17)        // 10 + (35 - 28) = 17
+      expect(r.agentEarning).toBe(35)        // 100% of deliveryCharge
+      expect(r.adminEarning).toBe(10)        // platformFee only — no deductions
     })
 
     it('applies coupon discount before computing total', () => {
       const r = recalcOrder(500, 40, 5, 50)
       expect(r.platformFee).toBe(25)         // 500 × 5%
       expect(r.totalAmount).toBe(515)        // 500 + 40 + 25 - 50
-      expect(r.agentEarning).toBe(32)        // 40 × 0.8
+      expect(r.agentEarning).toBe(40)        // 100% of deliveryCharge
+      expect(r.adminEarning).toBe(25)        // platformFee only
     })
 
     it('never returns a negative total', () => {
@@ -189,7 +191,7 @@ describe('Order calculation (secure-place logic)', () => {
       const r = recalcOrder(100, 0, 5, 0)
       expect(r.totalAmount).toBe(105)        // 100 + 0 + 5
       expect(r.agentEarning).toBe(0)
-      expect(r.adminEarning).toBe(5)         // 5 + (0 - 0)
+      expect(r.adminEarning).toBe(5)         // platformFee only
     })
   })
 

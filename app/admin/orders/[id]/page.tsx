@@ -41,12 +41,12 @@ interface OrderDetailOrder {
   picked_up_at?: string | null
   delivered_at?: string | null
   otp_verified?: boolean
-  items_total?: number
+  subtotal: number
   total_amount: number
   delivery_charge?: number
   platform_fee?: number
   admin_earning?: number
-  shop_earning?: number
+  shopkeeper_earning?: number
   agent_earning?: number
   payment_method?: string
   razorpay_order_id?: string
@@ -258,13 +258,13 @@ export default function AdminOrderDetail() {
 
       {/* Payment */}
       <Card title="Payment Breakdown" icon="💰">
-        <InfoRow label="Items Total" value={`₹${order.items_total || order.total_amount}`} />
+        <InfoRow label="Items Total" value={`₹${order.subtotal}`} />
         <InfoRow label="Delivery Charge" value={`₹${order.delivery_charge || 0}`} />
         <InfoRow label="Platform Fee" value={`₹${order.platform_fee || 0}`} />
         <div style={{ borderTop: '2px solid #e2e8f0', marginTop: 8, paddingTop: 8 }}>
           <InfoRow label="Grand Total" value={`₹${order.total_amount}`} />
           <InfoRow label="Admin Earning" value={`₹${order.admin_earning || 0}`} />
-          <InfoRow label="Shop Payout" value={`₹${order.shop_earning || 0}`} />
+          <InfoRow label="Shop Payout" value={`₹${order.shopkeeper_earning || 0}`} />
           <InfoRow label="Agent Earning" value={`₹${order.agent_earning || 0}`} />
         </div>
         <InfoRow label="Payment Method" value={String(order.payment_method || '')} />

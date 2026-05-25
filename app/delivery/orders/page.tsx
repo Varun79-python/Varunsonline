@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { SkeletonBlock } from '@/components/ui/skeleton'
 
 interface Order {
   id: string; order_number: string; status: string; agent_earning: number
@@ -106,7 +107,7 @@ export default function DeliveryOrdersPage() {
       </div>
 
       {/* Orders List */}
-      {loading && <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Loading...</div>}
+      {loading && <div style={{ padding: 20 }}><SkeletonBlock lines={4} gap={12} /></div>}
       {!loading && orders.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: 30 }}>
           <div style={{ fontSize: '2rem', marginBottom: 8 }}>📭</div>

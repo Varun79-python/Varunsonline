@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { LoadingPage } from '@/components/ui/skeleton'
 
 interface Complaint {
   id: string
@@ -98,7 +99,7 @@ export default function AdminComplaintsPage() {
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter)
   const counts = { all: complaints.length, pending: complaints.filter(c => c.status === 'pending').length, in_progress: complaints.filter(c => c.status === 'in_progress').length, resolved: complaints.filter(c => c.status === 'resolved').length }
 
-  if (loading) return <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>Loading...</div>
+  if (loading) return <LoadingPage rows={3} />
 
   return (
     <div style={{ padding: 24 }}>

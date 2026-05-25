@@ -66,93 +66,103 @@ async function validateParticipant(
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = makeUserClient(req)
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = makeUserClient(req)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const svc = createServiceClient()
+    const svc = createServiceClient()
 
-  const { searchParams } = new URL(req.url)
-  const orderId = searchParams.get('orderId')
-  if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 })
+    const { searchParams } = new URL(req.url)
+    const orderId = searchParams.get('orderId')
+    if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 })
 
-  // Validate participant
-  const { allowed } = await validateParticipant(svc, user.id, orderId)
-  if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
+    // Validate participant
+    const { allowed } = await validateParticipant(svc, user.id, orderId)
+    if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
 
-  const { data: conv } = await svc
-    .from('order_conversations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle()
+    const { data: conv } = await svc
+      .from('order_conversations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle()
 
-  if (!conv) return NextResponse.json({ messages: [], conversationId: null })
+    if (!conv) return NextResponse.json({ messages: [], conversationId: null })
 
-  const { data: messages } = await svc
-    .from('order_messages')
-    .select('*, profiles(full_name, role, avatar_url)')
-    .eq('conversation_id', conv.id)
-    .order('created_at', { ascending: true })
+    const { data: messages } = await svc
+      .from('order_messages')
+      .select('*, profiles(full_name, role, avatar_url)')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: true })
 
-  return NextResponse.json({ messages: messages || [], conversationId: conv.id })
+    return NextResponse.json({ messages: messages || [], conversationId: conv.id })
+  } catch (err) {
+    console.error('Failed to fetch messages:', err)
+    return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = makeUserClient(req)
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = makeUserClient(req)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const svc = createServiceClient()
-  const body = await req.json()
-  const { orderId, message } = body
+    const svc = createServiceClient()
+    const body = await req.json()
+    const { orderId, message } = body
 
-  if (!orderId || !message?.trim()) {
-    return NextResponse.json({ error: 'orderId and message required' }, { status: 400 })
-  }
+    if (!orderId || !message?.trim()) {
+      return NextResponse.json({ error: 'orderId and message required' }, { status: 400 })
+    }
 
-  // Validate participant
-  const { allowed, role } = await validateParticipant(svc, user.id, orderId)
-  if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
+    // Validate participant
+    const { allowed, role } = await validateParticipant(svc, user.id, orderId)
+    if (!allowed) return NextResponse.json({ error: 'Not a participant in this order' }, { status: 403 })
 
-  let convId: string | null = null
+    let convId: string | null = null
 
-  const { data: existingConv } = await svc
-    .from('order_conversations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle()
-
-  if (existingConv) {
-    convId = existingConv.id
-  } else {
-    const { data: newConv, error: convErr } = await svc
+    const { data: existingConv } = await svc
       .from('order_conversations')
-      .insert({ order_id: orderId })
       .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle()
+
+    if (existingConv) {
+      convId = existingConv.id
+    } else {
+      const { data: newConv, error: convErr } = await svc
+        .from('order_conversations')
+        .insert({ order_id: orderId })
+        .select('id')
+        .single()
+
+      if (convErr || !newConv) return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+      convId = newConv.id
+    }
+
+    const { data: newMessage, error: msgErr } = await svc
+      .from('order_messages')
+      .insert({
+        conversation_id: convId,
+        sender_id: user.id,
+        sender_role: role,
+        message: message.trim(),
+      })
+      .select('*, profiles(full_name, role, avatar_url)')
       .single()
 
-    if (convErr || !newConv) return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
-    convId = newConv.id
+    if (msgErr || !newMessage) return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+
+    // Update conversation timestamp
+    await svc
+      .from('order_conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', convId)
+
+    return NextResponse.json({ message: newMessage, conversationId: convId })
+  } catch (err) {
+    console.error('Failed to send message:', err)
+    return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
-
-  const { data: newMessage, error: msgErr } = await svc
-    .from('order_messages')
-    .insert({
-      conversation_id: convId,
-      sender_id: user.id,
-      sender_role: role,
-      message: message.trim(),
-    })
-    .select('*, profiles(full_name, role, avatar_url)')
-    .single()
-
-  if (msgErr || !newMessage) return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
-
-  // Update conversation timestamp
-  await svc
-    .from('order_conversations')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', convId)
-
-  return NextResponse.json({ message: newMessage, conversationId: convId })
 }

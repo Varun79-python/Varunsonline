@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getCustomerGPSPosition } from '@/lib/customerGps'
 import { haversineKm } from '@/lib/gps'
+import ShopReviews from '@/components/shared/ShopReviews'
 
 interface Product {
   id: string; name: string; description: string; price: number; mrp: number
@@ -582,6 +583,11 @@ export default function ShopPage() {
           })}
         </div>
       )}
+
+      {/* Shop Reviews Section */}
+      <div style={{ padding: '0 16px 24px', marginTop: 16 }}>
+        <ShopReviews shopId={shop.id} />
+      </div>
     </div>
   )
 }

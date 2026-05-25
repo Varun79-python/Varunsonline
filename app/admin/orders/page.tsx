@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { SkeletonBlock } from '@/components/ui/skeleton'
 
 interface Order { id: string; order_number: string; status: string; total_amount: number; admin_earning: number; created_at: string; customer_id: string; shop_id: string; payment_method?: string; shops: { name: string } }
 
@@ -53,7 +54,7 @@ export default function AdminOrders() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <div style={{ textAlign: 'center', padding: 30 }}>Loading...</div>}
+        {loading && <div style={{ padding: 20 }}><SkeletonBlock lines={4} gap={12} /></div>}
         {!loading && filtered.length === 0 && <div style={{ textAlign: 'center', padding: 30, background: '#f8fafc', borderRadius: 12 }}>No orders found</div>}
         {filtered.map(o => (
           <a key={o.id} href={`/admin/orders/${o.id}`} style={{ display: 'block', background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14, textDecoration: 'none' }}>

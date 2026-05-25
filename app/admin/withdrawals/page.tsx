@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { SkeletonBlock } from '@/components/ui/skeleton'
 
 interface Withdrawal {
   id: string
@@ -100,7 +101,7 @@ export default function AdminWithdrawals() {
       </p>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div>
+        <div style={{ padding: 20 }}><SkeletonBlock lines={4} gap={12} /></div>
       ) : (
         <>
           {/* ── Pending ── */}

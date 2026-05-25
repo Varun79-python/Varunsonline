@@ -1,104 +1,203 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
-import { createClient } from '@supabase/supabase-js'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
+const MAX_WITHDRAWALS_PER_WEEK = 5
+
+/**
+ * POST /api/withdraw/request
+ * Submit a withdrawal request.
+ *
+ * STRICT FRAUD PREVENTION:
+ *   1. Max 5 withdrawals per week (Monday reset)
+ *   2. Withdrawable balance = wallet_balance - pending_cod_due
+ *   3. Cannot withdraw with negative wallet
+ *   4. Cannot withdraw if COD settlement due exists
+ *   5. Cannot withdraw if account blocked
+ *   6. No pending withdrawal already exists
+ *   7. Rate limited: 3 requests/hour
+ */
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 3 withdrawal requests per hour
-    const identifier = getRateLimitIdentifier(req)
-    const rateCheck = await checkRateLimit(identifier, {
-      windowMs: 60 * 60 * 1000,
-      maxRequests: 3,
-      endpoint: 'withdraw-request',
-      message: 'Too many withdrawal requests. Please try again later.',
-    })
+    const supabase = createServiceClient()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
 
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      )
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(req.headers.get('authorization')?.replace('Bearer ', '') || '')
-    if (authError || !user) {
+    if (authErr || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { user_id, user_type, amount, payment_method, upi_id, bank_account_number, bank_ifsc } = body
+    const { user_id, user_type, amount, payment_method, upi_id, bank_account_number, bank_ifsc } = await req.json()
 
+    // ── Input validation ──────────────────────────────────────────
     if (!user_id || !user_type || !amount || !payment_method) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Allowlist user_type — prevents user-controlled input from driving table selection
-    const VALID_USER_TYPES = ['shopkeeper', 'delivery_agent'] as const
-    type ValidUserType = typeof VALID_USER_TYPES[number]
-    if (!VALID_USER_TYPES.includes(user_type as ValidUserType)) {
-      return NextResponse.json({ error: 'Invalid user_type' }, { status: 400 })
+    if (!['shopkeeper', 'delivery_agent'].includes(user_type)) {
+      return NextResponse.json({ error: 'Invalid user type' }, { status: 403 })
     }
 
-    // Verify the requesting user matches the user_id in body
-    if (user.id !== user_id) {
+    // User can only withdraw for themselves
+    if (user_id !== user.id) {
       return NextResponse.json({ error: 'Cannot request withdrawal for another user' }, { status: 403 })
     }
 
-    const serviceSupabase = createServiceClient()
-
-    // Verify the user exists
-    const { data: profile } = await serviceSupabase.from('profiles').select('id').eq('id', user_id).single()
-    if (!profile) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-
-    // Check current balance
-    const table = user_type === 'shopkeeper' ? 'shops' : 'delivery_agents'
-    const idCol = user_type === 'shopkeeper' ? 'owner_id' : 'id'
-    const { data: acct } = await serviceSupabase.from(table).select('wallet_balance').eq(idCol, user_id).single()
-    const currentBalance = acct?.wallet_balance || 0
-
-    if (amount > currentBalance) {
-      return NextResponse.json({ error: `Amount ₹${amount} exceeds wallet balance ₹${currentBalance.toFixed(2)}` }, { status: 400 })
+    const withdrawAmount = Number(amount)
+    if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+      return NextResponse.json({ error: 'Invalid withdrawal amount' }, { status: 400 })
     }
 
-    // Check for existing pending request
-    const { data: existing } = await serviceSupabase
+    if (payment_method === 'upi' && !upi_id?.trim()) {
+      return NextResponse.json({ error: 'UPI ID required' }, { status: 400 })
+    }
+    if (payment_method === 'bank_transfer' && (!bank_account_number?.trim() || !bank_ifsc?.trim())) {
+      return NextResponse.json({ error: 'Bank account details required' }, { status: 400 })
+    }
+
+    // ── Rate limit: 3 requests/hour ──────────────────────────────
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString()
+    const { count: recentCount } = await supabase
+      .from('withdraw_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user_id)
+      .gte('created_at', oneHourAgo)
+
+    if (recentCount && recentCount >= 3) {
+      return NextResponse.json({ error: 'Too many requests. Please wait before submitting again.' }, { status: 429 })
+    }
+
+    // ── Check no pending withdrawal ───────────────────────────────
+    const { data: pending } = await supabase
       .from('withdraw_requests')
       .select('id')
       .eq('user_id', user_id)
       .eq('status', 'pending')
       .maybeSingle()
-    if (existing) {
-      return NextResponse.json({ error: 'You already have a pending withdrawal request. Please wait for it to be processed.' }, { status: 409 })
+
+    if (pending) {
+      return NextResponse.json({ error: 'You already have a pending withdrawal request' }, { status: 400 })
     }
 
-    const { data, error } = await serviceSupabase.from('withdraw_requests').insert({
+    // ── Fetch user + check balances ───────────────────────────────
+    let currentBalance = 0
+    let pendingCodDue = 0
+    let isBlocked = false
+
+    if (user_type === 'shopkeeper') {
+      const { data: shop } = await supabase
+        .from('shops')
+        .select('wallet_balance, is_active, is_approved')
+        .eq('owner_id', user_id)
+        .single()
+
+      if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 })
+
+      currentBalance = shop.wallet_balance || 0
+      pendingCodDue = 0  // Shopkeepers don't have COD dues
+      isBlocked = !shop.is_active || !shop.is_approved
+    } else {
+      const { data: agent } = await supabase
+        .from('delivery_agents')
+        .select('wallet_balance, pending_cod_due, is_blocked')
+        .eq('id', user_id)
+        .single()
+
+      if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+
+      currentBalance = agent.wallet_balance || 0
+      pendingCodDue = agent.pending_cod_due || 0
+      isBlocked = agent.is_blocked || false
+    }
+
+    // ── Fraud prevention checks ───────────────────────────────────
+    if (isBlocked) {
+      return NextResponse.json({ error: 'Account is blocked. Contact support.' }, { status: 403 })
+    }
+
+    if (currentBalance <= 0) {
+      return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 })
+    }
+
+    if (currentBalance < 0) {
+      return NextResponse.json({ error: 'Cannot withdraw with negative balance' }, { status: 400 })
+    }
+
+    // Withdrawable balance = wallet_balance - pending_cod_due
+    const withdrawableBalance = Math.max(0, currentBalance - pendingCodDue)
+
+    if (withdrawAmount > withdrawableBalance) {
+      const msg = pendingCodDue > 0
+        ? `Withdrawable balance is ₹${withdrawableBalance.toFixed(2)} (₹${pendingCodDue.toFixed(2)} held for COD settlement). Enter a lower amount.`
+        : `Insufficient balance. Available: ₹${withdrawableBalance.toFixed(2)}`
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+
+    // ── Weekly withdrawal limit check ─────────────────────────────
+    const weekStart = getWeekStart()
+    const { count: weeklyCount } = await supabase
+      .from('withdraw_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user_id)
+      .gte('created_at', weekStart.toISOString())
+
+    if (weeklyCount && weeklyCount >= MAX_WITHDRAWALS_PER_WEEK) {
+      return NextResponse.json({
+        error: `Weekly withdrawal limit reached (${MAX_WITHDRAWALS_PER_WEEK}/week). Try again next week (resets Monday 12 AM).`
+      }, { status: 400 })
+    }
+
+    // ── Lock funds: deduct from wallet immediately ────────────────
+    const newBalance = currentBalance - withdrawAmount
+
+    if (user_type === 'shopkeeper') {
+      await supabase.from('shops').update({ wallet_balance: newBalance }).eq('owner_id', user_id)
+    } else {
+      await supabase.from('delivery_agents').update({ wallet_balance: newBalance }).eq('id', user_id)
+    }
+
+    // ── Create withdrawal request ─────────────────────────────────
+    const { data, error } = await supabase.from('withdraw_requests').insert({
       user_id,
       user_type,
-      amount,
+      amount: withdrawAmount,
       payment_method,
-      upi_id: upi_id || null,
-      bank_account_number: bank_account_number || null,
-      bank_ifsc: bank_ifsc || null,
+      upi_id: payment_method === 'upi' ? upi_id.trim() : null,
+      bank_account_number: payment_method === 'bank_transfer' ? bank_account_number.trim() : null,
+      bank_ifsc: payment_method === 'bank_transfer' ? bank_ifsc.trim() : null,
       status: 'pending',
-      requested_at: new Date().toISOString(),
-    }).select().single()
+      wallet_balance_before: currentBalance,
+      wallet_balance_after: newBalance,
+    }).select('id').single()
 
     if (error) {
-      console.error('Withdraw insert error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      // Rollback: refund wallet
+      if (user_type === 'shopkeeper') {
+        await supabase.from('shops').update({ wallet_balance: currentBalance }).eq('owner_id', user_id)
+      } else {
+        await supabase.from('delivery_agents').update({ wallet_balance: currentBalance }).eq('id', user_id)
+      }
+      console.error('Withdrawal creation failed, wallet refunded:', error)
+      return NextResponse.json({ error: 'Failed to create withdrawal request' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, id: data.id })
+    return NextResponse.json({
+      success: true,
+      id: data.id,
+      message: '✅ Withdrawal request submitted! Admin will process within 24 hours.'
+    })
   } catch (err) {
-    console.error('Withdraw request error:', err)
+    console.error('Withdrawal error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
+}
+
+function getWeekStart(): Date {
+  const now = new Date()
+  const day = now.getDay() // 0=Sun, 1=Mon
+  const diff = day === 0 ? 6 : day - 1 // Days since Monday
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - diff)
+  monday.setHours(0, 0, 0, 0)
+  return monday
 }

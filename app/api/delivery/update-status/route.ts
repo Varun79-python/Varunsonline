@@ -31,12 +31,20 @@ export async function POST(req: NextRequest) {
     // Verify this agent owns the order before updating
     const { data: order } = await supabase
       .from('orders')
-      .select('id, status, agent_id, agent_earning')
+      .select('id, status, agent_id, agent_earning, payment_method')
       .eq('id', orderId)
       .eq('agent_id', auth.agentId)  // security: only the logged-in agent can update
       .single()
 
     if (!order) return NextResponse.json({ error: 'Order not found or not assigned to you' }, { status: 404 })
+
+    // STRICT: COD orders MUST use collect-cash endpoint (creates settlement ledger)
+    // Block direct "delivered" status update for COD orders
+    if (order.payment_method === 'cod' && status === 'delivered') {
+      return NextResponse.json({
+        error: 'COD orders require cash/QR collection. Use Collect Payment in the delivery page.'
+      }, { status: 400 })
+    }
 
     const now = new Date().toISOString()
     const validTransitions: Record<string, string> = {

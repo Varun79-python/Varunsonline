@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { submitShopkeeperDocuments } from '@/app/admin/actions'
+import { LoadingPage } from '@/components/ui/skeleton'
 
 const SHOP_CATEGORIES = [
   'Grocery', 'Vegetables & Fruits', 'Dairy & Eggs', 'Bakery',
@@ -199,15 +200,7 @@ export default function ShopDocumentsPage() {
   }
 
   // ── UI States ───────────────────────────────────────────────────────────────
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-        <p style={{ color: '#64748b' }}>Loading...</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    </div>
-  )
+  if (loading) return <LoadingPage rows={2} />
 
   if (loadError) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
