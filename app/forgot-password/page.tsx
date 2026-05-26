@@ -13,9 +13,12 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true); setError('')
-    const redirectUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://www.varunsonline.com/reset-password'
-      : `${window.location.origin}/reset-password`
+    // Must route through /auth/callback so the PKCE code is exchanged for
+    // a real session BEFORE the user lands on /reset-password.
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://www.varunsonline.com'
+      : window.location.origin
+    const redirectUrl = `${baseUrl}/auth/callback?next=/reset-password`
     const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: redirectUrl
     })

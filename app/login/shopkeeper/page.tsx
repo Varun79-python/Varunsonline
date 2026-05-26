@@ -60,7 +60,12 @@ export default function ShopkeeperLoginPage() {
     if (!resetEmail.trim()) { setResetMessage('Please enter your email'); return }
     setResetLoading(true)
     setResetMessage('')
-    const redirectUrl = process.env.NODE_ENV === 'production' ? 'https://www.varunsonline.com/reset-password' : `${window.location.origin}/reset-password`
+    // Must route through /auth/callback so the PKCE code is exchanged for a
+    // real session BEFORE the user lands on /reset-password.
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://www.varunsonline.com'
+      : window.location.origin
+    const redirectUrl = `${baseUrl}/auth/callback?next=/reset-password`
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: redirectUrl })
     if (error) { setResetMessage(error.message); setResetLoading(false); return }
     setResetMessage('Password reset link sent to your email!')
