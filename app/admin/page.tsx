@@ -54,6 +54,7 @@ export default function AdminDashboard() {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
+      placed: { bg: '#dbeafe', text: '#2563eb' },
       delivered: { bg: '#dcfce7', text: '#16a34a' },
       cancelled: { bg: '#fee2e2', text: '#dc2626' },
       rejected: { bg: '#fee2e2', text: '#dc2626' },

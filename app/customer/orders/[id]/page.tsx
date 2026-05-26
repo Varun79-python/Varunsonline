@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
-const STEPS = [
-  { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '✅' },
+const STEPS = (paymentMethod?: string) => [
+  { key: paymentMethod === 'cod' ? 'placed' : 'payment_confirmed', label: paymentMethod === 'cod' ? 'Order Placed' : 'Payment Confirmed', icon: '✅' },
   { key: 'shop_accepted', label: 'Shop Accepted', icon: '🏪' },
   { key: 'order_packed', label: 'Order Packed', icon: '📦' },
   { key: 'agent_assigned', label: 'Agent Assigned', icon: '🛵' },
@@ -15,7 +15,7 @@ const STEPS = [
   { key: 'delivered', label: 'Delivered!', icon: '🎉' },
 ]
 const ORDER_RANK: Record<string, number> = {
-  placed: 0, payment_pending: 0, payment_confirmed: 1, shop_accepted: 2,
+  placed: 1, payment_pending: 0, payment_confirmed: 1, shop_accepted: 2,
   order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7
 }
 const OTP_VISIBLE = ['shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery']
@@ -36,6 +36,7 @@ interface CustomerOrder {
   id: string
   order_number: string
   status: string
+  payment_method?: string
   total_amount: number
   subtotal?: number
   delivery_otp?: string | null
@@ -256,20 +257,23 @@ export default function OrderDetailPage() {
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 20 }}>Order Progress</h3>
           <div className="timeline">
-            {STEPS.map((step, idx) => {
-              const stepRank = idx + 1
-              const done = currentRank >= stepRank
-              const active = currentRank === stepRank
-              return (
-                <div key={step.key} className="timeline-item">
-                  <div className={`timeline-dot ${done ? 'done' : active ? 'active' : ''}`} />
-                  <div style={{ opacity: done || active ? 1 : 0.4 }}>
-                    <div className="timeline-label">{step.icon} {step.label}</div>
-                    {active && <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginTop: 2 }}>Current Status</div>}
+            {(() => {
+              const steps = STEPS(order.payment_method)
+              return steps.map((step, idx) => {
+                const stepRank = idx + 1
+                const done = currentRank >= stepRank
+                const active = currentRank === stepRank
+                return (
+                  <div key={step.key} className="timeline-item">
+                    <div className={`timeline-dot ${done ? 'done' : active ? 'active' : ''}`} />
+                    <div style={{ opacity: done || active ? 1 : 0.4 }}>
+                      <div className="timeline-label">{step.icon} {step.label}</div>
+                      {active && <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginTop: 2 }}>Current Status</div>}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })
+            })()}
           </div>
         </div>
       )}

@@ -37,7 +37,7 @@ export default function AdminOrders() {
   const filtered = search ? orders.filter(o => o.order_number.includes(search) || o.shops?.name?.toLowerCase().includes(search.toLowerCase())) : orders
 
   const STATUS_OPTIONS = ['all', 'placed', 'payment_confirmed', 'shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery', 'delivered', 'cancelled', 'rejected']
-  const STATUS_COLOR: Record<string, string> = { delivered: 'badge-green', cancelled: 'badge-red', rejected: 'badge-red', out_for_delivery: 'badge-blue', payment_confirmed: 'badge-orange' }
+  const STATUS_COLOR: Record<string, string> = { placed: 'badge-blue', delivered: 'badge-green', cancelled: 'badge-red', rejected: 'badge-red', out_for_delivery: 'badge-blue', payment_confirmed: 'badge-orange' }
 
   return (
     <div style={{ padding: '0 4px' }}>

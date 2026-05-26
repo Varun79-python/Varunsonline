@@ -18,9 +18,9 @@ interface PackingState {
   items: { id: string; name: string; checked: boolean }[]
 }
 
-const STATUS_TABS = ['all', 'payment_confirmed', 'shop_accepted', 'order_packed', 'out_for_delivery', 'delivered', 'rejected']
+const STATUS_TABS = ['all', 'placed', 'payment_confirmed', 'shop_accepted', 'order_packed', 'out_for_delivery', 'delivered', 'rejected']
 const STATUS_LABEL: Record<string, string> = {
-  all: 'All', payment_confirmed: 'New', shop_accepted: 'Accepted',
+  all: 'All', placed: 'COD New', payment_confirmed: 'New', shop_accepted: 'Accepted',
   order_packed: 'Packed', out_for_delivery: 'Delivering', delivered: 'Done', rejected: 'Rejected'
 }
 
@@ -129,6 +129,7 @@ export default function ShopkeeperOrders() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
+      placed: { bg: '#dbeafe', text: '#2563eb' },
       payment_confirmed: { bg: '#fef3c7', text: '#d97706' },
       shop_accepted: { bg: '#dbeafe', text: '#2563eb' },
       order_packed: { bg: '#e0e7ff', text: '#4f46e5' },

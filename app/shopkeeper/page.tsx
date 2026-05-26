@@ -15,6 +15,7 @@ interface Order {
 }
 
 const STATUS_BADGE: Record<string, { label: string; icon: string; bg: string; color: string; border: string }> = {
+  placed: { label: 'New COD Order', icon: '🔔', bg: '#dbeafe', color: '#2563eb', border: '#bfdbfe' },
   payment_confirmed: { label: 'New Order', icon: '🔔', bg: '#fef3c7', color: '#d97706', border: '#fde68a' },
   shop_accepted:     { label: 'Accepted', icon: '✅', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
   order_packed:      { label: 'Packed', icon: '📦', bg: '#ffedd5', color: '#ea580c', border: '#fed7aa' },
@@ -422,7 +423,7 @@ export default function ShopkeeperDashboard() {
 
       {/* Orders Dashboard */}
       {(() => {
-        const incoming = pendingOrders.filter(o => o.status === 'payment_confirmed')
+        const incoming = pendingOrders.filter(o => o.status === 'payment_confirmed' || o.status === 'placed')
         const active = pendingOrders.filter(o => ['shop_accepted','order_packed','agent_assigned','picked_up','out_for_delivery'].includes(o.status))
         const history = pendingOrders.filter(o => ['delivered','rejected','cancelled'].includes(o.status))
 
@@ -430,7 +431,7 @@ export default function ShopkeeperDashboard() {
           const badge = STATUS_BADGE[order.status] || STATUS_BADGE.payment_confirmed
           const itemCount = order.items?.length || 0
           const isProcessing = actionLoading === order.id
-          const isNew = order.status === 'payment_confirmed' && (alertingOrderIds.has(order.id) || idx === 0 && alertingOrderIds.size > 0)
+          const isNew = (order.status === 'payment_confirmed' || order.status === 'placed') && (alertingOrderIds.has(order.id) || idx === 0 && alertingOrderIds.size > 0)
           return (
             <div key={order.id} style={{ background: 'white', borderRadius: 12, border: `1.5px solid ${badge.border}`, overflow: 'hidden', marginBottom: 10 }}>
               {isNew && <div style={{ background: '#f97316', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '5px 12px' }}>🔔 NEW ORDER</div>}
@@ -485,7 +486,7 @@ export default function ShopkeeperDashboard() {
                 )}
 
                 {/* Action buttons — only for incoming orders */}
-                {order.status === 'payment_confirmed' && (
+                {(order.status === 'payment_confirmed' || order.status === 'placed') && (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => doOrderAction(order.id, order.order_number, 'accept')} disabled={isProcessing}
                       style={{ flex: 1, background: isProcessing ? '#dcfce7' : '#16a34a', color: isProcessing ? '#16a34a' : 'white', border: 'none', borderRadius: 9, padding: '11px', fontWeight: 800, fontSize: '0.82rem', cursor: isProcessing ? 'not-allowed' : 'pointer' }}>

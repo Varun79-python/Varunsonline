@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
-const STATUS_STEPS = [
-  { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '✅' },
+const STATUS_STEPS = (paymentMethod?: string) => [
+  { key: paymentMethod === 'cod' ? 'placed' : 'payment_confirmed', label: paymentMethod === 'cod' ? 'Order Placed' : 'Payment Confirmed', icon: '✅' },
   { key: 'shop_accepted', label: 'Shop Accepted', icon: '🏪' },
   { key: 'order_packed', label: 'Order Packed', icon: '📦' },
   { key: 'agent_assigned', label: 'Agent Assigned', icon: '🛵' },
@@ -15,17 +15,17 @@ const STATUS_STEPS = [
   { key: 'delivered', label: 'Delivered', icon: '🎉' },
 ]
 const STATUS_RANK: Record<string, number> = {
-  payment_confirmed: 1, shop_accepted: 2, order_packed: 3, agent_assigned: 4,
+  placed: 1, payment_confirmed: 1, shop_accepted: 2, order_packed: 3, agent_assigned: 4,
   picked_up: 5, out_for_delivery: 6, delivered: 7, cancelled: 8, rejected: 9
 }
 const STATUS_COLOR: Record<string, string> = {
-  payment_confirmed: '#22c55e', shop_accepted: '#f97316', order_packed: '#f97316',
+  placed: '#2563eb', payment_confirmed: '#22c55e', shop_accepted: '#f97316', order_packed: '#f97316',
   agent_assigned: '#8b5cf6', picked_up: '#8b5cf6', out_for_delivery: '#0ea5e9',
   delivered: '#22c55e', cancelled: '#ef4444', rejected: '#ef4444'
 }
 
 interface Order {
-  id: string; order_number: string; status: string; total_amount: number
+  id: string; order_number: string; status: string; payment_method?: string; total_amount: number
   created_at: string; subtotal: number; delivery_charge: number; platform_fee: number
   shopkeeper_earning: number; customer_note: string; placed_at: string
   accepted_at: string; packed_at: string; picked_up_at: string; delivered_at: string
@@ -131,12 +131,14 @@ export default function ShopkeeperOrderDetail() {
         <div className="card" style={{ marginBottom: 16 }}>
           <h3 style={{ marginBottom: 14 }}>Order Progress</h3>
           <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
-            {STATUS_STEPS.map((step, idx) => {
-              const done = rank >= idx + 1
-              const active = rank === idx + 1
-              return (
-                <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 55, position: 'relative' }}>
-                  {idx < STATUS_STEPS.length - 1 && (
+            {(() => {
+              const steps = STATUS_STEPS(order.payment_method)
+              return steps.map((step, idx) => {
+                const done = rank >= idx + 1
+                const active = rank === idx + 1
+                return (
+                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 55, position: 'relative' }}>
+                    {idx < steps.length - 1 && (
                     <div style={{ position: 'absolute', top: 14, left: '50%', right: '-50%', height: 2, background: done ? '#22c55e' : '#e2e8f0', zIndex: 0 }} />
                   )}
                   <div style={{
@@ -150,12 +152,13 @@ export default function ShopkeeperOrderDetail() {
                   </div>
                 </div>
               )
-            })}
+            })
+          })()}
           </div>
         </div>
       )}
 
-      {order.status === 'payment_confirmed' && (
+      {(order.status === 'payment_confirmed' || order.status === 'placed') && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <span style={{ fontSize: '1.5rem' }}>🔔</span>

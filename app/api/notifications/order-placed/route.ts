@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
-    // Only notify on payment_confirmed (ignore draft/pending status rows)
-    if (order.status && order.status !== 'payment_confirmed') {
-      return NextResponse.json({ skipped: 'not payment_confirmed' })
+    // Only notify on placed or payment_confirmed (ignore draft/pending status rows)
+    if (order.status && order.status !== 'payment_confirmed' && order.status !== 'placed') {
+      return NextResponse.json({ skipped: 'not payable status' })
     }
 
     const supabase = createClient(

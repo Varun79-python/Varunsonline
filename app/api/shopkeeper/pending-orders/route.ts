@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 
 // All statuses the shopkeeper dashboard should show
 const SHOP_VISIBLE_STATUSES = [
-  'payment_confirmed',  // needs accept/reject decision
+  'placed',             // COD order placed, needs accept/reject decision
+  'payment_confirmed',  // online payment confirmed, needs accept/reject decision
   'shop_accepted',      // accepted, waiting to be packed
   'order_packed',       // packed, waiting for agent
   'agent_assigned',     // agent picked up task
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
       .select('id, order_number, status, total_amount, shopkeeper_earning, subtotal, created_at, agent_id, rejection_reason')
       .eq('shop_id', auth.shopId)
       .in('status', SHOP_VISIBLE_STATUSES)
-      .or(`created_at.gte.${sevenDaysAgo},status.in.(payment_confirmed,shop_accepted,order_packed,agent_assigned,picked_up,out_for_delivery)`)
+      .or(`created_at.gte.${sevenDaysAgo},status.in.(placed,payment_confirmed,shop_accepted,order_packed,agent_assigned,picked_up,out_for_delivery)`)
       .order('created_at', { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

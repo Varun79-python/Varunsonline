@@ -187,13 +187,13 @@ export async function POST(req: NextRequest) {
     let updateData: Record<string, string> = {}
 
     if (action === 'accept') {
-      if (order.status !== 'payment_confirmed')
+      if (order.status !== 'payment_confirmed' && order.status !== 'placed')
         return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
       const otp = Math.floor(1000 + Math.random() * 9000).toString()
       updateData = { status: 'shop_accepted', accepted_at: now, delivery_otp: otp }
 
     } else if (action === 'reject') {
-      if (order.status !== 'payment_confirmed')
+      if (order.status !== 'payment_confirmed' && order.status !== 'placed')
         return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
       updateData = { status: 'rejected', rejection_reason: reason || '' }
 

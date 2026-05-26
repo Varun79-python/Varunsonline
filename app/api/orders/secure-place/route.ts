@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
         customer_id: user.id,
         shop_id: shopId,
         address_id: addressId,
-        status: paymentMethod === 'cod' ? 'payment_confirmed' : 'payment_pending',
+        status: paymentMethod === 'cod' ? 'placed' : 'payment_pending',
         payment_method: paymentMethod,
         payment_status: paymentMethod === 'cod' ? 'pending' : 'pending',
         subtotal,
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert order items with actual DB prices
-    await supabase.from('order_items').insert(
+    const { error: itemsErr } = await supabase.from('order_items').insert(
       orderItems.map(item => ({
         order_id: order.id,
         product_id: item.product_id,
@@ -258,6 +258,10 @@ export async function POST(req: NextRequest) {
         total_price: item.total_price,
       }))
     )
+    if (itemsErr) {
+      console.error('Failed to insert order items:', itemsErr)
+      // Don't fail the order — items can be reconciled later
+    }
 
     // Deduct stock for each item — atomic RPC prevents race condition
     for (const item of cart) {
@@ -296,7 +300,7 @@ export async function POST(req: NextRequest) {
     // Record status history
     await supabase.from('order_status_history').insert({
       order_id: order.id,
-      status: paymentMethod === 'cod' ? 'payment_confirmed' : 'payment_pending',
+      status: paymentMethod === 'cod' ? 'placed' : 'payment_pending',
       changed_by: user.id,
     })
 

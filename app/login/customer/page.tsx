@@ -163,14 +163,15 @@ export default function CustomerLoginPage() {
       let emailToAuth = input
       
       if (isPhone) {
-        const { data: customerData } = await supabase
-          .from('customers')
+        const { data: profileData } = await supabase
+          .from('profiles')
           .select('email')
           .eq('phone', digitsOnly)
+          .eq('role', 'customer')
           .maybeSingle()
 
-        if (customerData?.email) {
-          emailToAuth = customerData.email
+        if (profileData?.email) {
+          emailToAuth = profileData.email
         } else {
           setError('No customer account found with this phone number.')
           setLoading(false)
@@ -188,13 +189,14 @@ export default function CustomerLoginPage() {
       const searchValue = isPhone ? form.phone.trim() : input
       
       if (searchValue) {
-        const { data: existingCustomer } = await supabase
-          .from('customers')
+        const { data: existingProfile } = await supabase
+          .from('profiles')
           .select('id')
+          .eq('role', 'customer')
           .eq(isPhone ? 'phone' : 'email', searchValue)
           .maybeSingle()
         
-        if (existingCustomer) {
+        if (existingProfile) {
           setError('An account with this information already exists. Please login to continue.')
           setLoading(false)
           setIsLogin(true)
@@ -242,13 +244,11 @@ export default function CustomerLoginPage() {
       
       if (data.user) { 
         // Create customer record
-        await supabase.from('customers').insert({
-          id: data.user.id,
-          full_name: form.full_name,
+        await supabase.from('customers').insert({ id: data.user.id })
+        // Update phone in profiles (auto-trigger doesn't save phone from metadata)
+        await supabase.from('profiles').update({
           phone: form.phone.replace(/\D/g, ''),
-          email: form.email,
-          gender: form.gender,
-        })
+        }).eq('id', data.user.id)
         alert('Account created! Please login.')
         setIsLogin(true)
       }

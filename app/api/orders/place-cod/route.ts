@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         customer_id: customerId,
         shop_id: shopId,
         address_id: addressId,
-        status: 'payment_confirmed',
+        status: 'placed',
         payment_method: 'cod',
         payment_status: 'pending',
         subtotal: financials.subtotal,
@@ -156,25 +156,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert order items using server-verified prices
-    await serviceSupabase.from('order_items').insert(
+    const { error: itemsErr } = await serviceSupabase.from('order_items').insert(
       cart.map((i: { product_id: string; name: string; image_url: string; quantity: number; price: number }) => {
         const verifiedProduct = productMap.get(i.product_id)
         const verifiedPrice = verifiedProduct?.price || i.price
         return {
           order_id: order.id,
           product_id: i.product_id,
-          product_name: i.name,
-          product_image_url: i.image_url,
+          product_name: i.name || verifiedProduct?.name || 'Item',
+          product_image_url: i.image_url || null,
           quantity: i.quantity,
           unit_price: verifiedPrice,
           total_price: verifiedPrice * i.quantity,
         }
       })
     )
+    if (itemsErr) {
+      console.error('Failed to insert order items:', itemsErr)
+      // Don't fail the order — items can be reconciled later
+    }
 
     // Status history
     await serviceSupabase.from('order_status_history').insert({
-      order_id: order.id, status: 'payment_confirmed', changed_by: customerId
+      order_id: order.id, status: 'placed', changed_by: customerId
     })
 
     // ── Increment coupon usage count (prevents reusing limited coupons) ──────

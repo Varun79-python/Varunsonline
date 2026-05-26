@@ -4,8 +4,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrderChat from '@/components/OrderChat/OrderChat'
 
-const STATUS_STEPS = [
-  { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '💳' },
+const STATUS_STEPS = (paymentMethod?: string) => [
+  { key: paymentMethod === 'cod' ? 'placed' : 'payment_confirmed', label: paymentMethod === 'cod' ? 'Order Placed' : 'Payment Confirmed', icon: '💳' },
   { key: 'shop_accepted', label: 'Shop Accepted', icon: '🏪' },
   { key: 'order_packed', label: 'Order Packed', icon: '📦' },
   { key: 'agent_assigned', label: 'Agent Assigned', icon: '🛵' },
@@ -13,7 +13,7 @@ const STATUS_STEPS = [
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: '🚴' },
   { key: 'delivered', label: 'Delivered', icon: '🎉' },
 ]
-const STATUS_RANK: Record<string, number> = { payment_confirmed: 1, shop_accepted: 2, order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7 }
+const STATUS_RANK: Record<string, number> = { placed: 1, payment_confirmed: 1, shop_accepted: 2, order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7 }
 const STATUS_COLOR: Record<string, string> = { delivered: '#22c55e', cancelled: '#ef4444', rejected: '#ef4444', out_for_delivery: '#0ea5e9', order_packed: '#f97316', shop_accepted: '#f97316', agent_assigned: '#8b5cf6', picked_up: '#8b5cf6', payment_confirmed: '#22c55e' }
 
 function InfoRow({ label, value, mono }: { label: string; value: string | number | null | undefined; mono?: boolean }) {
@@ -170,12 +170,14 @@ export default function AdminOrderDetail() {
       {!['cancelled', 'rejected'].includes(status) && (
         <Card title="Order Progress" icon="📊">
           <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
-            {STATUS_STEPS.map((step, idx) => {
-              const done = rank >= idx + 1
-              const active = rank === idx + 1
-              return (
-                <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 60, position: 'relative' }}>
-                  {idx < STATUS_STEPS.length - 1 && (
+            {(() => {
+              const steps = STATUS_STEPS(order.payment_method)
+              return steps.map((step, idx) => {
+                const done = rank >= idx + 1
+                const active = rank === idx + 1
+                return (
+                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 60, position: 'relative' }}>
+                    {idx < steps.length - 1 && (
                     <div style={{ position: 'absolute', top: 16, left: '50%', right: '-50%', height: 2, background: done ? '#22c55e' : '#e2e8f0', zIndex: 0 }} />
                   )}
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: done ? '#22c55e' : active ? '#f97316' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', position: 'relative', zIndex: 1, border: active ? '3px solid #fed7aa' : 'none', flexShrink: 0 }}>
@@ -186,7 +188,8 @@ export default function AdminOrderDetail() {
                   </div>
                 </div>
               )
-            })}
+            })
+          })()}
           </div>
         </Card>
       )}
