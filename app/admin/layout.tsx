@@ -20,13 +20,19 @@ const navItems = [
   { href: '/admin/revenue', icon: '💎', label: 'Revenue' },
 ]
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const [checking, setChecking] = useState(true)
+  const [adminEmail, setAdminEmail] = useState('')
+
+  // Fetch admin email from server-side endpoint (not exposed in client bundle)
+  useEffect(() => {
+    fetch('/api/admin/email').then(r => r.json()).then(d => {
+      if (d.email) setAdminEmail(d.email)
+    }).catch(() => {})
+  }, [])
   const [adminName, setAdminName] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
@@ -40,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const validateAdmin = async (user: User) => {
     if (!mountedRef.current) return
     const metaRole = user?.user_metadata?.role || user?.app_metadata?.role
-    if (metaRole === 'admin' || (ADMIN_EMAIL && user?.email === ADMIN_EMAIL)) {
+    if (metaRole === 'admin' || (adminEmail && user?.email === adminEmail)) {
       setAdminName(user?.user_metadata?.full_name || user?.email || 'Admin')
       setChecking(false)
       return
@@ -55,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setChecking(false)
       return
     }
-    if (ADMIN_EMAIL && user.email === ADMIN_EMAIL) {
+    if (adminEmail && user.email === adminEmail) {
       setAdminName(user.user_metadata?.full_name || user.email || 'Admin')
       setChecking(false)
       return

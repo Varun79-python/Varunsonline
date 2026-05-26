@@ -183,6 +183,18 @@ export async function POST(req: NextRequest) {
       // B) Handle order payment (online checkout)
       // ─────────────────────────────────────────────────────────────
       if (notes.type === 'order' && notes.orderId) {
+        // Idempotency: check if this payment has already been processed
+        const { data: existingPayment } = await supabase
+          .from('orders')
+          .select('id, payment_status')
+          .eq('id', notes.orderId)
+          .not('payment_status', 'eq', 'pending')
+          .maybeSingle()
+        if (existingPayment) {
+          console.log(`Order ${notes.orderId} payment already processed (status: ${existingPayment.payment_status}), skipping`)
+          return NextResponse.json({ received: true })
+        }
+
         const { data: order } = await supabase
           .from('orders')
           .select('id, payment_status, customer_id, total_amount, order_number, shops:shop_id(owner_id)')

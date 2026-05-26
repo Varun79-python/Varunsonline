@@ -11,8 +11,14 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [initializing, setInitializing] = useState(true)
+  const [adminEmail, setAdminEmail] = useState('')
 
-  const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+  // Fetch admin email from server-side endpoint (not exposed in client bundle)
+  useEffect(() => {
+    fetch('/api/admin/email').then(r => r.json()).then(d => {
+      if (d.email) setAdminEmail(d.email)
+    }).catch(() => {})
+  }, [])
 
   // Helper: full-page redirect so middleware sees the cookie
   function goToAdmin() {
@@ -29,7 +35,7 @@ export default function AdminLoginPage() {
           const user = session.user
           const metaRole = user.user_metadata?.role || user.app_metadata?.role
 
-          if (metaRole === 'admin' || (ADMIN_EMAIL && user.email === ADMIN_EMAIL)) {
+          if (metaRole === 'admin' || (adminEmail && user.email === adminEmail)) {
             goToAdmin()
             return
           }
@@ -94,7 +100,7 @@ export default function AdminLoginPage() {
       }
 
       // Check 4: hardcoded admin email — upsert profile and allow in
-      if (ADMIN_EMAIL && user.email === ADMIN_EMAIL) {
+      if (adminEmail && user.email === adminEmail) {
         await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email,

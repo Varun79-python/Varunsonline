@@ -79,15 +79,19 @@ export default function CustomerLoginPage() {
       
       const isPhone = /^\d{10,}$/.test(searchValue)
       
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('id, full_name, phone, email')
-        .eq(isPhone ? 'phone' : 'email', searchValue)
-        .maybeSingle()
+      // Use server-side API to bypass RLS
+      const checkRes = await fetch('/api/auth/check-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          [isPhone ? 'phone' : 'email']: searchValue
+        }),
+      })
+      const checkData = await checkRes.json()
       
       if (!mountedRef.current) return
       
-      if (customer) {
+      if (checkData.exists) {
         setExistingMessage('Note: An account already exists with this information. If this is you, please switch to Login.')
       }
     } catch (err) {
@@ -97,7 +101,7 @@ export default function CustomerLoginPage() {
         setCheckingExisting(false)
       }
     }
-  }, [supabase, isLogin])
+  }, [isLogin])
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
@@ -163,17 +167,18 @@ export default function CustomerLoginPage() {
       let emailToAuth = input
       
       if (isPhone) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('phone', digitsOnly)
-          .eq('role', 'customer')
-          .maybeSingle()
+        // Use server-side API to bypass RLS on profiles table
+        const lookupRes = await fetch('/api/auth/phone-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: digitsOnly }),
+        })
+        const lookupData = await lookupRes.json()
 
-        if (profileData?.email) {
-          emailToAuth = profileData.email
+        if (lookupRes.ok && lookupData.email) {
+          emailToAuth = lookupData.email
         } else {
-          setError('No customer account found with this phone number.')
+          setError(lookupData.error || 'No customer account found with this phone number.')
           setLoading(false)
           refreshCaptcha()
           return
@@ -184,19 +189,22 @@ export default function CustomerLoginPage() {
       if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
       router.push('/customer')
     } else {
-      // Check if user already exists in customers table before signup
+      // Check if user already exists before signup
       const isPhone = /^\d{10,}$/.test(input)
       const searchValue = isPhone ? form.phone.trim() : input
       
       if (searchValue) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('role', 'customer')
-          .eq(isPhone ? 'phone' : 'email', searchValue)
-          .maybeSingle()
+        // Use server-side API to bypass RLS
+        const checkRes = await fetch('/api/auth/check-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            [isPhone ? 'phone' : 'email']: searchValue
+          }),
+        })
+        const checkData = await checkRes.json()
         
-        if (existingProfile) {
+        if (checkData.exists) {
           setError('An account with this information already exists. Please login to continue.')
           setLoading(false)
           setIsLogin(true)

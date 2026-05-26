@@ -246,6 +246,12 @@ export async function rejectShopkeeperDocuments(docId: string, userId: string, r
     const { error: docErr } = await supabase
       .from('shop_documents').update({ status: 'rejected' }).eq('id', docId)
     if (docErr) return { error: `Failed to update document: ${docErr.message}` }
+
+    // Also update shops table to reflect rejection
+    await supabase.from('shops')
+      .update({ is_approved: false, is_active: false, rejection_reason: reason || 'Documents rejected' })
+      .eq('owner_id', userId)
+
     await supabase.from('notifications').insert({
       user_id: userId,
       title: '❌ Registration Rejected',

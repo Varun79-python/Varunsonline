@@ -195,6 +195,25 @@ export async function POST(req: NextRequest) {
     } else if (action === 'reject') {
       if (order.status !== 'payment_confirmed' && order.status !== 'placed')
         return NextResponse.json({ error: 'Order already processed', currentStatus: order.status }, { status: 409 })
+
+      // Restore product stock before rejecting
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('product_id, quantity')
+        .eq('order_id', orderId)
+      if (orderItems && orderItems.length > 0) {
+        for (const item of orderItems) {
+          try {
+            await supabase.rpc('increment_stock', {
+              p_product_id: item.product_id,
+              p_quantity: item.quantity,
+            })
+          } catch (err) {
+            console.error(`Failed to restore stock for product ${item.product_id}:`, err)
+          }
+        }
+      }
+
       updateData = { status: 'rejected', rejection_reason: reason || '' }
 
     } else if (action === 'pack') {

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

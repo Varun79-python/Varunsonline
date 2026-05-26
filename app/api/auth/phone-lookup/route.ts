@@ -1,0 +1,46 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/authMiddleware'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
+
+export const dynamic = 'force-dynamic'
+
+/**
+ * Server-side phone-to-email lookup for customer login.
+ * Uses service role key to bypass RLS on the profiles table.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    // Rate limit: 10 lookups per minute
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+      message: 'Too many requests. Please slow down.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
+    const { phone } = await req.json()
+    if (!phone || !/^\d{10,}$/.test(phone)) {
+      return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
+    }
+
+    const supabase = createServiceClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('phone', phone)
+      .eq('role', 'customer')
+      .maybeSingle()
+
+    if (profile?.email) {
+      return NextResponse.json({ email: profile.email, full_name: profile.full_name })
+    }
+
+    return NextResponse.json({ error: 'No customer account found with this phone number.' }, { status: 404 })
+  } catch (err) {
+    console.error('Phone lookup error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
