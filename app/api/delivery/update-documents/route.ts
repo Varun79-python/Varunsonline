@@ -31,6 +31,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
+    // SECURITY: Validate the URL is from our own Supabase Storage
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const storageUrl = supabaseUrl.replace('https://', 'https://') + '/storage/v1/object/public/'
+    if (!aadharUrl.startsWith(storageUrl) && !aadharUrl.includes('/storage/v1/object/')) {
+      return NextResponse.json({ error: 'Invalid document URL' }, { status: 400 })
+    }
+
+    // Validate URL length (prevent abuse)
+    if (aadharUrl.length > 1024) {
+      return NextResponse.json({ error: 'URL too long' }, { status: 400 })
+    }
+
     // Use service role to bypass RLS
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -52,6 +52,9 @@ export default function DeliveryOrdersPage() {
   const [highlightNew, setHighlightNew] = useState<string | null>(null)
   const prevAvailableCount = useRef(0)
 
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+
   // Load available orders (unassigned, packed, within 5km)
   async function loadAvailable() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -60,6 +63,11 @@ export default function DeliveryOrdersPage() {
       const res = await fetch('/api/delivery/orders', {
         headers: { Authorization: `Bearer ${session.access_token}` }
       })
+      if (!res.ok) {
+        setFetchError(`Failed to load orders (${res.status})`)
+        setAvailableLoading(false)
+        return
+      }
       const json = await res.json()
       // Filter out already-accepted orders
       const filtered = (json.orders || []).filter((o: AvailableOrder) =>
@@ -74,7 +82,11 @@ export default function DeliveryOrdersPage() {
       prevAvailableCount.current = filtered.length
       setAvailableOrders(filtered)
       setGpsWarning(json.gpsRequired || false)
-    } catch { /* ignore */ }
+      setFetchError(null)
+    } catch (err) {
+      console.error('[delivery-orders] loadAvailable error:', err)
+      setFetchError('Network error loading orders. Pull down to retry.')
+    }
     setAvailableLoading(false)
   }
 
@@ -91,9 +103,18 @@ export default function DeliveryOrdersPage() {
       if (activeTab === 'active') q = q.in('status', ['agent_assigned', 'picked_up', 'out_for_delivery'])
       else if (activeTab === 'completed') q = q.eq('status', 'delivered')
       else if (activeTab === 'cancelled') q = q.in('status', ['cancelled', 'rejected'])
-      const { data } = await q
-      setMyOrders(data || [])
-    } catch { /* ignore */ }
+      const { data, error } = await q
+      if (error) {
+        console.error('[delivery-orders] loadMyOrders error:', error)
+        setFetchError(error.message)
+      } else {
+        setMyOrders(data || [])
+        setFetchError(null)
+      }
+    } catch (err) {
+      console.error('[delivery-orders] loadMyOrders error:', err)
+      setFetchError('Network error loading your orders.')
+    }
     setMyOrdersLoading(false)
   }
 
@@ -101,12 +122,18 @@ export default function DeliveryOrdersPage() {
   async function acceptOrder(orderId: string) {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
+    setAcceptError(null)
     try {
       const res = await fetch('/api/delivery/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ orderId })
       })
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        setAcceptError(errJson.error || `Failed to accept order (${res.status})`)
+        return
+      }
       const json = await res.json()
       if (json.success) {
         setAcceptedIds(prev => new Set([...prev, orderId]))
@@ -117,7 +144,10 @@ export default function DeliveryOrdersPage() {
         setMissedOrders(prev => new Set([...prev, orderId]))
         setAvailableOrders(prev => prev.filter(o => o.id !== orderId))
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('[delivery-orders] acceptOrder error:', err)
+      setAcceptError('Network error. Please try again.')
+    }
   }
 
   // Realtime subscription for available orders
@@ -178,6 +208,11 @@ export default function DeliveryOrdersPage() {
             ⚠️ Enable GPS to see orders near you
           </div>
         )}
+        {fetchError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+            ❌ {fetchError}
+          </div>
+        )}
         {availableLoading && <SkeletonBlock lines={2} gap={10} />}
         {!availableLoading && availableOrders.length === 0 && (
           <div className="card" style={{ textAlign: 'center', padding: 24 }}>
@@ -233,6 +268,11 @@ export default function DeliveryOrdersPage() {
                 </span>
               </div>
               {/* Accept Button */}
+              {acceptError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', marginBottom: 8, fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>
+                  ❌ {acceptError}
+                </div>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); acceptOrder(o.id) }}
                 style={{ width: '100%', padding: 12, background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}

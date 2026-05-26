@@ -62,20 +62,21 @@ export async function POST(req: NextRequest) {
     // Combine explicit exclusions with busy agents — enforce 1 order per agent
     const allExclude = [...new Set([...excludeAgentIds, ...busyAgentIds])]
 
-    // ── 3. Fetch available, approved agents ─────────────────────────────────
-    let query = supabase
+    // ── 3. Fetch all available, approved agents, then filter exclusions ─────
+    const { data: allAvailable } = await supabase
       .from('delivery_agents')
       .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
 
-    if (allExclude.length > 0) {
-      query = query.not('id', 'in', `(${allExclude.join(',')})`)
+    if (!allAvailable || allAvailable.length === 0) {
+      return NextResponse.json({ error: 'No available agents', noAgents: true }, { status: 503 })
     }
 
-    const { data: agents } = await query
+    const excludeSet = new Set(allExclude)
+    const agents = allAvailable.filter((a: { id: string }) => !excludeSet.has(a.id))
 
-    if (!agents || agents.length === 0) {
+    if (agents.length === 0) {
       return NextResponse.json({ error: 'No available agents', noAgents: true }, { status: 503 })
     }
 

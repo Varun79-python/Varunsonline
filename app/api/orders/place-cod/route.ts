@@ -177,6 +177,31 @@ export async function POST(req: NextRequest) {
       order_id: order.id, status: 'payment_confirmed', changed_by: customerId
     })
 
+    // ── Increment coupon usage count (prevents reusing limited coupons) ──────
+    if (serverCouponDiscount > 0 && clientCouponCode) {
+      try {
+        const { error: couponErr } = await serviceSupabase
+          .rpc('increment_coupon_usage', { p_code: clientCouponCode })
+        if (couponErr) {
+          // Fallback: direct increment
+          const { data: coupon } = await serviceSupabase
+            .from('coupons')
+            .select('used_count')
+            .eq('code', clientCouponCode)
+            .single()
+          if (coupon) {
+            await serviceSupabase
+              .from('coupons')
+              .update({ used_count: (coupon.used_count || 0) + 1 })
+              .eq('code', clientCouponCode)
+          }
+        }
+      } catch (couponErr) {
+        console.error('[place-cod] Failed to increment coupon usage:', couponErr)
+        // Non-fatal: order already placed
+      }
+    }
+
     // Notification to shop owner
     try {
       const { data: shopOwner } = await serviceSupabase.from('shops').select('owner_id').eq('id', shopId).single()

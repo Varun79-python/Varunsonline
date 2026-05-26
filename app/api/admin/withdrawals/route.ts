@@ -77,8 +77,9 @@ export async function POST(req: NextRequest) {
       // Update total_withdrawn counter
       const { data: acct } = await supabase.from(table).select('total_withdrawn').eq(idCol, wr.user_id).single()
       const currentWithdrawn = acct?.total_withdrawn || 0
+      const paidAmount = wr.amount || 0
       await supabase.from(table).update({
-        total_withdrawn: currentWithdrawn + wr.amount
+        total_withdrawn: currentWithdrawn + paidAmount
       }).eq(idCol, wr.user_id)
 
       // Record wallet transaction
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
         user_id: wr.user_id,
         user_type: wr.user_type,
         type: 'debit',
-        amount: wr.amount,
+        amount: paidAmount,
         description: `Withdrawal paid via ${wr.payment_method === 'upi' ? `UPI (${wr.upi_id})` : `Bank Transfer`}`,
       })
     }
@@ -99,8 +100,9 @@ export async function POST(req: NextRequest) {
       const { data: acct } = await supabase.from(table).select('wallet_balance').eq(idCol, wr.user_id).single()
       const currentBalance = acct?.wallet_balance || 0
 
+      const refundAmount = wr.amount || 0
       await supabase.from(table).update({
-        wallet_balance: currentBalance + wr.amount
+        wallet_balance: currentBalance + refundAmount
       }).eq(idCol, wr.user_id)
 
       // Record refund transaction
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
         user_id: wr.user_id,
         user_type: wr.user_type,
         type: 'credit',
-        amount: wr.amount,
+        amount: refundAmount,
         description: `Withdrawal rejected — funds restored to wallet`,
       })
     }

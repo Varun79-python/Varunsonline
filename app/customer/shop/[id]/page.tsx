@@ -257,11 +257,20 @@ export default function ShopPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ 
               width: 10, height: 10, borderRadius: '50%', 
-              background: shop.is_open ? '#16a34a' : '#dc2626',
+              background: (() => {
+                if (shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()) return '#a16207'
+                return shop.is_open ? '#16a34a' : '#dc2626'
+              })(),
               boxShadow: shop.is_open ? '0 0 8px rgba(22,163,74,0.5)' : 'none'
             }} />
-            <span style={{ fontWeight: 600, color: shop.is_open ? '#16a34a' : '#dc2626' }}>
-              {shop.is_open ? 'Open' : 'Closed'}
+            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: (() => {
+              if (shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()) return '#a16207'
+              return shop.is_open ? '#16a34a' : '#dc2626'
+            })() }}>
+              {(() => {
+                if (shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()) return '⚠️ Temporarily Unavailable'
+                return shop.is_open ? '🟢 Open · Accepting Orders' : '🔴 Closed · Not accepting orders'
+              })()}
             </span>
           </div>
           {shop.description && (

@@ -91,14 +91,24 @@ export async function POST(req: NextRequest) {
     // Agent collected physical cash. Calculate settlement due.
     // settlement_due = total_amount - agent_earning (agent keeps their fee)
 
-    // 1. Mark order as delivered + cash collected
-    await supabase.from('orders').update({
-      status: 'delivered',
-      payment_status: 'cod_cash_collected',
-      cod_collected_at: now,
-      delivered_at: now,
-      cod_payment_method: 'cash',
-    }).eq('id', orderId)
+    // 1. Atomically mark order as delivered — TOCTOU guard via status check
+    const { data: deliveredOrder, error: updateErr } = await supabase
+      .from('orders')
+      .update({
+        status: 'delivered',
+        payment_status: 'cod_cash_collected',
+        cod_collected_at: now,
+        delivered_at: now,
+        cod_payment_method: 'cash',
+      })
+      .eq('id', orderId)
+      .eq('status', 'out_for_delivery') // TOCTOU: only one request wins
+      .select('id')
+      .maybeSingle()
+
+    if (!deliveredOrder) {
+      return NextResponse.json({ error: 'Order already collected or not in deliverable state' }, { status: 409 })
+    }
 
     await supabase.from('order_status_history').insert({
       order_id: orderId,
@@ -112,26 +122,19 @@ export async function POST(req: NextRequest) {
 
     // 3. Calculate settlement: agent owes (total_amount - agent_earning) to platform
     //    Agent keeps their delivery earning.
-    const settlementDue = collectedAmount - agentEarning
+    //    Guard: settlementDue must never be negative (defensive against data inconsistencies)
+    const settlementDue = Math.max(0, collectedAmount - agentEarning)
 
-    // 4. Create COD settlement ledger entry
-    const { data: existingLedger } = await supabase
-      .from('agent_cod_settlement_ledger')
-      .select('id')
-      .eq('order_id', orderId)
-      .maybeSingle()
-
-    if (!existingLedger) {
-      await supabase.from('agent_cod_settlement_ledger').insert({
-        agent_id: auth.agentId,
-        order_id: orderId,
-        cash_collected: collectedAmount,
-        amount_owed_to_platform: settlementDue,
-        settled_amount: 0,
-        pending_amount: settlementDue,
-        status: settlementDue > 0 ? 'pending' : 'settled',
-      })
-    }
+    // 4. Create COD settlement ledger entry (idempotent via unique order_id)
+    await supabase.from('agent_cod_settlement_ledger').insert({
+      agent_id: auth.agentId,
+      order_id: orderId,
+      cash_collected: collectedAmount,
+      amount_owed_to_platform: settlementDue,
+      settled_amount: 0,
+      pending_amount: settlementDue,
+      status: settlementDue > 0 ? 'pending' : 'settled',
+    }).maybeSingle() // ignore if already exists (unique constraint or race loser)
 
     // 5. Update agent's pending_cod_due by summing ledger
     const { data: totalDueData } = await supabase

@@ -14,6 +14,19 @@ import { SupabaseClient } from '@supabase/supabase-js'
  */
 export async function processEarnings(supabase: SupabaseClient, orderId: string) {
   try {
+    // DEDUPLICATION: Check if earnings were already processed for this order
+    const { data: existingTxns } = await supabase
+      .from('wallet_transactions')
+      .select('id')
+      .eq('order_id', orderId)
+      .in('user_type', ['delivery_agent', 'shopkeeper'])
+      .limit(1)
+
+    if (existingTxns && existingTxns.length > 0) {
+      console.log(`processEarnings: Already processed for order ${orderId}, skipping`)
+      return
+    }
+
     // 1. Fetch order details with shop owner
     const { data: order, error: fetchErr } = await supabase
       .from('orders')

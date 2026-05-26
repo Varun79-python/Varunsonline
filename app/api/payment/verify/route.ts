@@ -50,6 +50,27 @@ export async function POST(req: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
+
+      // SECURITY: Verify that the order's razorpay_order_id matches the payment
+      // This prevents an attacker from using a small payment's signature
+      // to fraudulently mark a different large order as paid.
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('razorpay_order_id, payment_status')
+        .eq('id', orderId)
+        .maybeSingle()
+
+      if (!existingOrder) {
+        logger.error('verify_order_not_found', { orderId })
+        return NextResponse.json({ verified: false, error: 'Order not found' }, { status: 404 })
+      }
+
+      // If order already has a different razorpay_order_id, reject
+      if (existingOrder.razorpay_order_id && existingOrder.razorpay_order_id !== razorpay_order_id) {
+        logger.error('verify_order_mismatch', { orderId, existing: existingOrder.razorpay_order_id, received: razorpay_order_id })
+        return NextResponse.json({ verified: false, error: 'Order does not match this payment' }, { status: 400 })
+      }
+
       const { error: updateErr } = await supabase
         .from('orders')
         .update({

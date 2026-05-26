@@ -73,6 +73,52 @@ export async function POST(req: NextRequest) {
       order_id: orderId, status: 'cancelled', changed_by: user.id
     })
 
+    // ── Refund logic for online payments ─────────────────────────────────────
+    if (order.payment_method !== 'cod' && order.payment_status === 'paid') {
+      try {
+        // Only attempt refund if order has a Razorpay payment ID
+        const { data: fullOrder } = await supabase
+          .from('orders')
+          .select('razorpay_payment_id')
+          .eq('id', orderId)
+          .single()
+
+        if (fullOrder?.razorpay_payment_id) {
+          const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
+          const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET
+          const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64')
+
+          const refundRes = await fetch(`https://api.razorpay.com/v1/payments/${fullOrder.razorpay_payment_id}/refund`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Basic ${auth}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              notes: { order_id: orderId, reason: 'order_cancelled_by_customer' }
+            }),
+          })
+
+          if (!refundRes.ok) {
+            const refundErr = await refundRes.text()
+            console.error(`[cancel] Razorpay refund failed for payment ${fullOrder.razorpay_payment_id}:`, refundErr)
+          } else {
+            const refundData = await refundRes.json()
+            console.log(`[cancel] Refund initiated: ${refundData.id} for order ${orderId}`)
+            // Update payment_status to refunded
+            await supabase.from('orders').update({ payment_status: 'refunded' }).eq('id', orderId)
+            await supabase.from('order_status_history').insert({
+              order_id: orderId, status: 'refunded', changed_by: user.id,
+              notes: `Refund ${refundData.id} initiated — ₹${Number(refundData.amount) / 100}`
+            })
+          }
+        }
+      } catch (refundErr) {
+        console.error('[cancel] Refund exception:', refundErr)
+        // Don't fail the cancellation — refund can be handled manually
+      }
+    }
+
     return NextResponse.json({ success: true, newStatus: 'cancelled' })
   } catch (err) {
     console.error('Cancel order error:', err)

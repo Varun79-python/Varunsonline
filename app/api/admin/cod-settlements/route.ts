@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
+import { verifyAdmin } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,12 +11,12 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createServiceClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAdmin(req)
+    if (auth.error || !auth.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 })
+    }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const supabase = createServiceClient()
 
     const url = new URL(req.url)
     const agentId = url.searchParams.get('agent_id')
@@ -66,12 +67,13 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createServiceClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAdmin(req)
+    if (auth.error || !auth.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 })
+    }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const supabase = createServiceClient()
+    const userId = auth.userId!
 
     const { ledgerId, settleAmount, notes } = await req.json()
     if (!ledgerId || !settleAmount || settleAmount <= 0) {
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.rpc('manual_cod_settlement', {
       p_ledger_id: ledgerId,
       p_settle_amount: settleAmount,
-      p_admin_id: user.id,
+      p_admin_id: userId,
       p_notes: notes || ''
     })
 

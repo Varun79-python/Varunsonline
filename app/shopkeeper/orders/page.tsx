@@ -28,21 +28,39 @@ export default function ShopkeeperOrders() {
   const router = useRouter()
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState('all')
   const [shopId, setShopId] = useState<string | null>(null)
   const [packing, setPacking] = useState<PackingState | null>(null)
   const [packingItems, setPackingItems] = useState<OrderItem[]>([])
   const [packingLoading, setPackingLoading] = useState(false)
+  const [packError, setPackError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: shop } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
-      if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
-      setShopId(shop.id)
-      const { data } = await supabase.from('orders').select('id, order_number, status, total_amount, shopkeeper_earning, created_at').eq('shop_id', shop.id).order('created_at', { ascending: false })
-      setOrders(data || [])
+      try {
+        setLoading(true)
+        setError(null)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setLoading(false); return }
+        const { data: shop, error: shopErr } = await supabase.from('shops').select('id, is_approved, is_active').eq('owner_id', user.id).maybeSingle()
+        if (shopErr) { setError(shopErr.message); setLoading(false); return }
+        if (!shop || !shop.is_approved || !shop.is_active) { router.replace('/login/status'); return }
+        setShopId(shop.id)
+        const { data, error: ordersErr } = await supabase
+          .from('orders')
+          .select('id, order_number, status, total_amount, shopkeeper_earning, created_at')
+          .eq('shop_id', shop.id)
+          .order('created_at', { ascending: false })
+        if (ordersErr) { setError(ordersErr.message); setLoading(false); return }
+        setOrders(data || [])
+      } catch (err) {
+        console.error('[shopkeeper-orders] load error:', err)
+        setError('Failed to load orders')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
@@ -50,23 +68,31 @@ export default function ShopkeeperOrders() {
   const filtered = tab === 'all' ? orders : orders.filter(o => o.status === tab)
 
   async function openPackingChecklist(orderId: string) {
-    setPackingLoading(true)
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('id, product_name, quantity, unit_price, total_price, product_image_url')
-      .eq('order_id', orderId)
-    if (items) {
-      setPackingItems(items)
-      setPacking({
-        orderId,
-        items: items.map((i: OrderItem) => ({ id: i.id, name: i.product_name, checked: false }))
-      })
+    try {
+      setPackingLoading(true)
+      const { data: items, error: itemsErr } = await supabase
+        .from('order_items')
+        .select('id, product_name, quantity, unit_price, total_price, product_image_url')
+        .eq('order_id', orderId)
+      if (itemsErr) { setPackError(itemsErr.message); return }
+      if (items) {
+        setPackingItems(items)
+        setPacking({
+          orderId,
+          items: items.map((i: OrderItem) => ({ id: i.id, name: i.product_name, checked: false }))
+        })
+      }
+    } catch (err) {
+      console.error('[shopkeeper-orders] openPackingChecklist error:', err)
+      setPackError('Failed to load order items')
+    } finally {
+      setPackingLoading(false)
     }
-    setPackingLoading(false)
   }
 
   function toggleCheck(itemId: string) {
     if (!packing) return
+    setPackError(null)
     setPacking({
       ...packing,
       items: packing.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
@@ -75,14 +101,30 @@ export default function ShopkeeperOrders() {
 
   async function confirmPacked() {
     if (!packing) return
-    const { orderId, items } = packing
-    const allChecked = items.every(i => i.checked)
+    const { orderId } = packing
+    const allChecked = packing.items.every(i => i.checked)
     if (!allChecked) return
 
-    await supabase.from('orders').update({ status: 'order_packed', packed_at: new Date().toISOString() }).eq('id', orderId)
-    await supabase.from('order_status_history').insert({ order_id: orderId, status: 'order_packed' })
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'order_packed' } : o))
-    setPacking(null)
+    try {
+      setPackError(null)
+      const { error: updateErr } = await supabase
+        .from('orders')
+        .update({ status: 'order_packed', packed_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .eq('status', 'shop_accepted') // atomic guard: only update if still in correct state
+      if (updateErr) { setPackError(updateErr.message); return }
+      if (!updateErr) { // ensure at least one row was updated
+        const { error: histErr } = await supabase
+          .from('order_status_history')
+          .insert({ order_id: orderId, status: 'order_packed' })
+        if (histErr) console.error('[shopkeeper-orders] history insert error:', histErr)
+      }
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'order_packed' } : o))
+      setPacking(null)
+    } catch (err) {
+      console.error('[shopkeeper-orders] confirmPacked error:', err)
+      setPackError('Failed to mark as packed')
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -165,9 +207,32 @@ export default function ShopkeeperOrders() {
         </div>
       )}
 
+      {/* Loading State */}
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ background: '#f1f5f9', borderRadius: 12, height: 100, animation: 'pulse 1.5s infinite' }} />
+          ))}
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 16, marginBottom: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: 6 }}>⚠️</div>
+          <p style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.85rem' }}>{error}</p>
+        </div>
+      )}
+
+      {packError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+          ❌ {packError}
+        </div>
+      )}
+
       {/* Order List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
             <div style={{ fontSize: '2rem', marginBottom: 8 }}>📭</div>
             <p style={{ color: '#64748b', fontWeight: 600 }}>No orders found</p>

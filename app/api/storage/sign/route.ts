@@ -33,6 +33,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'bucket and path required' }, { status: 400 })
   }
 
+  // SECURITY: Prevent path traversal attacks
+  const sanitizedPath = path.replace(/\.\.\//g, '').replace(/\.\.\\/g, '').replace(/^\/+/, '')
+  if (sanitizedPath !== path) {
+    return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+  }
+
+  // SECURITY: Verify user owns the file they're requesting
+  // File paths are expected to be like: `{userId}/{filename}.ext`
+  const pathParts = sanitizedPath.split('/')
+  const fileOwnerId = pathParts[0]
+  if (fileOwnerId !== user.id) {
+    // Allow admin to access any file (for verification)
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (!profile || profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: you do not own this file' }, { status: 403 })
+    }
+  }
+
   try {
     const { createClient } = await import('@supabase/supabase-js')
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -41,11 +59,11 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await adminClient.storage
       .from(bucket)
-      .createSignedUrl(path, 3600) // 1 hour expiry
+      .createSignedUrl(sanitizedPath, 3600) // 1 hour expiry
 
     if (error) {
       console.error('Storage sign error:', error)
-      return NextResponse.json({ error: error.message, path: `/${bucket}/${path}` }, { status: 500 })
+      return NextResponse.json({ error: error.message, path: `/${bucket}/${sanitizedPath}` }, { status: 500 })
     }
 
     return NextResponse.json({ url: data.signedUrl })

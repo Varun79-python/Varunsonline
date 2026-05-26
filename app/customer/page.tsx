@@ -20,7 +20,6 @@ interface Shop {
 // Derive a unified shop status for sorting + display
 type ShopStatus = 'open' | 'closed' | 'unavailable'
 function getShopStatus(s: Shop): ShopStatus {
-  if (!s.is_active) return 'unavailable'  // blocked/inactive by admin
   if (s.subscription_end_date && new Date(s.subscription_end_date) < new Date()) return 'unavailable'
   if (!s.is_open) return 'closed'
   return 'open'
@@ -404,27 +403,36 @@ export default function CustomerHome() {
                     {status === 'open' && (
                       <div style={{
                         position: 'absolute', bottom: 5, left: 6,
-                        background: 'rgba(22,163,74,0.92)', color: 'white',
-                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
+                        background: '#16a34a', color: 'white',
+                        fontSize: '0.55rem', fontWeight: 800, padding: '3px 8px',
                         borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px',
                         display: 'flex', alignItems: 'center', gap: 3,
-                      }}>🟢 Open</div>
+                        boxShadow: '0 2px 6px rgba(22,163,74,0.4)',
+                      }}>
+                        <span style={{ fontSize: '0.6rem' }}>🟢</span> Open · Accepting Orders
+                      </div>
                     )}
                     {isClosed && (
                       <div style={{
                         position: 'absolute', bottom: 5, left: 6,
-                        background: 'rgba(0,0,0,0.78)', color: '#fca5a5',
-                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
-                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
-                      }}>🔴 Closed</div>
+                        background: 'rgba(0,0,0,0.8)', color: '#fca5a5',
+                        fontSize: '0.55rem', fontWeight: 800, padding: '3px 8px',
+                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>
+                        🔴 Closed · Not accepting orders
+                      </div>
                     )}
                     {isUnavailable && (
                       <div style={{
                         position: 'absolute', bottom: 5, left: 6,
-                        background: 'rgba(120,80,0,0.85)', color: '#fde68a',
-                        fontSize: '0.55rem', fontWeight: 800, padding: '2px 7px',
-                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px'
-                      }}>⚠️ Unavailable</div>
+                        background: 'rgba(120,80,0,0.9)', color: '#fde68a',
+                        fontSize: '0.5rem', fontWeight: 800, padding: '3px 8px',
+                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>
+                        ⚠️ Temporarily Unavailable
+                      </div>
                     )}
                   </div>
 

@@ -160,8 +160,14 @@ export async function PATCH(
       (order.discount_amount as number) ?? 0,
     )
 
-    // ── 5. Atomic save: delete old items, insert new, update order ────────────
-    // Step A: delete old items
+    // ── 5. Safe transactional save: save old items, delete, insert, rollback on failure ──
+    // Step A: save old items for rollback
+    const { data: oldItems } = await svc
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId)
+
+    // Step B: delete old items
     const { error: deleteErr } = await svc
       .from('order_items')
       .delete()
@@ -171,13 +177,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update items (delete)' }, { status: 500 })
     }
 
-    // Step B: insert new validated items
+    // Step C: insert new validated items
     const { error: insertErr } = await svc
       .from('order_items')
       .insert(validatedItems.map(item => ({ ...item, order_id: orderId })))
     if (insertErr) {
-      console.error('[items PATCH] insert error:', insertErr)
-      return NextResponse.json({ error: 'Failed to update items (insert)' }, { status: 500 })
+      console.error('[items PATCH] insert error, restoring old items:', insertErr)
+      // Rollback: restore old items
+      if (oldItems && oldItems.length > 0) {
+        await svc.from('order_items').insert(oldItems)
+      }
+      return NextResponse.json({ error: 'Failed to update items' }, { status: 500 })
     }
 
     // Step C: update order financials + items_updated_at

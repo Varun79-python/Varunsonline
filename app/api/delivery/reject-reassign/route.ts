@@ -65,20 +65,21 @@ export async function POST(req: NextRequest) {
     // Combine all exclusions: explicitly excluded + currently busy agents
     const combinedExclude = [...new Set([...fullExclude, ...busyIds])]
 
-    // Find next best agent
-    let query = supabase
+    // Find next best agent (filter exclusions in memory to avoid raw SQL injection)
+    const { data: allAvailable } = await supabase
       .from('delivery_agents')
       .select('id, full_name, total_deliveries, last_lat, last_lon')
       .eq('is_approved', true)
       .eq('is_available', true)
 
-    if (combinedExclude.length > 0) {
-      query = query.not('id', 'in', `(${combinedExclude.join(',')})`)
+    if (!allAvailable || allAvailable.length === 0) {
+      return NextResponse.json({ error: 'no_agents', orderId }, { status: 200 })
     }
 
-    const { data: agents } = await query
+    const excludeSet = new Set(combinedExclude)
+    const agents = allAvailable.filter((a: { id: string }) => !excludeSet.has(a.id))
 
-    if (!agents || agents.length === 0) {
+    if (agents.length === 0) {
       return NextResponse.json({ error: 'no_agents', orderId }, { status: 200 })
     }
 

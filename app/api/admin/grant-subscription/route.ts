@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
+import { verifyAdmin } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +14,13 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createServiceClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAdmin(req)
+    if (auth.error || !auth.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 })
+    }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const userId = auth.userId!
+    const supabase = createServiceClient()
 
     const { shopId, planId, durationDays, grantReason } = await req.json()
     if (!shopId || !planId) {
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
         amount_paid: 0,
         is_active: true,
         is_free_plan: true,
-        granted_by: user.id,
+        granted_by: userId,
         grant_reason: reason,
       })
       .select('id')
@@ -97,7 +99,7 @@ export async function POST(req: NextRequest) {
       payment_status: 'paid',
       payment_method: 'admin_grant',
       is_free_plan: true,
-      granted_by: user.id,
+      granted_by: userId,
       grant_reason: reason,
       verified_at: now.toISOString(),
     })
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
       subscription_end_date: newEndDate.toISOString(),
     }).eq('id', shopId)
 
-    console.log(`Free subscription granted to shop ${shopId} by admin ${user.id}, reason: ${reason}`)
+    console.log(`Free subscription granted to shop ${shopId} by admin ${userId}, reason: ${reason}`)
 
     return NextResponse.json({
       success: true,
