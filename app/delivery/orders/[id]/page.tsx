@@ -247,9 +247,13 @@ export default function DeliveryOrderDetail() {
       <div className="card" style={{ marginBottom: 16, textAlign: 'center', background: 'linear-gradient(135deg, rgba(14,165,233,0.08), rgba(249,115,22,0.06))' }}>
         <div style={{ fontSize: '2rem', marginBottom: 6 }}>{isDelivered ? '🎉' : '🛵'}</div>
         <h2 style={{ marginBottom: 2 }}>{order.order_number}</h2>
-        {isCOD && (
+        {isCOD ? (
+          <span className="badge badge-orange" style={{ marginBottom: 6 }}>
+            💵 COD — Collect Cash
+          </span>
+        ) : (
           <span className="badge badge-green" style={{ marginBottom: 6 }}>
-            💵 COD
+            ✅ Paid Online
           </span>
         )}
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
@@ -361,7 +365,7 @@ export default function DeliveryOrderDetail() {
             <span style={{ fontSize: '1.5rem' }}>📍</span>
             <div>
               <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Arriving Soon!</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Complete the delivery</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Already paid online — just deliver</div>
             </div>
           </div>
           <button onClick={() => updateStatus('delivered', 'delivered_at')} disabled={updating}
