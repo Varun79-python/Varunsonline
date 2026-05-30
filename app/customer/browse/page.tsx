@@ -120,22 +120,22 @@ export default function BrowsePage() {
   const [gpsReady, setGpsReady] = useState(false)
   const supabase = createClient()
 
-  // Get user GPS on mount (for distance filters)
+  // Get user GPS on mount (for distance filters).
+  // Products load immediately without GPS; re-fetch once GPS resolves.
   useEffect(() => {
     getCustomerGPSPosition()
       .then(pos => {
         setUserLat(pos.latitude)
         setUserLng(pos.longitude)
-        setGpsReady(true)
+        fetchProducts(filters, pos.latitude, pos.longitude)
       })
       .catch(() => {
-        // GPS unavailable — proceed without location
-        setGpsReady(true)
+        // GPS unavailable — proceed without location, already loaded
       })
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch products from API
-  const fetchProducts = useCallback(async (f: FilterState) => {
+  const fetchProducts = useCallback(async (f: FilterState, lat?: number | null, lng?: number | null) => {
     setLoading(true)
     setError(null)
 
@@ -143,15 +143,16 @@ export default function BrowsePage() {
     // Page defaults to 1 when filters change
     if (!params.has('page')) params.set('page', '1')
 
-    try {
-      // Inject GPS coords if available
-      if (userLat != null && userLng != null) {
-        params.set('lat', String(userLat))
-        params.set('lng', String(userLng))
-      }
+    // Use provided coords, or fall back to state
+    const useLat = lat != null ? lat : userLat
+    const useLng = lng != null ? lng : userLng
+    if (useLat != null && useLng != null) {
+      params.set('lat', String(useLat))
+      params.set('lng', String(useLng))
+    }
 
+    try {
       const res = await fetch(`/api/customer/products?${params.toString()}`, {
-        // Use cache: no-store to always get fresh data
         cache: 'no-store',
       })
       if (!res.ok) {
@@ -168,12 +169,10 @@ export default function BrowsePage() {
     }
   }, [userLat, userLng])
 
-  // Initial fetch + re-fetch when GPS changes
+  // Initial fetch immediately (no GPS needed for first load)
   useEffect(() => {
-    if (gpsReady) {
-      fetchProducts(filters)
-    }
-  }, [gpsReady]) // eslint-disable-line react-hooks/exhaustive-deps
+    fetchProducts(filters)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL from filters
   const syncUrl = useCallback((f: FilterState) => {
@@ -244,10 +243,7 @@ export default function BrowsePage() {
 
   // Go to page
   const goToPage = useCallback((page: number) => {
-    const updated = { ...filters }
-    setFilters(updated)
-    // Fetch with page param
-    const params = filtersToParams(updated)
+    const params = filtersToParams(filters)
     params.set('page', String(page))
     if (userLat != null && userLng != null) {
       params.set('lat', String(userLat))
@@ -258,10 +254,7 @@ export default function BrowsePage() {
       .then(res => res.json())
       .then((json: ApiResponse) => {
         setData(json)
-        // Update URL page param
-        const urlParams = filtersToParams(updated)
-        urlParams.set('page', String(page))
-        router.replace(`${pathname}?${urlParams.toString()}`, { scroll: false })
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
       .catch(err => setError(err.message))

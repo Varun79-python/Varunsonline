@@ -323,6 +323,32 @@ export default function CustomerHome() {
         </div>
       )}
 
+      {/* ── Browse Products CTA ── */}
+      <div
+        onClick={() => router.push('/customer/browse')}
+        style={{
+          margin: '8px 12px 0',
+          padding: '14px 16px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(249,115,22,0.3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.3rem' }}>🔍</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>Browse Products</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>Search across all shops</div>
+          </div>
+        </div>
+        <span style={{ fontSize: '1.2rem' }}>→</span>
+      </div>
+
       {/* ── Section label ── */}
       <div className="ch-section-hdr">
         <span className="ch-section-title">
