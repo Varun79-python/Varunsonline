@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { haversineKm } from '@/lib/gps'
+import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
 
 interface Shop {
   id: string; name: string; category: string; description: string
@@ -58,12 +59,7 @@ export default function CustomerHome() {
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState<string | null>(null)
-  const [gpsError, setGpsError] = useState<string | null>(null)
-  const [gpsCode, setGpsCode] = useState<number | null>(null)   // 1=denied 2=unavail 3=timeout
-  const [gpsReady, setGpsReady] = useState(false)
-  const [gpsAttempting, setGpsAttempting] = useState(false)
-  // useRef to avoid stale-closure double-call guard in useEffect
-  const gpsRunning = useRef(false)
+  const { latitude, longitude, loading: gpsLoading, error: gpsError } = useCustomerLocation()
 
   // Returns the radius so loadShops can use the live value, not stale state
   async function loadSettings(): Promise<number> {
@@ -74,68 +70,6 @@ export default function CustomerHome() {
       return r
     }
     return 10
-  }
-
-  function doGPS(radiusForShops: number) {
-    // useRef guard prevents double-calls from React StrictMode
-    if (gpsRunning.current) {
-      console.log('[GPS] Already running, skipping duplicate call')
-      return
-    }
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      console.error('[GPS] navigator.geolocation not available')
-      setGpsError('GPS is not supported on this device or browser.')
-      setGpsCode(2)
-      setGpsAttempting(false)
-      setLoading(false)
-      return
-    }
-    gpsRunning.current = true
-    setGpsAttempting(true)
-    setGpsError(null)
-    setGpsCode(null)
-    console.log('[GPS] Calling navigator.geolocation.getCurrentPosition...')
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        // SUCCESS
-        const { latitude, longitude, accuracy } = position.coords
-        console.log(`[GPS] Success: lat=${latitude.toFixed(5)}, lon=${longitude.toFixed(5)}, accuracy=±${Math.round(accuracy)}m`)
-        gpsRunning.current = false
-        setGpsAttempting(false)
-        setGpsReady(true)
-        setGpsError(null)
-        setGpsCode(null)
-        loadShops(latitude, longitude, radiusForShops)
-      },
-      (error) => {
-        // ERROR
-        const code = error.code  // 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
-        const msg = error.message
-        console.error(`[GPS] Error code=${code} (${['', 'PERMISSION_DENIED', 'POSITION_UNAVAILABLE', 'TIMEOUT'][code] || 'UNKNOWN'}):`, msg)
-        gpsRunning.current = false
-        setGpsAttempting(false)
-        setGpsCode(code)
-        setLoading(false)
-        if (code === 1) {
-          setGpsError('Tap the 🔒 lock icon in the browser address bar → Site settings → Location → Allow, then tap Retry.')
-        } else if (code === 2) {
-          setGpsError('Location unavailable — please turn on your device GPS/Location and move to an open area.')
-        } else {
-          setGpsError('Location timed out — please ensure GPS is on and try again.')
-        }
-      },
-      {
-        enableHighAccuracy: false,   // Start with network-based (fast, reliable); retry with high-accuracy if needed
-        maximumAge: 60000,           // Accept a position up to 60s old to avoid cold-start failures
-        timeout: 20000,
-      }
-    )
-  }
-
-  function requestLocation() {
-    gpsRunning.current = false  // Reset guard so manual retry always works
-    doGPS(radiusKm)
   }
 
   async function loadShops(lat: number, lon: number, radius?: number) {
@@ -186,12 +120,16 @@ export default function CustomerHome() {
           user.email?.split('@')[0] || 'there'
         setUserName(name.charAt(0).toUpperCase() + name.slice(1))
       }
-      // Load radius first so GPS success uses the correct value
       const radius = await loadSettings()
-      doGPS(radius)
+      // Use saved address GPS if available, otherwise load all shops without distance sorting
+      if (latitude != null && longitude != null) {
+        loadShops(latitude, longitude, radius)
+      } else {
+        loadShops(0, 0, radius)
+      }
     }
     init()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [latitude, longitude]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = useCallback(() => {
     let result = [...shops]
@@ -270,56 +208,22 @@ export default function CustomerHome() {
         })}
       </div>
 
-      {/* ── GPS Notification Banner — slim, non-intrusive ── */}
-      {gpsError && (
+      {/* ── Saved GPS not available hint (non-blocking) ── */}
+      {!gpsLoading && gpsError && (
         <div style={{
           margin: '8px 12px 0',
           padding: '10px 14px',
           borderRadius: 10,
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           gap: 10,
-          background: gpsCode === 1 ? '#fef2f2' : '#fef9c3',
-          border: `1px solid ${gpsCode === 1 ? '#fca5a5' : '#fcd34d'}`,
+          background: '#fff7ed',
+          border: '1px solid #fed7aa',
         }}>
-          <span style={{ fontSize: '1.1rem', flexShrink: 0, marginTop: 1 }}>
-            {gpsCode === 1 ? '🚫' : gpsCode === 2 ? '📡' : '⏱️'}
-          </span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: gpsCode === 1 ? '#dc2626' : '#92400e', marginBottom: 2 }}>
-              {gpsCode === 1 ? 'Location Access Denied' : gpsCode === 2 ? 'Location Unavailable' : 'Location Timed Out'}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: gpsCode === 1 ? '#ef4444' : '#78350f', lineHeight: 1.4 }}>
-              {gpsError}
-            </div>
+          <span style={{ fontSize: '1rem', flexShrink: 0 }}>📍</span>
+          <div style={{ fontSize: '0.75rem', color: '#92400e', lineHeight: 1.4 }}>
+            Set a delivery address in the bar above to see shops near you.
           </div>
-          <button
-            onClick={requestLocation}
-            disabled={gpsAttempting}
-            style={{
-              flexShrink: 0,
-              padding: '5px 10px',
-              background: gpsCode === 1 ? '#fca5a5' : '#fcd34d',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              cursor: gpsAttempting ? 'not-allowed' : 'pointer',
-              color: gpsCode === 1 ? '#7f1d1d' : '#78350f',
-              opacity: gpsAttempting ? 0.6 : 1,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {gpsAttempting ? '⏳' : '🔄 Retry'}
-          </button>
-        </div>
-      )}
-
-      {/* ── Fetching indicator (slim) ── */}
-      {gpsAttempting && !gpsError && (
-        <div style={{ margin: '8px 12px 0', padding: '8px 14px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 14, height: 14, border: '2px solid #fed7aa', borderTopColor: '#f97316', borderRadius: '50%', animation: 'ch-spin 0.8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 500 }}>Getting your location...</span>
         </div>
       )}
 
@@ -354,11 +258,11 @@ export default function CustomerHome() {
         <span className="ch-section-title">
           {loading
             ? 'Finding shops...'
-            : gpsReady
+            : latitude != null && longitude != null
             ? `${filtered.length} ${category !== 'All' ? category : ''} Shop${filtered.length !== 1 ? 's' : ''} Near You`
-            : 'Shops Near You'}
+            : `${filtered.length} Shop${filtered.length !== 1 ? 's' : ''} Available`}
         </span>
-        {radiusKm && gpsReady && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
+        {radiusKm && latitude != null && longitude != null && !loading && <span className="ch-section-sub">Within {radiusKm} km</span>}
       </div>
 
       {/* ── Shop grid ── */}
@@ -379,8 +283,8 @@ export default function CustomerHome() {
           </div>
         )}
 
-        {/* Empty state — GPS success but no shops in radius */}
-        {!loading && gpsReady && filtered.length === 0 && (
+        {/* Empty state — GPS available but no shops in radius */}
+        {!loading && latitude != null && longitude != null && filtered.length === 0 && (
           <div className="ch-empty">
             <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🏪</div>
             <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>No Shops Nearby</h3>

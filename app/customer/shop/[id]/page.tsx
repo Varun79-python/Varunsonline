@@ -2,8 +2,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getCustomerGPSPosition } from '@/lib/customerGps'
 import { haversineKm } from '@/lib/gps'
+import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
 import ShopReviews from '@/components/shared/ShopReviews'
 
 interface Product {
@@ -54,19 +54,11 @@ export default function ShopPage() {
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState('All')
   const [isFavorite, setIsFavorite] = useState(false)
-  const [userLat, setUserLat] = useState<number | null>(null)
-  const [userLon, setUserLon] = useState<number | null>(null)
+  const { latitude, longitude } = useCustomerLocation()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setCart(JSON.parse(localStorage.getItem('vo_cart') || '[]'))
-    
-    getCustomerGPSPosition()
-      .then(pos => {
-        setUserLat(pos.latitude)
-        setUserLon(pos.longitude)
-      })
-      .catch(error => console.warn('Customer shop GPS unavailable:', error))
     
     async function load() {
       const [{ data: shopData }, { data: prodData }] = await Promise.all([
@@ -129,8 +121,8 @@ export default function ShopPage() {
   const categories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))] as string[]
 
   // Calculate distance if we have coordinates
-  const distance = shop && userLat != null && userLon != null && shop.latitude != null && shop.longitude != null
-          ? haversineKm(userLat, userLon, shop.latitude, shop.longitude)
+  const distance = shop && latitude != null && longitude != null && shop.latitude != null && shop.longitude != null
+          ? haversineKm(latitude, longitude, shop.latitude, shop.longitude)
     : null
   
   // Estimate delivery time (roughly 1 min per 200m, min 15 mins)

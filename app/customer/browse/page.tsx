@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getCustomerGPSPosition } from '@/lib/customerGps'
+import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
 import ProductCard from '@/components/customer/ProductCard'
 import FilterChips from '@/components/customer/FilterChips'
 import ProductFilters from '@/components/customer/ProductFilters'
@@ -115,24 +115,16 @@ export default function BrowsePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [userLat, setUserLat] = useState<number | null>(null)
-  const [userLng, setUserLng] = useState<number | null>(null)
-  const [gpsReady, setGpsReady] = useState(false)
+  const { latitude, longitude, loading: gpsLoading } = useCustomerLocation()
   const supabase = createClient()
 
-  // Get user GPS on mount (for distance filters).
-  // Products load immediately without GPS; re-fetch once GPS resolves.
+  // Load saved address GPS (no live browser capture).
+  // Products load immediately without GPS; re-fetch once saved GPS resolves.
   useEffect(() => {
-    getCustomerGPSPosition()
-      .then(pos => {
-        setUserLat(pos.latitude)
-        setUserLng(pos.longitude)
-        fetchProducts(filters, pos.latitude, pos.longitude)
-      })
-      .catch(() => {
-        // GPS unavailable — proceed without location, already loaded
-      })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!gpsLoading && latitude != null && longitude != null) {
+      fetchProducts(filters, latitude, longitude)
+    }
+  }, [latitude, longitude, gpsLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch products from API
   const fetchProducts = useCallback(async (f: FilterState, lat?: number | null, lng?: number | null) => {
@@ -143,9 +135,9 @@ export default function BrowsePage() {
     // Page defaults to 1 when filters change
     if (!params.has('page')) params.set('page', '1')
 
-    // Use provided coords, or fall back to state
-    const useLat = lat != null ? lat : userLat
-    const useLng = lng != null ? lng : userLng
+    // Use provided coords, or fall back to hook state
+    const useLat = lat != null ? lat : latitude
+    const useLng = lng != null ? lng : longitude
     if (useLat != null && useLng != null) {
       params.set('lat', String(useLat))
       params.set('lng', String(useLng))
@@ -167,7 +159,7 @@ export default function BrowsePage() {
     } finally {
       setLoading(false)
     }
-  }, [userLat, userLng])
+  }, [latitude, longitude])
 
   // Initial fetch immediately (no GPS needed for first load)
   useEffect(() => {
@@ -245,9 +237,9 @@ export default function BrowsePage() {
   const goToPage = useCallback((page: number) => {
     const params = filtersToParams(filters)
     params.set('page', String(page))
-    if (userLat != null && userLng != null) {
-      params.set('lat', String(userLat))
-      params.set('lng', String(userLng))
+    if (latitude != null && longitude != null) {
+      params.set('lat', String(latitude))
+      params.set('lng', String(longitude))
     }
     setLoading(true)
     fetch(`/api/customer/products?${params.toString()}`, { cache: 'no-store' })
@@ -259,7 +251,7 @@ export default function BrowsePage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [filters, userLat, userLng, pathname, router])
+  }, [filters, latitude, longitude, pathname, router])
 
   // Shop name map for chips
   const shopNameMap: Record<string, string> = {}
