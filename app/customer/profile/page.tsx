@@ -61,7 +61,13 @@ export default function CustomerProfile() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from('profiles').update({ full_name: profile.full_name, phone: profile.phone, gender: profile.gender }).eq('id', user.id)
+    const updates: Record<string, string> = { full_name: profile.full_name, phone: profile.phone }
+    if (profile.gender) updates.gender = profile.gender
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id)
+    if (error) {
+      console.error('Profile save error:', error.message)
+      alert('Failed to save: ' + error.message)
+    }
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
