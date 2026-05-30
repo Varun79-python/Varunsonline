@@ -37,6 +37,7 @@ export default function ShopkeeperDashboard() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [togglingOpen, setTogglingOpen] = useState(false)
+  const [deliveryRadius, setDeliveryRadius] = useState<number>(10)
   const shopIdRef = useRef<string | null>(null)
   // Track which order IDs are currently alerting (to stop when handled)
   const alertedRef = useRef<Set<string>>(new Set())
@@ -126,6 +127,16 @@ export default function ShopkeeperDashboard() {
         .from('orders').select('shopkeeper_earning')
         .eq('shop_id', shopData.id).eq('status', 'delivered').gte('created_at', today)
       setTodayEarnings(todayOrders?.reduce((s: number, o: { shopkeeper_earning: number }) => s + (o.shopkeeper_earning || 0), 0) || 0)
+
+      // Load delivery radius (global, managed by admin)
+      const { data: radiusSettings } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'shop_radius_km')
+        .maybeSingle()
+      if (radiusSettings?.value) {
+        setDeliveryRadius(Number(radiusSettings.value))
+      }
 
       await fetchPending(shopData.id)
       if (!mounted) return
@@ -419,6 +430,23 @@ export default function ShopkeeperDashboard() {
             <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Delivery Radius — read-only, managed by admin */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: '#f0fdf4', border: '1px solid #bbf7d0',
+        borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+      }}>
+        <span style={{ fontSize: '1.2rem' }}>📍</span>
+        <div>
+          <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#15803d' }}>
+            Your delivery radius: <strong>{deliveryRadius} km</strong>
+          </span>
+          <span style={{ fontSize: '0.72rem', color: '#64748b', marginLeft: 8 }}>
+            (Managed by admin — customers within this radius can see your shop)
+          </span>
+        </div>
       </div>
 
       {/* Orders Dashboard */}

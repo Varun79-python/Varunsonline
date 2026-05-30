@@ -120,11 +120,14 @@ export default function BrowsePage() {
 
   // Load saved address GPS (no live browser capture).
   // Products load immediately without GPS; re-fetch once saved GPS resolves.
+  const [gpsApplied, setGpsApplied] = useState(false)
   useEffect(() => {
-    if (!gpsLoading && latitude != null && longitude != null) {
+    if (gpsLoading || gpsApplied) return
+    if (latitude != null && longitude != null) {
       fetchProducts(filters, latitude, longitude)
     }
-  }, [latitude, longitude, gpsLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+    setGpsApplied(true)
+  }, [latitude, longitude, gpsLoading, gpsApplied]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch products from API
   const fetchProducts = useCallback(async (f: FilterState, lat?: number | null, lng?: number | null) => {

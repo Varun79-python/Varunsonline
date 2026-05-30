@@ -59,6 +59,7 @@ export default function CustomerHome() {
   const [radiusKm, setRadiusKm] = useState(10)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState<string | null>(null)
+  const [shopsInitialized, setShopsInitialized] = useState(false)
   const { latitude, longitude, loading: gpsLoading, error: gpsError } = useCustomerLocation()
 
   // Returns the radius so loadShops can use the live value, not stale state
@@ -72,27 +73,28 @@ export default function CustomerHome() {
     return 10
   }
 
-  async function loadShops(lat: number, lon: number, radius?: number) {
+  async function loadShops(lat?: number | null, lon?: number | null, radius?: number) {
     setLoading(true)
-    // Fetch ALL approved shops — is_active=false means blocked/rejected (hide completely)
-    // is_open=false means closed (show with Closed badge, disable ordering)
     const { data } = await supabase
       .from('shops')
       .select('id,name,category,description,shop_image_url,rating,total_orders,address_line1,city,latitude,longitude,shop_rating,delivery_rating,total_ratings,is_open,is_active,subscription_end_date')
       .eq('is_approved', true)
-      .eq('is_active', true)  // is_active=false = blocked/rejected → hide completely
+      .eq('is_active', true)
     if (data) {
+      const hasGPS = lat != null && lon != null
       const activeRadius = radius ?? radiusKm ?? 10
-      const withDist = data.map((s: Shop) => ({
-        ...s,
-        distance: s.latitude != null && s.longitude != null
-          ? haversineKm(lat, lon, s.latitude, s.longitude) : null
-      }))
-      // Show shops within radius; no GPS coords → still show (null distance included)
-      const inRange = withDist.filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)
+      // If customer has GPS, compute distances and filter by radius.
+      // Otherwise, show all shops without distance (no location set).
+      const processed = hasGPS
+        ? data.map((s: Shop) => ({
+            ...s,
+            distance: s.latitude != null && s.longitude != null
+              ? haversineKm(lat!, lon!, s.latitude, s.longitude) : null
+          })).filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)
+        : data.map((s: Shop) => ({ ...s, distance: null }))
       // Sort: 1) open first, 2) closed, 3) unavailable (sub expired etc), then nearest within each group
       const statusOrder: Record<ShopStatus, number> = { open: 0, closed: 1, unavailable: 2 }
-      const sorted = inRange.sort((a: Shop, b: Shop) => {
+      const sorted = processed.sort((a: Shop, b: Shop) => {
         const statusDiff = statusOrder[getShopStatus(a)] - statusOrder[getShopStatus(b)]
         if (statusDiff !== 0) return statusDiff
         if (a.distance === null && b.distance === null) return 0
@@ -102,14 +104,17 @@ export default function CustomerHome() {
       })
       setShops(sorted)
       setFiltered(sorted)
-      console.log(`[Shops] Loaded ${sorted.length} shops within ${activeRadius}km (total: ${data.length})`)
+      console.log(`[Shops] Loaded ${sorted.length} shops (${hasGPS ? `${activeRadius}km radius` : 'no location set'})`)
     }
     setLoading(false)
   }
 
   useEffect(() => {
+    if (gpsLoading || shopsInitialized) return
+
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
+
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -121,15 +126,12 @@ export default function CustomerHome() {
         setUserName(name.charAt(0).toUpperCase() + name.slice(1))
       }
       const radius = await loadSettings()
-      // Use saved address GPS if available, otherwise load all shops without distance sorting
-      if (latitude != null && longitude != null) {
-        loadShops(latitude, longitude, radius)
-      } else {
-        loadShops(0, 0, radius)
-      }
+      // Use saved address GPS if available, otherwise load all shops without distance
+      await loadShops(latitude, longitude, radius)
+      setShopsInitialized(true)
     }
     init()
-  }, [latitude, longitude]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, gpsLoading, shopsInitialized]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = useCallback(() => {
     let result = [...shops]
