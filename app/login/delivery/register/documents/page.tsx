@@ -7,7 +7,7 @@ interface DocUpload {
   key: string
   label: string
   description: string
-  url: string
+  url?: string
   required: boolean
 }
 

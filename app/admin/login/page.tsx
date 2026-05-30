@@ -23,10 +23,12 @@ export default function AdminLoginPage() {
     let mounted = true
 
     async function init() {
+      let adminEmailFromFetch = ''
       try {
         const res = await fetch('/api/admin/email')
         const d = await res.json()
-        if (mounted && d.email) setAdminEmail(d.email)
+        adminEmailFromFetch = d?.email || ''
+        if (mounted && adminEmailFromFetch) setAdminEmail(adminEmailFromFetch)
       } catch {}
 
       if (!mounted) return
@@ -38,7 +40,7 @@ export default function AdminLoginPage() {
         if (session?.user) {
           const user = session.user
           const metaRole = user.user_metadata?.role || user.app_metadata?.role
-          const currentAdminEmail = d?.email || ''  // Use locally fetched value
+          const currentAdminEmail = adminEmailFromFetch || ''  // Use locally fetched value
 
           if (metaRole === 'admin' || (currentAdminEmail && user.email === currentAdminEmail)) {
             goToAdmin()

@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
     }
 
-    const validRoles = ['customer', 'shopkeeper', 'delivery', 'admin']
-    if (!validRoles.includes(role)) {
+    const validRoles = ['customer', 'shopkeeper', 'delivery', 'admin'] as const
+    type ValidRole = typeof validRoles[number]
+    if (!validRoles.includes(role as ValidRole)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
@@ -37,15 +38,15 @@ export async function POST(req: NextRequest) {
       .from('profiles')
       .select('email, full_name')
       .eq('phone', phone)
-      .eq('role', role)
+      .eq('role', role as string)
       .maybeSingle()
 
     if (profile?.email) {
       return NextResponse.json({ email: profile.email, full_name: profile.full_name })
     }
 
-    const roleLabels = { customer: 'customer', shopkeeper: 'shop owner', delivery: 'delivery partner', admin: 'admin' }
-    return NextResponse.json({ error: `No ${roleLabels[role] || 'account'} found with this phone number.` }, { status: 404 })
+    const roleLabels: Record<string, string> = { customer: 'customer', shopkeeper: 'shop owner', delivery: 'delivery partner', admin: 'admin' }
+    return NextResponse.json({ error: `No ${roleLabels[role as string] || 'account'} found with this phone number.` }, { status: 404 })
   } catch (err) {
     console.error('Phone lookup error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
