@@ -223,14 +223,7 @@ export default function ShopkeeperOrderDetail() {
             <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Subtotal</span>
             <span>₹{order.subtotal}</span>
           </div>
-          <div className="flex-between" style={{ marginBottom: 4 }}>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Delivery</span>
-            <span>₹{order.delivery_charge}</span>
-          </div>
-          <div className="flex-between" style={{ marginBottom: 4 }}>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Platform Fee</span>
-            <span>₹{order.platform_fee}</span>
-          </div>
+
           <div className="flex-between" style={{ borderTop: '1.5px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
             <span style={{ fontWeight: 700 }}>Your Earning</span>
             <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>₹{order.shopkeeper_earning}</span>
