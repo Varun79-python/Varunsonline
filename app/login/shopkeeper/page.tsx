@@ -90,17 +90,17 @@ export default function ShopkeeperLoginPage() {
     let emailToAuth = input
 
     if (isPhone) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('phone', digitsOnly)
-        .eq('role', 'shopkeeper')
-        .maybeSingle()
+      const lookupRes = await fetch('/api/auth/phone-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: digitsOnly, role: 'shopkeeper' }),
+      })
+      const lookupData = await lookupRes.json()
 
-      if (profileData?.email) {
-        emailToAuth = profileData.email
+      if (lookupRes.ok && lookupData.email) {
+        emailToAuth = lookupData.email
       } else {
-        setError('No shop owner account found with this phone number.')
+        setError(lookupData.error || 'No shop owner account found with this phone number.')
         setLoading(false)
         refreshCaptcha()
         return

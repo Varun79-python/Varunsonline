@@ -12,6 +12,7 @@ export default function DeliveryRegisterPage() {
     full_name: '',
     email: '',
     phone: '',
+    gender: '',
     password: '',
     confirmPassword: '',
     vehicle_type: 'Bike',
@@ -38,19 +39,29 @@ export default function DeliveryRegisterPage() {
     setExistingUserMessage('')
     
     try {
-      const { data: existingAgent } = await supabase
-        .from('delivery_agents')
-        .select('*')
-        .eq('phone', phone.trim())
-        .maybeSingle()
+      // Check by phone OR email
+      const phoneQuery = phone.trim()
+        ? supabase.from('delivery_agents').select('*').eq('phone', phone.trim())
+        : null
+      const emailQuery = email.trim()
+        ? supabase.from('delivery_agents').select('*').eq('email', email.trim())
+        : null
+
+      const [phoneResult, emailResult] = await Promise.all([
+        phoneQuery?.maybeSingle(),
+        emailQuery?.maybeSingle(),
+      ])
+
+      const existingAgent = phoneResult || emailResult
 
       if (existingAgent) {
+        const matchedBy = phoneResult ? 'phone number' : 'email'
         if (existingAgent.is_approved) {
-          setExistingUserMessage('Note: An approved delivery agent account already exists with this phone number. If this is you, please log in.')
+          setExistingUserMessage(`Note: An approved delivery agent account already exists with this ${matchedBy}. If this is you, please log in.`)
           return
         }
         
-        setExistingUserMessage('Note: A partial registration already exists with this phone number.')
+        setExistingUserMessage(`Note: A partial registration already exists with this ${matchedBy}.`)
         return
       }
     } catch (err) {
@@ -127,6 +138,7 @@ export default function DeliveryRegisterPage() {
     if (form.password !== form.confirmPassword) { setFormError('Passwords do not match. Please re-enter.'); return }
     if (!form.vehicle_type) { setFormError('Vehicle Type is required'); return }
     if (!form.vehicle_number.trim() && form.vehicle_type !== 'Bicycle') { setFormError('Vehicle Number is required'); return }
+    if (!form.gender) { setFormError('Please select your gender'); return }
     if (!agreedToTerms) { setFormError('You must agree to the Terms & Conditions'); return }
 
     setSaving(true)
@@ -340,6 +352,31 @@ export default function DeliveryRegisterPage() {
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Phone Number *</label>
             <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit phone number" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Gender *</label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['male', 'female', 'other'].map(g => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, gender: g }))}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: 10,
+                    border: `2px solid ${form.gender === g ? '#22c55e' : '#e2e8f0'}`,
+                    background: form.gender === g ? '#f0fdf4' : 'white',
+                    color: form.gender === g ? '#16a34a' : '#64748b',
+                    fontWeight: form.gender === g ? 700 : 600,
+                    fontSize: '0.9rem', cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {g === 'male' ? '👨 Male' : g === 'female' ? '👩 Female' : '🧑 Other'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

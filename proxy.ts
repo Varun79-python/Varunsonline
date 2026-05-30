@@ -84,13 +84,6 @@ export async function proxy(request: NextRequest) {
 
   // ── Protect /shopkeeper routes ──────────────────────────────────────────────
   if (pathname.startsWith('/shopkeeper')) {
-    if (
-      pathname === '/login/shopkeeper' ||
-      pathname.startsWith('/login/shopkeeper/')
-    ) {
-      return supabaseResponse
-    }
-
     if (!user) {
       return NextResponse.redirect(new URL('/login/shopkeeper', request.url))
     }

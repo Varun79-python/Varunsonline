@@ -5,8 +5,9 @@ import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 export const dynamic = 'force-dynamic'
 
 /**
- * Server-side phone-to-email lookup for customer login.
+ * Server-side phone-to-email lookup for login.
  * Uses service role key to bypass RLS on the profiles table.
+ * Accepts optional `role` parameter (default: 'customer').
  */
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +22,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
     }
 
-    const { phone } = await req.json()
+    const { phone, role = 'customer' } = await req.json()
     if (!phone || !/^\d{10,}$/.test(phone)) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
+    }
+
+    const validRoles = ['customer', 'shopkeeper', 'delivery', 'admin']
+    if (!validRoles.includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
@@ -31,14 +37,15 @@ export async function POST(req: NextRequest) {
       .from('profiles')
       .select('email, full_name')
       .eq('phone', phone)
-      .eq('role', 'customer')
+      .eq('role', role)
       .maybeSingle()
 
     if (profile?.email) {
       return NextResponse.json({ email: profile.email, full_name: profile.full_name })
     }
 
-    return NextResponse.json({ error: 'No customer account found with this phone number.' }, { status: 404 })
+    const roleLabels = { customer: 'customer', shopkeeper: 'shop owner', delivery: 'delivery partner', admin: 'admin' }
+    return NextResponse.json({ error: `No ${roleLabels[role] || 'account'} found with this phone number.` }, { status: 404 })
   } catch (err) {
     console.error('Phone lookup error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

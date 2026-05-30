@@ -3,17 +3,32 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+interface DocUpload {
+  key: string
+  label: string
+  description: string
+  url: string
+  required: boolean
+}
+
+const DOC_TYPES: DocUpload[] = [
+  { key: 'aadhar', label: 'Aadhaar Card', description: 'Front & back photo of Aadhaar', required: true },
+  { key: 'license', label: 'Driving License', description: 'Valid driving license', required: true },
+  { key: 'pan', label: 'PAN Card', description: 'PAN card photo', required: false },
+  { key: 'vehicle_rc', label: 'Vehicle RC', description: 'Vehicle registration certificate', required: true },
+  { key: 'live_photo', label: 'Live Photo', description: 'Take a selfie / live photo', required: true },
+]
+
 export default function DeliveryDocumentsPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-
-  const [aadharUrl, setAadharUrl] = useState('')
+  const [docs, setDocs] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -38,7 +53,7 @@ export default function DeliveryDocumentsPage() {
 
       const { data: agent, error: agentErr } = await supabase
         .from('delivery_agents')
-        .select('id, aadhar_url')
+        .select('id, aadhar_url, license_url, pan_url, vehicle_rc_url, live_photo_url')
         .eq('id', user.id)
         .maybeSingle()
 
@@ -54,10 +69,20 @@ export default function DeliveryDocumentsPage() {
         return
       }
 
-      if (agent.aadhar_url) {
+      // If all required documents already uploaded, redirect to status
+      if (agent.aadhar_url && agent.license_url && agent.live_photo_url && agent.vehicle_rc_url) {
         router.replace('/login/status')
         return
       }
+
+      // Pre-fill any already-uploaded docs
+      const existing: Record<string, string> = {}
+      if (agent.aadhar_url) existing.aadhar = agent.aadhar_url
+      if (agent.license_url) existing.license = agent.license_url
+      if (agent.pan_url) existing.pan = agent.pan_url
+      if (agent.vehicle_rc_url) existing.vehicle_rc = agent.vehicle_rc_url
+      if (agent.live_photo_url) existing.live_photo = agent.live_photo_url
+      setDocs(existing)
 
       setUserId(user.id)
       setLoading(false)
@@ -81,50 +106,56 @@ export default function DeliveryDocumentsPage() {
     }
   }, [done, router])
 
-  async function uploadFile(file: File, docType: string): Promise<string | null> {
+  async function uploadFile(file: File, docKey: string): Promise<string | null> {
     if (!userId) return null
-    setUploading(true)
+    setUploading(docKey)
     try {
       const ext = file.name.split('.').pop()
-      const path = `${userId}/${docType}_${Date.now()}.${ext}`
+      const path = `${userId}/${docKey}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('agent-documents').upload(path, file)
       if (uploadError) {
-        const msg = uploadError.message.includes('row-level security') 
+        const msg = uploadError.message.includes('row-level security')
           ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
           : uploadError.message
         alert('Upload failed: ' + msg)
-        setUploading(false)
+        setUploading(null)
         return null
       }
       const { data: { publicUrl } } = supabase.storage.from('agent-documents').getPublicUrl(path)
-      setUploading(false)
+      setUploading(null)
       return publicUrl
     } catch (err: unknown) {
       const msg = err instanceof Error && err.message.includes('row-level security')
         ? 'Storage permissions denied. Please run the latest Supabase RLS migrations in the SQL editor.'
         : err instanceof Error ? err.message : 'Upload failed'
       alert('Upload failed: ' + msg)
-      setUploading(false)
+      setUploading(null)
       return null
     }
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileSelect(docKey: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > MAX_FILE_SIZE) { alert('File too large. Maximum size is 5MB'); return }
-    uploadFile(file, 'aadhar').then(url => { if (url) setAadharUrl(url) })
+    uploadFile(file, docKey).then(url => {
+      if (url) setDocs(prev => ({ ...prev, [docKey]: url }))
+    })
   }
 
   async function submit() {
-    if (!aadharUrl) { setError('Please upload Aadhaar Card'); return }
     if (!userId) { setError('Session expired. Please login again.'); return }
+
+    // Check required docs
+    const missing = DOC_TYPES.filter(d => d.required && !docs[d.key])
+    if (missing.length > 0) {
+      setError(`Please upload: ${missing.map(d => d.label).join(', ')}`)
+      return
+    }
 
     setSaving(true)
     setError('')
 
-    // Get the current session JWT to authenticate the API call.
-    // The API route verifies this Bearer token server-side before writing to DB.
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) {
       setError('Session expired. Please log in again.')
@@ -138,7 +169,14 @@ export default function DeliveryDocumentsPage() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ userId, aadharUrl })
+      body: JSON.stringify({
+        userId,
+        aadharUrl: docs.aadhar || null,
+        licenseUrl: docs.license || null,
+        panUrl: docs.pan || null,
+        vehicleRcUrl: docs.vehicle_rc || null,
+        livePhotoUrl: docs.live_photo || null,
+      })
     })
 
     const data = await res.json()
@@ -204,39 +242,54 @@ export default function DeliveryDocumentsPage() {
       </div>
 
       <div style={{ maxWidth: 500, margin: '0 auto' }}>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Aadhaar Card * <span style={{ fontSize: '0.75rem', color: '#64748b' }}>(Max 5MB)</span></h3>
+        <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
+          Please upload the following documents. All marked with <span style={{ color: '#dc2626' }}>*</span> are required.
+        </p>
 
-          <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-            <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: aadharUrl ? '#f0fdf4' : '#f8fafc' }}>
-              {uploading ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
-                  <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
-                </div>
-              ) : aadharUrl ? (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>Aadhaar Uploaded</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📷</div>
-                  <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>Upload Aadhaar Photo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Take photo or choose from gallery</div>
-                </div>
-              )}
-            </div>
-          </label>
+        {DOC_TYPES.map(doc => (
+          <div key={doc.key} style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+              {doc.label} {doc.required ? <span style={{ color: '#dc2626' }}>*</span> : <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 400 }}>(optional)</span>}
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 12 }}>{doc.description} <span style={{ fontSize: '0.75rem' }}>(Max 5MB)</span></p>
 
-          {aadharUrl && (
-            <div style={{ marginTop: 12 }}>
-              <img src={aadharUrl} alt="Aadhaar" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
-            </div>
-          )}
-        </div>
+            <label style={{ display: 'block', cursor: 'pointer' }}>
+              <input type="file" accept="image/*" onChange={e => handleFileSelect(doc.key, e)} style={{ display: 'none' }} />
+              <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: 24, textAlign: 'center', background: docs[doc.key] ? '#f0fdf4' : '#f8fafc' }}>
+                {uploading === doc.key ? (
+                  <div>
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
+                    <div style={{ color: '#22c55e', fontWeight: 600 }}>Uploading...</div>
+                  </div>
+                ) : docs[doc.key] ? (
+                  <div>
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
+                    <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem' }}>{doc.label} Uploaded</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>Tap to change</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>
+                      {doc.key === 'live_photo' ? '🤳' : '📷'}
+                    </div>
+                    <div style={{ color: '#374151', fontWeight: 600, fontSize: '0.9rem' }}>
+                      Upload {doc.label}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>
+                      {doc.key === 'live_photo' ? 'Take a selfie' : 'Take photo or choose from gallery'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </label>
+
+            {docs[doc.key] && (
+              <div style={{ marginTop: 12 }}>
+                <img src={docs[doc.key]} alt={doc.label} style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 10 }} />
+              </div>
+            )}
+          </div>
+        ))}
 
         {error && (
           <div style={{ padding: 14, background: '#fef2f2', borderRadius: 12, color: '#dc2626', fontSize: '0.9rem', fontWeight: 600, marginBottom: 16 }}>
@@ -246,10 +299,10 @@ export default function DeliveryDocumentsPage() {
 
         <button
           onClick={submit}
-          disabled={saving || uploading}
-          style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 16px rgba(34,197,94,0.3)' }}
+          disabled={saving || !!uploading}
+          style={{ width: '100%', padding: '16px', background: (saving || uploading) ? '#94a3b8' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 14, fontSize: '1rem', fontWeight: 700, cursor: (saving || uploading) ? 'not-allowed' : 'pointer', boxShadow: (saving || uploading) ? 'none' : '0 4px 16px rgba(34,197,94,0.3)' }}
         >
-          {saving ? 'Saving...' : 'Submit Documents'}
+          {saving ? 'Saving...' : uploading ? 'Uploading...' : 'Submit Documents'}
         </button>
       </div>
     </div>

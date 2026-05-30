@@ -14,7 +14,10 @@ export default async function ShopkeeperLayout({ children }: { children: React.R
     { cookies: { getAll() { return cookieStore.getAll() } } }
   )
 
-  const { data: { user } } = await anonClient.auth.getUser()
+  // Use getSession() instead of getUser() to avoid unnecessary network call.
+  // The middleware already verified the JWT, so the cookie-based session is trusted.
+  const { data: { session } } = await anonClient.auth.getSession()
+  const user = session?.user ?? null
 
   if (!user) {
     redirect('/login/shopkeeper')

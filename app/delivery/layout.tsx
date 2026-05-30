@@ -27,8 +27,8 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
   useEffect(() => {
     async function checkAuth() {
       const { data: { user } } = await supabase.auth.getUser()
+      // Registration page handles both anonymous and logged-in users
       if (pathname === '/login/delivery/register') {
-        if (user) { router.replace('/delivery'); return }
         setChecking(false); return
       }
       if (!user) {

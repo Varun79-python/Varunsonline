@@ -53,15 +53,19 @@ export default function ShopRegisterPage() {
     setExistingUserMessage('')
 
     try {
+      // Check for ANY existing profile matching phone or email (any role)
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'shopkeeper')
         .or(`phone.eq.${phone.trim()},email.eq.${email.trim()}`)
         .maybeSingle()
 
       if (existingProfile) {
-        setExistingUserMessage('Note: An account with this phone/email already exists. If this is you, please log in.')
+        if (existingProfile.role && existingProfile.role !== 'shopkeeper') {
+          setExistingUserMessage(`Note: This phone/email is already registered as a "${existingProfile.role}". Please use a different email or phone to register as a shop owner.`)
+        } else {
+          setExistingUserMessage('Note: An account with this phone/email already exists. If this is you, please log in.')
+        }
         return
       }
     } catch (err) {
@@ -130,13 +134,25 @@ export default function ShopRegisterPage() {
 
         if (signUpError) {
           if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
-            // Account exists — sign in with provided password
+            // Account exists — check their current role before allowing
             const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
               email: form.email.trim(),
               password: form.password,
             })
             if (signInError || !signInData.user) {
               setError('An account with this email already exists. Please login with your existing password.')
+              setSaving(false)
+              return
+            }
+            // 🛡️ Check if the existing profile has a different role — don't overwrite it
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', signInData.user.id)
+              .maybeSingle()
+            if (existingProfile?.role && existingProfile.role !== 'shopkeeper') {
+              setError(`This email is registered as a "${existingProfile.role}". You cannot register as a shop owner with this email. Please use a different email.`)
+              await supabase.auth.signOut()
               setSaving(false)
               return
             }
@@ -167,6 +183,19 @@ export default function ShopRegisterPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { setError('Session expired. Please login again.'); setSaving(false); return }
         userId = user.id
+      }
+
+      // 🛡️ Double-check: don't overwrite an existing profile with a different role
+      const { data: finalProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle()
+      if (finalProfile?.role && finalProfile.role !== 'shopkeeper') {
+        setError(`This account is registered as "${finalProfile.role}". Cannot register as shop owner.`)
+        await supabase.auth.signOut()
+        setSaving(false)
+        return
       }
 
       // Save profile (role: shopkeeper) — shop created by admin after document approval

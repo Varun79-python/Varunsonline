@@ -79,6 +79,16 @@ function ResetPasswordContent() {
   const [status, setStatus] = useState<Status>('loading')
   const [invalidReason, setInvalidReason] = useState('This password reset link is invalid, expired, or has already been used.')
 
+  /** Decode the JWT payload to check if this is a PASSWORD_RECOVERY session. */
+  function isRecoverySession(session: Session): boolean {
+    try {
+      const payload = JSON.parse(atob(session.access_token.split('.')[1]))
+      return payload.is_recovery === true
+    } catch {
+      return false
+    }
+  }
+
   useEffect(() => {
     let mounted = true
 
@@ -96,14 +106,15 @@ function ResetPasswordContent() {
     /**
      * Two paths to a valid recovery session:
      *
-     * A) The auth/callback route already exchanged the code → a session exists
-     *    in the cookie/localStorage → getSession() returns it immediately.
+     * A) The auth/callback route already exchanged the code → a recovery session
+     *    exists in the cookie/localStorage → getSession() returns it.
      *
      * B) Edge case: user opened the email link directly in a browser that already
      *    had a session but with the old implicit flow → PASSWORD_RECOVERY event
      *    fires via onAuthStateChange.
      *
-     * We listen to BOTH to cover all cases.
+     * In both cases we verify the session has the `is_recovery: true` JWT claim
+     * so a user with a regular login session can't abuse this page.
      */
 
     // Path A: session already set by auth/callback
@@ -112,10 +123,15 @@ function ResetPasswordContent() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
 
-        if (session?.user) {
-          // We have a session. The auth/callback route only redirects here for
-          // recovery flows, so this session is implicitly a recovery session.
+        if (session?.user && isRecoverySession(session)) {
+          // Authenticated via recovery flow → safe to show the form
           setStatus('ready')
+        } else if (session?.user) {
+          // User has a session but it's NOT a recovery session
+          setStatus('invalid')
+          setInvalidReason(
+            'You are already logged in. Please use "Forgot Password" from the login page to reset your password.'
+          )
         } else {
           // No session at all → the user probably opened a stale link or
           // navigated here directly without going through auth/callback.
@@ -130,7 +146,8 @@ function ResetPasswordContent() {
       }
     }
 
-    // Path B: listen for PASSWORD_RECOVERY event (covers edge cases)
+    // Path B: listen for PASSWORD_RECOVERY event (covers edge cases
+    // where the session arrives after the initial check)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted) return

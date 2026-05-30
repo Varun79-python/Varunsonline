@@ -90,16 +90,17 @@ export default function DeliveryLoginPage() {
     let emailToAuth = input
 
     if (isPhone) {
-      const { data: agentData } = await supabase
-        .from('delivery_agents')
-        .select('email')
-        .eq('phone', digitsOnly)
-        .maybeSingle()
+      const lookupRes = await fetch('/api/auth/phone-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: digitsOnly, role: 'delivery' }),
+      })
+      const lookupData = await lookupRes.json()
 
-      if (agentData?.email) {
-        emailToAuth = agentData.email
+      if (lookupRes.ok && lookupData.email) {
+        emailToAuth = lookupData.email
       } else {
-        setError('No delivery partner account found with this phone number.')
+        setError(lookupData.error || 'No delivery partner account found with this phone number.')
         setLoading(false)
         refreshCaptcha()
         return

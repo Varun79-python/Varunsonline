@@ -19,6 +19,7 @@
     "@supabase/supabase-js": "^2.105.4",
     "firebase-admin": "^13.9.0",
     "next": "16.2.6",
+    "pg": "^8.21.0",
     "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"

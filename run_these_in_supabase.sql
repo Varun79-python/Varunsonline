@@ -241,6 +241,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_live_locations_recency
   ON public.agent_live_locations (agent_id, recorded_at DESC);
 
 -- ═══════════════════════════════════════════════════════════
+-- 9b. ADD MISSING DOCUMENT COLUMNS TO DELIVERY AGENTS
+-- ═══════════════════════════════════════════════════════════
+ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS pan_url TEXT;
+ALTER TABLE public.delivery_agents ADD COLUMN IF NOT EXISTS vehicle_rc_url TEXT;
+
+-- ═══════════════════════════════════════════════════════════
 -- 10. VERIFY everything works
 -- ═══════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════

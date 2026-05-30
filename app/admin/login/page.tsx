@@ -13,29 +13,34 @@ export default function AdminLoginPage() {
   const [initializing, setInitializing] = useState(true)
   const [adminEmail, setAdminEmail] = useState('')
 
-  // Fetch admin email from server-side endpoint (not exposed in client bundle)
-  useEffect(() => {
-    fetch('/api/admin/email').then(r => r.json()).then(d => {
-      if (d.email) setAdminEmail(d.email)
-    }).catch(() => {})
-  }, [])
-
   // Helper: full-page redirect so middleware sees the cookie
   function goToAdmin() {
     window.location.href = '/admin'
   }
 
-  // Check if already authenticated on page load
+  // Fetch admin email FIRST, then check existing session
   useEffect(() => {
-    async function checkExistingSession() {
+    let mounted = true
+
+    async function init() {
+      try {
+        const res = await fetch('/api/admin/email')
+        const d = await res.json()
+        if (mounted && d.email) setAdminEmail(d.email)
+      } catch {}
+
+      if (!mounted) return
+
+      // Now check if already authenticated
       try {
         const { data: { session } } = await supabase.auth.getSession()
 
         if (session?.user) {
           const user = session.user
           const metaRole = user.user_metadata?.role || user.app_metadata?.role
+          const currentAdminEmail = d?.email || ''  // Use locally fetched value
 
-          if (metaRole === 'admin' || (adminEmail && user.email === adminEmail)) {
+          if (metaRole === 'admin' || (currentAdminEmail && user.email === currentAdminEmail)) {
             goToAdmin()
             return
           }
@@ -57,12 +62,15 @@ export default function AdminLoginPage() {
       } catch (err) {
         console.error('Session check error:', err)
       } finally {
-        setInitializing(false)
-        setLoading(false)
+        if (mounted) {
+          setInitializing(false)
+          setLoading(false)
+        }
       }
     }
 
-    checkExistingSession()
+    init()
+    return () => { mounted = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

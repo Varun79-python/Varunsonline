@@ -257,8 +257,22 @@ export default function CustomerLoginPage() {
         await supabase.from('profiles').update({
           phone: form.phone.replace(/\D/g, ''),
         }).eq('id', data.user.id)
-        alert('Account created! Please login.')
-        setIsLogin(true)
+
+        // Auto sign-in if no session returned (like shopkeeper/delivery flows)
+        if (!data.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          })
+          if (signInError) {
+            setError('Account created but auto-login failed. Please login manually.')
+            setLoading(false)
+            setIsLogin(true)
+            return
+          }
+        }
+
+        router.push('/customer')
       }
     }
     setLoading(false)
