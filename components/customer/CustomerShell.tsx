@@ -25,9 +25,15 @@ const ProfileIcon = () => (
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
   </svg>
 )
+const SearchIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
 
 const navItems = [
   { href: '/customer', icon: HomeIcon, label: 'Home' },
+  { href: '/customer/browse', icon: SearchIcon, label: 'Search' },
   { href: '/customer/orders', icon: OrdersIcon, label: 'Orders' },
   { href: '/customer/cart', icon: CartIcon, label: 'Cart' },
   { href: '/customer/profile', icon: ProfileIcon, label: 'Profile' },
@@ -69,6 +75,7 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
     <div className="app-layout">
       <Sidebar navItems={[
         { href: '/customer', icon: '🏠', label: 'Home' },
+        { href: '/customer/browse', icon: '🔍', label: 'Browse' },
         { href: '/customer/orders', icon: '📦', label: 'My Orders' },
         { href: '/customer/cart', icon: '🛒', label: 'Cart' },
         { href: '/customer/profile', icon: '👤', label: 'Profile' },
