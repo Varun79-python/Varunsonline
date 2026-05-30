@@ -27,12 +27,9 @@ const STATUS_COLOR: Record<string, string> = {
 interface Order {
   id: string; order_number: string; status: string; payment_method?: string; total_amount: number
   created_at: string; subtotal: number; delivery_charge: number; platform_fee: number
-  shopkeeper_earning: number; customer_note: string; placed_at: string
+  shopkeeper_earning: number; customer_note?: string; placed_at: string
   accepted_at: string; packed_at: string; picked_up_at: string; delivered_at: string
   items_updated_at?: string
-  customer_id: string
-  addresses: { house_name: string; street_name: string; city: string; phone: string }
-  profiles: { full_name: string; phone: string }
 }
 
 interface OrderItem {
@@ -60,7 +57,7 @@ export default function ShopkeeperOrderDetail() {
 
       const { data: o } = await supabase
         .from('orders')
-        .select('*, addresses(house_name, street_name, city, phone), profiles!customer_id(full_name, phone)')
+        .select('*')
         .eq('id', id)
         .single()
       if (!o) return
@@ -189,26 +186,19 @@ export default function ShopkeeperOrderDetail() {
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 12 }}>👤 Customer Details</h3>
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Name: </span>
-          <span style={{ fontWeight: 600 }}>{order.profiles?.full_name || '—'}</span>
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Phone: </span>
-          <span style={{ fontWeight: 600 }}>{order.profiles?.phone || '—'}</span>
-        </div>
-        {order.addresses && (
-          <div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Address: </span>
-            <span style={{ fontWeight: 600 }}>{order.addresses.house_name}, {order.addresses.street_name}, {order.addresses.city}</span>
+        <h3 style={{ marginBottom: 12 }}>💬 Order Note</h3>
+        {order.customer_note ? (
+          <div style={{ padding: '8px 12px', background: '#fff7ed', borderRadius: 8, fontSize: '0.82rem', marginBottom: 10 }}>
+            📝 {order.customer_note}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+            No note from customer.
           </div>
         )}
-        {order.customer_note && (
-          <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff7ed', borderRadius: 8, fontSize: '0.82rem' }}>
-            📝 Note: {order.customer_note}
-          </div>
-        )}
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 6 }}>
+          Customer details are private. Use chat below to communicate.
+        </div>
       </div>
 
       {order.items_updated_at && (
@@ -272,7 +262,6 @@ export default function ShopkeeperOrderDetail() {
         orderId={id}
         currentUserId={currentUserId}
         currentUserRole="shopkeeper"
-        customerName={order.profiles?.full_name}
       />
     </div>
   )
