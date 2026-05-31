@@ -161,7 +161,7 @@ export default function CustomerHome() {
             </h2>
           </div>
           <button
-            onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
             className="ch-logout"
           >
             Logout
@@ -277,7 +277,7 @@ export default function CustomerHome() {
         {loading && (
           <div className="ch-grid">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="ch-skeleton-card">
+              <div key={i} className="ch-skeleton-card" style={{ animation: `skeletonPulse 1.5s ease-in-out infinite`, animationDelay: `${i * 0.1}s` }}>
                 <div className="skeleton ch-skeleton-img" />
                 <div style={{ padding: '10px 10px 12px' }}>
                   <div className="skeleton" style={{ height: 11, marginBottom: 7, width: '72%', borderRadius: 6 }} />
@@ -574,8 +574,6 @@ export default function CustomerHome() {
           font-weight: 700; font-size: 0.85rem; cursor: pointer;
           touch-action: manipulation;
         }
-        @keyframes ch-spin { to { transform: rotate(360deg); } }
-
         /* ── Wider phones / tablets: 3+ columns ── */
         @media (min-width: 480px) {
           .ch-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }

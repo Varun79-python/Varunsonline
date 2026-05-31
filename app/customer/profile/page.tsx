@@ -125,7 +125,7 @@ export default function CustomerProfile() {
     setEditSaving(false)
   }
 
-  async function handleLogout() { await supabase.auth.signOut(); router.push('/login') }
+  async function handleLogout() { await supabase.auth.signOut(); window.location.href = '/login' }
 
   const genderLabel = GENDER_OPTIONS.find(o => o.value === profile.gender)?.label || '—'
   const inputStyle = { width: '100%', boxSizing: 'border-box' as const, padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.9rem', color: '#1e293b', outline: 'none', background: '#f8fafc', transition: 'all 0.2s' }

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import './globals.css'
 
 // viewport must be a SEPARATE export in Next.js 13+ (not inside metadata)
@@ -63,9 +64,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="shortcut icon" href="/logo.png" />
-        <script dangerouslySetInnerHTML={{
-          __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{})})}`
-        }} />
+        <Script id="sw-register" strategy="afterInteractive">
+          {`if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{})})}`}
+        </Script>
       </head>
       <body>{children}</body>
     </html>

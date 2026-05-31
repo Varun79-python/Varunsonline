@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "workspace": {
+    "name": "media",
+    "createdAt": 1779859553315,
+    "preset": "starter"
+  },
+  "authorizedRoots": [
+    "C:\\Users\\venka\\Videos\\media"
+  ],
+  "reload": null
+}

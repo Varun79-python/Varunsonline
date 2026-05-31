@@ -49,8 +49,9 @@ export default function ShopkeeperProfile() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleShopImageUpload(file: File) {
+    if (!shop) return
     setUploading(true)
-    const result = await uploadImage(file, 'shop-images', 'shop_image')
+    const result = await uploadImage(file, 'shop-images', 'shop_image', shop.id)
     if (result.success) {
       update('shop_image_url', result.publicUrl)
     } else {

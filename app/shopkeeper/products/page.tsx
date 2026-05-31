@@ -21,8 +21,9 @@ export default function ProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleImageUpload(file: File) {
+    if (!shop) return
     setUploading(true)
-    const result = await uploadImage(file, 'product-images', 'product')
+    const result = await uploadImage(file, 'product-images', 'product', shop.id, form.name || undefined)
     if (result.success) {
       setForm(f => ({ ...f, image_url: result.publicUrl }))
     } else {

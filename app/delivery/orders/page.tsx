@@ -172,15 +172,24 @@ export default function DeliveryOrdersPage() {
 
   // Realtime update for my orders
   useEffect(() => {
-    const { data: { user } } = supabase.auth.getUser()
-    if (!user?.id) return
-    const ch = supabase.channel('dl-my-orders-' + user.id)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `agent_id=eq.${user.id}` },
-        () => { loadMyOrders() }
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    async function setupRealtime() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+      channel = supabase.channel('dl-my-orders-' + user.id)
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'orders', filter: `agent_id=eq.${user.id}` },
+          () => { loadMyOrders() }
+        )
+        .subscribe()
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [activeTab])
 
   useEffect(() => {

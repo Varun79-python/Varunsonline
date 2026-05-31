@@ -6,12 +6,18 @@
  *
  * Flow:
  *   User selects file from camera/gallery
- *   → upload to Supabase Storage bucket
+ *   → upload to Supabase Storage bucket (folder = shop-id)
  *   → get public URL
  *   → save URL to database column
  *
+ * Path convention:
+ *   {bucket}/{shopId}/{docType}[_{itemLabel}]_{timestamp}.{ext}
+ *
+ * Examples:
+ *   shop-images/{shopId}/shop_image_1717000000000.jpg
+ *   product-images/{shopId}/product_Fresh_Bread_1717000000000.jpg
+ *
  * Buckets are public-read (shop-images, product-images), so no signed URLs needed.
- * Files are organized per-user: {userId}/{type}_{timestamp}.{ext}
  */
 
 import { createClient } from '@/lib/supabase/client'
@@ -29,18 +35,31 @@ export interface UploadError {
   error: string
 }
 
+/** Sanitize a string for safe use in file paths. */
+function sanitize(label: string): string {
+  return label
+    .replace(/[^a-zA-Z0-9_-]/g, '_')   // replace unsafe chars with underscore
+    .replace(/_+/g, '_')                // collapse consecutive underscores
+    .replace(/^_|_$/g, '')              // trim leading/trailing underscores
+    .substring(0, 60)                   // cap length
+}
+
 /**
  * Upload a file to Supabase Storage and return its public URL.
  *
- * @param file     - File from <input type="file"> or camera capture
- * @param bucket   - Storage bucket ('product-images' or 'shop-images')
- * @param docType  - Logical type used in path (e.g. 'product', 'shop_image')
- * @returns        - { success, publicUrl } or { success, error }
+ * @param file      - File from <input type="file"> or camera capture
+ * @param bucket    - Storage bucket ('product-images' or 'shop-images')
+ * @param docType   - Logical type used in path (e.g. 'product', 'shop_image')
+ * @param folderId  - Folder (shop UUID) inside the bucket. Falls back to user.id if omitted.
+ * @param itemLabel - Optional human-readable label (e.g. product name) included in filename.
+ * @returns         - { success, publicUrl, path } or { success, error }
  */
 export async function uploadImage(
   file: File,
   bucket: UploadBucket,
-  docType: string
+  docType: string,
+  folderId?: string,
+  itemLabel?: string
 ): Promise<UploadResult | UploadError> {
   const supabase = createClient()
 
@@ -61,9 +80,11 @@ export async function uploadImage(
     return { success: false, error: 'Invalid file type. Use JPEG, PNG, WebP, or GIF.' }
   }
 
-  // Build path: {userId}/{docType}_{timestamp}.{ext}
+  // Build path: {folderId}/{docType}[_{itemLabel}]_{timestamp}.{ext}
+  const folder = folderId || user.id
   const ext = file.name.split('.').pop() || 'jpg'
-  const path = `${user.id}/${docType}_${Date.now()}.${ext}`
+  const label = itemLabel ? `_${sanitize(itemLabel)}` : ''
+  const path = `${folder}/${docType}${label}_${Date.now()}.${ext}`
 
   // Upload
   const { error: uploadError } = await supabase.storage
