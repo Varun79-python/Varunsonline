@@ -89,21 +89,18 @@ export default function SplashPage() {
         .anim-artwork { animation: logoEntrance 0.9s cubic-bezier(0.32,0.72,0,1) 0.2s both; }
       `}</style>
 
-      {/* ── RESPONSIVE SPLASH ARTWORK ── */}
+      {/* ── RESPONSIVE SPLASH ARTWORK (full-bleed background) ── */}
       <div
         className={phase >= 1 ? 'anim-artwork' : ''}
         style={{
           flex: 1,
           width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           position: 'relative',
           zIndex: 5,
-          padding: '0 16px',
+          overflow: 'hidden',
         }}
       >
-        <picture style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <picture style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block' }}>
           <source media="(min-width: 1280px)" srcSet="/splash/splash-desktop.webp" />
           <source media="(min-width: 768px)" srcSet="/splash/splash-tablet.webp" />
           <img
@@ -112,7 +109,8 @@ export default function SplashPage() {
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'contain',
+              objectFit: 'cover',
+              objectPosition: 'center',
               display: 'block',
             }}
           />
