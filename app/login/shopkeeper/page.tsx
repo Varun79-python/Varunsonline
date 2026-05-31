@@ -67,8 +67,10 @@ export default function ShopkeeperLoginPage() {
       : window.location.origin
     const redirectUrl = `${baseUrl}/auth/callback?next=/reset-password`
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: redirectUrl })
-    if (error) { setResetMessage(error.message); setResetLoading(false); return }
-    setResetMessage('Password reset link sent to your email!')
+    if (error) {
+      console.error('Password reset error:', error.message)
+    }
+    setResetMessage('If an account exists, a password reset link has been sent to your email.')
     setResetLoading(false)
   }
 
@@ -87,39 +89,28 @@ export default function ShopkeeperLoginPage() {
     const input = form.email.trim()
     const digitsOnly = input.replace(/\D/g, '')
     const isPhone = /^\d{10,}$/.test(digitsOnly)
-    let emailToAuth = input
 
-    if (isPhone) {
-      const lookupRes = await fetch('/api/auth/phone-lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: digitsOnly, role: 'shopkeeper' }),
-      })
-      const lookupData = await lookupRes.json()
-
-      if (lookupRes.ok && lookupData.email) {
-        emailToAuth = lookupData.email
-      } else {
-        setError(lookupData.error || 'No shop owner account found with this phone number.')
-        setLoading(false)
-        refreshCaptcha()
-        return
-      }
-    }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: emailToAuth,
-      password: form.password,
+    // Call API route which handles lockout check + Supabase auth + recording
+    // Phone is resolved to email server-side — no client-side phone lookup needed
+    const loginRes = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(isPhone ? { phone: digitsOnly } : { email: input }),
+        password: form.password,
+        role: 'shopkeeper',
+      }),
     })
+    const loginData = await loginRes.json()
 
-    if (signInError) {
-      setError(signInError.message)
+    if (!loginRes.ok || !loginData.success) {
+      setError('Invalid login credentials')
       setLoading(false)
       refreshCaptcha()
       return
     }
 
-    // Wait briefly for Supabase to write auth cookies after signIn
+    // Wait briefly for Supabase to write auth cookies after API sets them
     await new Promise(resolve => setTimeout(resolve, 100))
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) console.error('Session error:', sessionError)
@@ -127,7 +118,7 @@ export default function ShopkeeperLoginPage() {
     if (!session?.user) {
       await supabase.auth.refreshSession()
       const { data: { session: retry } } = await supabase.auth.getSession()
-      if (!retry?.user) { setError('Session expired. Please login again.'); setLoading(false); return }
+      if (!retry?.user) { console.error('Session refresh failed'); setError('Invalid login credentials'); setLoading(false); return }
     }
 
     const user = session!.user
@@ -140,8 +131,9 @@ export default function ShopkeeperLoginPage() {
       .maybeSingle()
 
     if (!profile || profile.role !== 'shopkeeper') {
-      setError('Access denied. Please register as a shop owner.')
+      console.error('Wrong role: expected shopkeeper, got', profile?.role)
       await supabase.auth.signOut()
+      setError('Invalid login credentials')
       setLoading(false)
       refreshCaptcha()
       return
@@ -235,7 +227,7 @@ export default function ShopkeeperLoginPage() {
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Forgot Password?</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: 16 }}>Enter your email to receive a password reset link.</p>
             <input type="email" placeholder="Your email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', marginBottom: 12, boxSizing: 'border-box' }} />
-            {resetMessage && <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, background: resetMessage.includes('sent') ? '#dcfce7' : '#fee2e2', color: resetMessage.includes('sent') ? '#16a34a' : '#dc2626' }}>{resetMessage}</div>}
+            {resetMessage && <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, background: '#dcfce7', color: '#16a34a' }}>{resetMessage}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowReset(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: 12, color: '#475569', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleResetPassword} disabled={resetLoading} style={{ flex: 1, padding: '14px', background: resetLoading ? '#94a3b8' : '#f97316', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: resetLoading ? 'not-allowed' : 'pointer' }}>{resetLoading ? 'Sending...' : 'Send Link'}</button>

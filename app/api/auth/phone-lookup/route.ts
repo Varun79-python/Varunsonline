@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 
 // POST state-changing endpoint
 
@@ -45,8 +46,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ email: profile.email, full_name: profile.full_name })
     }
 
-    const roleLabels: Record<string, string> = { customer: 'customer', shopkeeper: 'shop owner', delivery: 'delivery partner', admin: 'admin' }
-    return NextResponse.json({ error: `No ${roleLabels[role as string] || 'account'} found with this phone number.` }, { status: 404 })
+    // Log detailed reason for auditing, but always return generic message
+    logger.auth('phone_lookup_failed', { phone, role, reason: 'No profile found matching phone+role' })
+    return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 })
   } catch (err) {
     console.error('Phone lookup error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

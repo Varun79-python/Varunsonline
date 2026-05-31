@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,8 +10,6 @@ export default function ShopRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [showLoginPopup, setShowLoginPopup] = useState(false)
   const [isExistingAuth, setIsExistingAuth] = useState(false)
-  const [checkingExisting, setCheckingExisting] = useState(false)
-  const [existingUserMessage, setExistingUserMessage] = useState('')
   const [form, setForm] = useState({
     full_name: '',
     phone_number: '',
@@ -25,8 +23,6 @@ export default function ShopRegisterPage() {
   const [error, setError] = useState('')
   const [showTerms, setShowTerms] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
-
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const TERMS = `SHOPKEEPER TERMS & CONDITIONS
 
@@ -46,42 +42,7 @@ export default function ShopRegisterPage() {
 
 8. By registering, shopkeeper confirms all submitted details are true and agrees to platform verification.`
 
-  const checkExistingUser = useCallback(async (phone: string, email: string) => {
-    if (!phone.trim() && !email.trim()) return
-
-    setCheckingExisting(true)
-    setExistingUserMessage('')
-
-    try {
-      // Check for ANY existing profile matching phone or email (any role)
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`phone.eq.${phone.trim()},email.eq.${email.trim()}`)
-        .maybeSingle()
-
-      if (existingProfile) {
-        if (existingProfile.role && existingProfile.role !== 'shopkeeper') {
-          setExistingUserMessage(`Note: This phone/email is already registered as a "${existingProfile.role}". Please use a different email or phone to register as a shop owner.`)
-        } else {
-          setExistingUserMessage('Note: An account with this phone/email already exists. If this is you, please log in.')
-        }
-        return
-      }
-    } catch (err) {
-      console.error('Error checking existing user:', err)
-    } finally {
-      setCheckingExisting(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    debounceTimeout.current = setTimeout(() => {
-      checkExistingUser(form.phone_number, form.email)
-    }, 500)
-    return () => { if (debounceTimeout.current) clearTimeout(debounceTimeout.current) }
-  }, [form.phone_number, form.email, checkExistingUser])
+  // Existing user detection disabled for security — never reveal account existence during registration
 
   useEffect(() => {
     async function checkAuth() {
@@ -140,19 +101,21 @@ export default function ShopRegisterPage() {
               password: form.password,
             })
             if (signInError || !signInData.user) {
-              setError('An account with this email already exists. Please login with your existing password.')
+              console.error('Existing account sign-in failed:', signInError?.message)
+              setError('Invalid login credentials')
               setSaving(false)
               return
             }
-            // 🛡️ Check if the existing profile has a different role — don't overwrite it
+            // Check role — don't reveal details, just deny with generic message
             const { data: existingProfile } = await supabase
               .from('profiles')
               .select('role')
               .eq('id', signInData.user.id)
               .maybeSingle()
             if (existingProfile?.role && existingProfile.role !== 'shopkeeper') {
-              setError(`This email is registered as a "${existingProfile.role}". You cannot register as a shop owner with this email. Please use a different email.`)
+              console.error('Role mismatch: expected shopkeeper, got', existingProfile.role)
               await supabase.auth.signOut()
+              setError('Invalid login credentials')
               setSaving(false)
               return
             }
@@ -163,7 +126,7 @@ export default function ShopRegisterPage() {
             return
           }
         } else {
-          if (!signUpData.user) { setError('Failed to create account'); setSaving(false); return }
+          if (!signUpData.user) { setError('Invalid login credentials'); setSaving(false); return }
           userId = signUpData.user.id
 
           // If no session returned, sign in manually to establish session
@@ -173,7 +136,8 @@ export default function ShopRegisterPage() {
               password: form.password,
             })
             if (signInError || !signInData.user) {
-              setError('Account created but login failed. Please login manually.')
+              console.error('Auto-login after sign-up failed:', signInError?.message)
+              setError('Invalid login credentials')
               setSaving(false)
               return
             }
@@ -185,15 +149,16 @@ export default function ShopRegisterPage() {
         userId = user.id
       }
 
-      // 🛡️ Double-check: don't overwrite an existing profile with a different role
+      // Double-check role — log details, return generic error
       const { data: finalProfile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', userId)
         .maybeSingle()
       if (finalProfile?.role && finalProfile.role !== 'shopkeeper') {
-        setError(`This account is registered as "${finalProfile.role}". Cannot register as shop owner.`)
+        console.error('Final role check failed: expected shopkeeper, got', finalProfile.role)
         await supabase.auth.signOut()
+        setError('Invalid login credentials')
         setSaving(false)
         return
       }
@@ -249,23 +214,6 @@ export default function ShopRegisterPage() {
         <button onClick={() => router.push('/login/shopkeeper')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Shop Owner Registration</h2>
       </div>
-
-      {(checkingExisting || existingUserMessage) && (
-        <div style={{
-          padding: 14,
-          borderRadius: 12,
-          marginBottom: 16,
-          background: '#fffbeb',
-          color: '#b45309',
-          border: '1px solid #fde68a',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          maxWidth: 500,
-          margin: '0 auto 16px'
-        }}>
-          {checkingExisting ? <>⏳ Checking...</> : <>⚠️ {existingUserMessage}</>}
-        </div>
-      )}
 
       <div style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>

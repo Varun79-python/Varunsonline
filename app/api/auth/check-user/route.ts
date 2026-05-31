@@ -1,51 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
-
-// POST state-changing endpoint
+import { logger } from '@/lib/logger'
 
 /**
- * Server-side check if a user exists by phone or email (for registration).
- * Uses service role key to bypass RLS on the profiles table.
+ * This endpoint no longer reveals whether a user exists.
+ * It always returns { exists: false } to prevent user enumeration.
+ * The actual duplicate detection happens server-side during sign-up,
+ * which also returns a generic error to prevent enumeration.
  */
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   try {
-    // Rate limit: 20 checks per minute
-    const identifier = getRateLimitIdentifier(req)
-    const rateCheck = await checkRateLimit(identifier, {
-      windowMs: 60 * 1000,
-      maxRequests: 20,
-      message: 'Too many requests. Please slow down.',
-    })
-    if (!rateCheck.allowed) {
-      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
-    }
-
-    const body = await req.json()
-    const phone = body.phone || ''
-    const email = body.email || ''
-
-    if (!phone && !email) {
-      return NextResponse.json({ error: 'Provide phone or email' }, { status: 400 })
-    }
-
-    const supabase = createServiceClient()
-    let query = supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'customer')
-
-    if (phone) {
-      query = query.eq('phone', phone.replace(/\D/g, ''))
-    } else if (email) {
-      query = query.eq('email', email.toLowerCase().trim())
-    }
-
-    const { data: existing } = await query.maybeSingle()
-
-    return NextResponse.json({ exists: !!existing })
+    // Log the request metadata without revealing existence to the caller
+    logger.auth('check_user_called', { method: 'POST', path: '/api/auth/check-user' })
+    // Always return false — never reveal account existence
+    return NextResponse.json({ exists: false })
   } catch (err) {
-    console.error('Check user error:', err)
+    logger.error('Check user error:', { error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

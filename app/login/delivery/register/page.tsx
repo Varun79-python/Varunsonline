@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -27,61 +27,7 @@ export default function DeliveryRegisterPage() {
   const [formError, setFormError] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
-  const [checkingExisting, setCheckingExisting] = useState(false)
-  const [existingUserMessage, setExistingUserMessage] = useState('')
-
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
-
-  const checkExistingUser = useCallback(async (phone: string, email: string) => {
-    if (!phone.trim() && !email.trim()) return
-    
-    setCheckingExisting(true)
-    setExistingUserMessage('')
-    
-    try {
-      // Check by phone OR email
-      const phoneQuery = phone.trim()
-        ? supabase.from('delivery_agents').select('*').eq('phone', phone.trim())
-        : null
-      const emailQuery = email.trim()
-        ? supabase.from('delivery_agents').select('*').eq('email', email.trim())
-        : null
-
-      const [phoneResult, emailResult] = await Promise.all([
-        phoneQuery?.maybeSingle(),
-        emailQuery?.maybeSingle(),
-      ])
-
-      const existingAgent = phoneResult || emailResult
-
-      if (existingAgent) {
-        const matchedBy = phoneResult ? 'phone number' : 'email'
-        if (existingAgent.is_approved) {
-          setExistingUserMessage(`Note: An approved delivery agent account already exists with this ${matchedBy}. If this is you, please log in.`)
-          return
-        }
-        
-        setExistingUserMessage(`Note: A partial registration already exists with this ${matchedBy}.`)
-        return
-      }
-    } catch (err) {
-      console.error('Error checking existing user:', err)
-    } finally {
-      setCheckingExisting(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    
-    debounceTimeout.current = setTimeout(() => {
-      checkExistingUser(form.phone, form.email)
-    }, 500)
-
-    return () => {
-      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    }
-  }, [form.phone, form.email, checkExistingUser])
+  // Existing user detection disabled for security — never reveal account existence during registration
 
   const TERMS = `DELIVERY AGENT TERMS & CONDITIONS
 
@@ -162,7 +108,8 @@ export default function DeliveryRegisterPage() {
               password: form.password,
             })
             if (signInError || !signInData.user) {
-              setFormError('An account with this email already exists. Please login with your existing password.')
+              console.error('Existing account sign-in failed:', signInError?.message)
+              setFormError('Invalid login credentials')
               setSaving(false)
               return
             }
@@ -173,7 +120,7 @@ export default function DeliveryRegisterPage() {
             return
           }
         } else {
-          if (!signUpData.user) { setFormError('Failed to create account'); setSaving(false); return }
+          if (!signUpData.user) { setFormError('Invalid login credentials'); setSaving(false); return }
           userId = signUpData.user.id
 
           // If signUp returned a session, we're logged in — otherwise sign in manually
@@ -183,7 +130,8 @@ export default function DeliveryRegisterPage() {
               password: form.password,
             })
             if (signInError || !signInData.user) {
-              setFormError('Account created but login failed. Please login manually.')
+              console.error('Auto-login after sign-up failed:', signInError?.message)
+              setFormError('Invalid login credentials')
               setSaving(false)
               return
             }
@@ -261,27 +209,6 @@ export default function DeliveryRegisterPage() {
         <button onClick={() => router.push('/login/delivery')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>←</button>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Delivery Partner Registration</h2>
       </div>
-
-      {(checkingExisting || existingUserMessage) && (
-        <div style={{ 
-          padding: 14, 
-          borderRadius: 12, 
-          marginBottom: 16,
-          background: '#fffbeb',
-          color: '#b45309',
-          border: '1px solid #fde68a',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          maxWidth: 500,
-          margin: '0 auto 16px'
-        }}>
-          {checkingExisting ? (
-            <><span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Checking...</>
-          ) : (
-            <>⚠️ {existingUserMessage}</>
-          )}
-        </div>
-      )}
 
       <form onSubmit={submit} style={{ maxWidth: 500, margin: '0 auto' }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>

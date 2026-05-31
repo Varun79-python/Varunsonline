@@ -274,11 +274,10 @@ export async function handleExistingUserAuth(
   }
 
   if (signInError) {
-    if (signInError.message.includes('Invalid login') || signInError.message.includes('Invalid credentials')) {
-      return { success: false, error: 'Account exists but password is incorrect. Please reset your password.' }
-    }
-    return { success: false, error: signInError.message }
+    // Log detailed reason, return generic message
+    console.error('Auth sign-in failed:', signInError.message)
+    return { success: false, error: 'Invalid login credentials' }
   }
 
-  return { success: false, error: 'Failed to sign in' }
+  return { success: false, error: 'Invalid login credentials' }
 }

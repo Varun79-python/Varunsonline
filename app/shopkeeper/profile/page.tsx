@@ -70,6 +70,7 @@ export default function ShopkeeperProfile() {
     if (user) await supabase.from('profiles').update({ gender }).eq('id', user.id)
     await supabase.from('shops').update({
       name: shop.name, description: shop.description, category: shop.category,
+      shop_image_url: shop.shop_image_url,
       address_line1: shop.address_line1, landmark: shop.landmark, city: shop.city,
       phone: shop.phone, upi_id: shop.upi_id,
       bank_account_number: shop.bank_account_number, bank_ifsc: shop.bank_ifsc,
@@ -125,6 +126,28 @@ export default function ShopkeeperProfile() {
       </div>
 
       {saved && <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: 12, marginBottom: 16, color: '#16a34a', fontSize: '0.85rem', fontWeight: 600 }}>✓ Changes saved!</div>}
+
+      {/* Shop Image Banner */}
+      <div style={{ background: 'white', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
+        <h3 style={{ marginBottom: 12, fontSize: '1rem' }}>📸 Shop Photo</h3>
+        {shop.shop_image_url ? (
+          <div style={{ marginBottom: 12, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+            <img src={shop.shop_image_url} alt={shop.name ?? 'Shop'} loading="lazy" decoding="async"
+              style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 10, display: 'block' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          </div>
+        ) : (
+          <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: 10, marginBottom: 12, fontSize: '3rem', color: '#cbd5e1' }}>
+            🏪
+          </div>
+        )}
+        <div>
+          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Image URL</label>
+          <input value={shop.shop_image_url ?? ''} onChange={e => update('shop_image_url', e.target.value)}
+            placeholder="https://..." style={inp} />
+        </div>
+      </div>
 
       {/* Basic Info */}
       <div style={{ background: 'white', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: 16, marginBottom: 16 }}>

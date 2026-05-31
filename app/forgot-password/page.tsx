@@ -23,7 +23,10 @@ export default function ForgotPasswordPage() {
       redirectTo: redirectUrl
     })
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (err) {
+      // Log the error but always show success to prevent enumeration
+      console.error('Password reset error:', err.message)
+    }
     setSent(true)
   }
 

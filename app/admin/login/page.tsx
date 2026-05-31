@@ -82,11 +82,24 @@ export default function AdminLoginPage() {
     setLoading(true)
 
     try {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-      if (err) { setError(err.message); setLoading(false); return }
+      // Use API route with admin role for stricter lockout thresholds (3→15min, 5→1hr)
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role: 'admin' }),
+      })
+      const loginData = await loginRes.json()
 
-      const user = data.user
-      if (!user) { setError('Login failed'); setLoading(false); return }
+      if (!loginRes.ok || !loginData.success) {
+        setError('Invalid login credentials')
+        setLoading(false)
+        return
+      }
+
+      // Get session (cookies were set by API route)
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
+      if (!user) { setError('Invalid login credentials'); setLoading(false); return }
 
       // Check 1: user_metadata.role
       if (user.user_metadata?.role === 'admin') {
@@ -121,8 +134,9 @@ export default function AdminLoginPage() {
         goToAdmin(); return
       }
 
-      // Access denied
-      setError('Access denied. This account is not an admin.')
+      // Access denied — log details, show generic message
+      console.error('Admin access denied for user:', user.email, '- role not admin')
+      setError('Invalid login credentials')
       await supabase.auth.signOut()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')

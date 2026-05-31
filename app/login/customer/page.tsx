@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -41,7 +41,6 @@ export default function CustomerLoginPage() {
   const router = useRouter()
   const supabase = createClient()
   const mountedRef = useRef(false)
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   
   useEffect(() => { mountedRef.current = true }, [])
   
@@ -57,67 +56,7 @@ export default function CustomerLoginPage() {
   const [resetMessage, setResetMessage] = useState('')
   const [captcha, setCaptcha] = useState(() => generateCaptcha())
   const [captchaInput, setCaptchaInput] = useState('')
-  const [checkingExisting, setCheckingExisting] = useState(false)
-  const [existingMessage, setExistingMessage] = useState('')
-
-  // Real-time existing user detection during registration
-  const checkExistingUser = useCallback(async (phone: string, email: string) => {
-    if (isLogin || (!phone.trim() && !email.trim())) {
-      setExistingMessage('')
-      return
-    }
-    
-    setCheckingExisting(true)
-    setExistingMessage('')
-    
-    try {
-      const searchValue = phone.trim() || email.trim()
-      if (!searchValue) {
-        setCheckingExisting(false)
-        return
-      }
-      
-      const isPhone = /^\d{10,}$/.test(searchValue)
-      
-      // Use server-side API to bypass RLS
-      const checkRes = await fetch('/api/auth/check-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          [isPhone ? 'phone' : 'email']: searchValue
-        }),
-      })
-      const checkData = await checkRes.json()
-      
-      if (!mountedRef.current) return
-      
-      if (checkData.exists) {
-        setExistingMessage('Note: An account already exists with this information. If this is you, please switch to Login.')
-      }
-    } catch (err) {
-      console.error('Error checking existing user:', err)
-    } finally {
-      if (mountedRef.current) {
-        setCheckingExisting(false)
-      }
-    }
-  }, [isLogin])
-
-  useEffect(() => {
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    
-    if (!isLogin) {
-      debounceTimeout.current = setTimeout(() => {
-        checkExistingUser(form.phone, form.email)
-      }, 500)
-    } else {
-      setExistingMessage('')
-    }
-
-    return () => {
-      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    }
-  }, [form.phone, form.email, isLogin, checkExistingUser])
+  // Existing user detection disabled for security — never reveal account existence
 
   async function refreshCaptcha() {
     setCaptcha(generateCaptcha())
@@ -135,8 +74,12 @@ export default function CustomerLoginPage() {
       : window.location.origin
     const redirectUrl = `${baseUrl}/auth/callback?next=/reset-password`
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: redirectUrl })
-    if (error) { setResetMessage(error.message); setResetLoading(false); return }
-    setResetMessage('Password reset link sent to your email!')
+    if (error) {
+      // Log the real reason server-side, show generic success to prevent enumeration
+      console.error('Password reset error:', error.message)
+      // Still show "sent" to not reveal whether email exists
+    }
+    setResetMessage('If an account exists, a password reset link has been sent to your email.')
     setResetLoading(false)
   }
 
@@ -164,87 +107,63 @@ export default function CustomerLoginPage() {
     if (isLogin) {
       const digitsOnly = input.replace(/\D/g, '')
       const isPhone = /^\d{10,}$/.test(digitsOnly)
-      let emailToAuth = input
       
-      if (isPhone) {
-        // Use server-side API to bypass RLS on profiles table
-        const lookupRes = await fetch('/api/auth/phone-lookup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: digitsOnly }),
-        })
-        const lookupData = await lookupRes.json()
+      // Call API route which handles lockout check + Supabase auth + recording
+      // Phone is resolved to email server-side — no client-side phone lookup needed
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(isPhone ? { phone: digitsOnly } : { email: input }),
+          password: form.password,
+          role: 'customer',
+        }),
+      })
+      const loginData = await loginRes.json()
 
-        if (lookupRes.ok && lookupData.email) {
-          emailToAuth = lookupData.email
-        } else {
-          setError(lookupData.error || 'No customer account found with this phone number.')
-          setLoading(false)
-          refreshCaptcha()
-          return
-        }
+      if (!loginRes.ok || !loginData.success) {
+        setError('Invalid login credentials')
+        setLoading(false)
+        refreshCaptcha()
+        return
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email: emailToAuth, password: form.password })
-      if (error) { setError(error.message); setLoading(false); refreshCaptcha(); return }
       router.push('/customer')
     } else {
-      // Check if user already exists before signup
-      const isPhone = /^\d{10,}$/.test(input)
-      const searchValue = isPhone ? form.phone.trim() : input
-      
-      if (searchValue) {
-        // Use server-side API to bypass RLS
-        const checkRes = await fetch('/api/auth/check-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            [isPhone ? 'phone' : 'email']: searchValue
-          }),
-        })
-        const checkData = await checkRes.json()
-        
-        if (checkData.exists) {
-          setError('An account with this information already exists. Please login to continue.')
-          setLoading(false)
-          setIsLogin(true)
-          return
-        }
-      }
-      
       const { data, error: signUpError } = await supabase.auth.signUp({ 
         email: form.email, 
         password: form.password, 
         options: { data: { full_name: form.full_name, phone: form.phone, role: 'customer' } } 
       })
       
-      // Handle "user already registered" error gracefully
+      // Handle sign-up errors with generic message — never reveal account existence
       if (signUpError) {
         const errorMsg = signUpError.message.toLowerCase()
         if (errorMsg.includes('already registered') || errorMsg.includes('already exists') || errorMsg.includes('user already exists')) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: form.email,
-            password: form.password
+          // Account may already exist — try signing in via API route (lockout-checked)
+          const loginRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: form.email, password: form.password, role: 'customer' }),
           })
+          const loginData = await loginRes.json()
           
-          if (signInData?.user) {
-            const { data: customer } = await supabase.from('customers').select('id').eq('id', signInData.user.id).single()
-            if (customer) {
-              router.push('/customer')
-              setLoading(false)
-              return
-            }
-          }
-          
-          if (signInError) {
-            setError('Account exists. Please login with your existing credentials.')
+          if (loginRes.ok && loginData.success) {
+            router.push('/customer')
             setLoading(false)
-            setIsLogin(true)
             return
           }
+          
+          // Generic error — don't reveal whether account exists
+          console.error('Sign-up/Sign-in error:', signUpError.message)
+          setError('Invalid login credentials')
+          setLoading(false)
+          setIsLogin(true)
+          return
         }
         
-        setError(signUpError.message)
+        console.error('Sign-up error:', signUpError.message)
+        setError('Invalid login credentials')
         setLoading(false)
         refreshCaptcha()
         return
@@ -260,12 +179,15 @@ export default function CustomerLoginPage() {
 
         // Auto sign-in if no session returned (like shopkeeper/delivery flows)
         if (!data.session) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: form.email,
-            password: form.password,
+          const loginRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: form.email, password: form.password, role: 'customer' }),
           })
-          if (signInError) {
-            setError('Account created but auto-login failed. Please login manually.')
+          const loginData = await loginRes.json()
+          if (!loginRes.ok || !loginData.success) {
+            console.error('Auto-login error: API rejected')
+            setError('Invalid login credentials')
             setLoading(false)
             setIsLogin(true)
             return
@@ -291,21 +213,6 @@ export default function CustomerLoginPage() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{isLogin ? 'Customer Login' : 'Customer Register'}</h1>
           <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{isLogin ? 'Sign in to continue shopping' : 'Create an account to start shopping'}</p>
         </div>
-
-        {existingMessage && (
-          <div style={{ 
-            padding: 12, 
-            borderRadius: 10, 
-            background: '#fffbeb',
-            color: '#b45309',
-            border: '1px solid #fde68a',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            marginBottom: 8
-          }}>
-            ⚠️ {existingMessage}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {!isLogin && (
@@ -400,7 +307,7 @@ export default function CustomerLoginPage() {
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>Forgot Password?</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: 16 }}>Enter your email to receive a password reset link.</p>
             <input type="email" placeholder="Your email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: '0.95rem', marginBottom: 12, boxSizing: 'border-box' }} />
-            {resetMessage && <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, background: resetMessage.includes('sent') ? '#dcfce7' : '#fee2e2', color: resetMessage.includes('sent') ? '#16a34a' : '#dc2626' }}>{resetMessage}</div>}
+            {resetMessage && <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, background: '#dcfce7', color: '#16a34a' }}>{resetMessage}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowReset(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: 12, color: '#475569', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleResetPassword} disabled={resetLoading} style={{ flex: 1, padding: '14px', background: resetLoading ? '#94a3b8' : '#f97316', border: 'none', borderRadius: 12, color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: resetLoading ? 'not-allowed' : 'pointer' }}>{resetLoading ? 'Sending...' : 'Send Link'}</button>
