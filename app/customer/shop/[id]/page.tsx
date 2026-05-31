@@ -448,7 +448,7 @@ export default function ShopPage() {
                 {/* Product Image */}
                 <div style={{ height: 120, background: '#f8fafc', position: 'relative' }}>
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>🛍️</div>
                   )}

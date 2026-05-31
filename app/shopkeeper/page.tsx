@@ -211,13 +211,8 @@ export default function ShopkeeperDashboard() {
       alertedRef.current.delete(orderId)
       setAlertingOrderIds(prev => { const next = new Set(prev); next.delete(orderId); return next })
 
-      // Show agent assignment feedback on accept
       if (action === 'accept') {
-        if (data.agentAssigned) {
-          showToast(`✅ Order ${orderNumber} Accepted! Agent ${data.agentName} assigned.`)
-        } else {
-          showToast(`✅ Order ${orderNumber} Accepted! (No agents available right now)`, 'error')
-        }
+        showToast(`✅ Order ${orderNumber} Accepted!`)
       } else {
         showToast(`🚫 Order ${orderNumber} Rejected`)
       }
@@ -493,7 +488,7 @@ export default function ShopkeeperDashboard() {
                     {order.items.slice(0, 3).map((item, i) => (
                       <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: i % 2 === 0 ? '#f8fafc' : 'white', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
                         {item.product_image_url
-                          ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                          ? <img src={item.product_image_url} alt={item.product_name} loading="lazy" decoding="async" style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
                           : <div style={{ width: 30, height: 30, background: '#e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>🛍️</div>
                         }
                         <div style={{ flex: 1, minWidth: 0 }}>

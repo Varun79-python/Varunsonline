@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// Dynamic — uses request.url for shop_id param, so always fresh.
+// No revalidate needed — Next.js detects request.url usage automatically.
 
 /**
  * GET /api/reviews?shop_id=xxx&limit=10

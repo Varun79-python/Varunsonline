@@ -236,7 +236,7 @@ export default function AdminOrderDetail() {
         {items.map((item, idx) => (
           <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
             {item.product_image_url
-              ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+              ? <img src={item.product_image_url} alt={item.product_name} loading="lazy" decoding="async" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
               : <div style={{ width: 44, height: 44, background: '#fff7ed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📦</div>
             }
             <div style={{ flex: 1 }}>

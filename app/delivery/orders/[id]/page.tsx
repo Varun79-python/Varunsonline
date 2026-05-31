@@ -270,7 +270,7 @@ export default function DeliveryOrderDetail() {
             {orderItems.map(item => (
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                 {item.product_image_url ? (
-                  <img src={item.product_image_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+                  <img src={item.product_image_url} alt="" loading="lazy" decoding="async" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📦</div>
                 )}

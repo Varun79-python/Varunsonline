@@ -165,7 +165,7 @@ export default function ProductsPage() {
           {filtered.map(p => (
             <div key={p.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', overflow: 'hidden', opacity: p.is_available ? 1 : 0.6 }}>
               {p.image_url
-                ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 100, objectFit: 'cover' }} />
+                ? <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" style={{ width: '100%', height: 100, objectFit: 'cover' }} />
                 : <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', background: '#f8fafc' }}>🛍️</div>
               }
               <div style={{ padding: 10 }}>

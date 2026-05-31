@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 import { verifyShopkeeper } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 export async function POST(req: NextRequest) {
   try {

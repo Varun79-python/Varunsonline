@@ -5,7 +5,6 @@ import { pushToUser } from '@/lib/pushHelper'
 import { processEarnings } from '@/app/api/delivery/utils'
 
 export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 /**
  * Razorpay Webhook Handler

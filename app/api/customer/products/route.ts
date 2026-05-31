@@ -3,7 +3,9 @@ import { createServiceClient } from '@/lib/authMiddleware'
 import { haversineKm } from '@/lib/gps'
 import { logger } from '@/lib/logger'
 
-export const dynamic = 'force-dynamic'
+// Dynamic — user location varies per request.
+// Sub-queries (categories, shops list, platform_settings) are cached
+// internally via the Supabase client to reduce DB load.
 
 /**
  * GET /api/customer/products
@@ -59,8 +61,34 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient()
 
+  // ── Step 0: Load admin delivery radius and cap maxDistance ─────────────
+  const { data: radiusRow } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'shop_radius_km')
+    .maybeSingle()
+  const adminRadiusKm = radiusRow ? Number(radiusRow.value) : 10
+
+  // Enforce admin radius as the maximum allowed distance
+  let effectiveMaxDistance = maxDistance
+  if (effectiveMaxDistance != null) {
+    if (effectiveMaxDistance > adminRadiusKm) {
+      logger.warn('customer_products_radius_capped', {
+        requested: effectiveMaxDistance,
+        capped: adminRadiusKm,
+      })
+      effectiveMaxDistance = adminRadiusKm
+    }
+  } else {
+    // If no distance filter but we have coords, use admin radius as default
+    if (userLat != null && userLng != null) {
+      effectiveMaxDistance = adminRadiusKm
+    }
+  }
+
   try {
     // ── Step 1: Get available categories and shops for the filter UI ─
+    const now = new Date().toISOString()
     const [catResult, shopsResult] = await Promise.all([
       supabase
         .from('products')
@@ -70,7 +98,7 @@ export async function GET(req: NextRequest) {
         .eq('is_available', true),
       supabase
         .from('shops')
-        .select('id, name, shop_image_url, latitude, longitude, city, is_open')
+        .select('id, name, shop_image_url, latitude, longitude, city, is_open, subscription_end_date')
         .eq('is_approved', true)
         .eq('is_active', true),
     ])
@@ -91,23 +119,29 @@ export async function GET(req: NextRequest) {
       longitude: number | null
       city: string | null
       is_open: boolean
+      subscription_end_date: string | null
     }
     const allShops: ShopRow[] = (shopsResult.data || []) as ShopRow[]
+    const nowDate = new Date()
 
-    // ── Step 2: Filter shops by distance ───────────────────────────
+    // ── Step 2: Filter shops by distance + subscription + open status ──
     let qualifyingShopIds: string[]
 
-    if (maxDistance != null && userLat != null && userLng != null) {
-      qualifyingShopIds = allShops
-        .filter(s => {
+    qualifyingShopIds = allShops
+      .filter(s => {
+        // Exclude shops with expired subscriptions
+        if (s.subscription_end_date && new Date(s.subscription_end_date) < nowDate) {
+          return false
+        }
+        // Distance filter (only if we have coordinates)
+        if (effectiveMaxDistance != null && userLat != null && userLng != null) {
           if (s.latitude == null || s.longitude == null) return false
           const d = haversineKm(userLat, userLng, s.latitude, s.longitude)
-          return d <= maxDistance
-        })
-        .map(s => s.id)
-    } else {
-      qualifyingShopIds = allShops.map(s => s.id)
-    }
+          return d <= effectiveMaxDistance
+        }
+        return true
+      })
+      .map(s => s.id)
 
     // Apply explicit shop filter (intersection with distance-qualified shops)
     if (shopIdFilter.length > 0) {

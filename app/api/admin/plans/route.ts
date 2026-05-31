@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// Plans change infrequently. Cache GET for 5 minutes.
+// POST/PATCH/DELETE are state-changing (dynamic by default).
 
 // GET /api/admin/plans — list ALL plans (active or not)
 export async function GET(req: NextRequest) {

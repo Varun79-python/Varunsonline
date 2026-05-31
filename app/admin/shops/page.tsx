@@ -52,14 +52,7 @@ interface ShopOrder {
 export default function AdminShops() {
   const supabase = createClient()
   const [items, setItems] = useState<UnifiedShop[]>([])
-  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const tabParam = params.get('tab')
-      if (['pending', 'active', 'rejected', 'all'].includes(tabParam || '')) return tabParam as 'pending' | 'active' | 'rejected' | 'all'
-    }
-    return 'pending'
-  })
+  const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<UnifiedShop | null>(null)
   const [shopOrders, setShopOrders] = useState<ShopOrder[]>([])
@@ -104,6 +97,15 @@ export default function AdminShops() {
       }
     }
   }
+
+  // Read initial tab from URL (client-only, avoids hydration mismatch)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tabParam = params.get('tab')
+    if (['pending', 'active', 'rejected', 'all'].includes(tabParam || '')) {
+      setTab(tabParam as 'pending' | 'active' | 'rejected' | 'all')
+    }
+  }, [])
 
   useEffect(() => { 
     if (!loadingRef.current) load() 
@@ -475,7 +477,7 @@ export default function AdminShops() {
             <div key={item.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
               <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
                 {item.image_url ? (
-                  <img src={item.image_url} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
+                  <img src={item.image_url} alt="" loading="lazy" decoding="async" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📋</div>
                 )}

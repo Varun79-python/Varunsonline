@@ -35,6 +35,7 @@ export default function AgentLiveLocationBar() {
   const watchIdRef = useRef<number | null>(null)
   const lastPushRef = useRef<{ lat: number; lon: number } | null>(null)
   const onlineRef = useRef(false)
+  const permissionCleanupRef = useRef<(() => void) | null>(null)
 
   // Fetch agent status
   useEffect(() => {
@@ -65,9 +66,13 @@ export default function AgentLiveLocationBar() {
         try {
           const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
           setPermissionState(status.state as 'granted' | 'denied' | 'prompt')
-          status.addEventListener('change', () => {
+          const handler = () => {
             setPermissionState(status.state as 'granted' | 'denied' | 'prompt')
-          })
+          }
+          status.addEventListener('change', handler)
+          permissionCleanupRef.current = () => {
+            status.removeEventListener('change', handler)
+          }
         } catch { /* ignore */ }
       } else if (typeof navigator === 'undefined' || !navigator.geolocation) {
         setPermissionState('unsupported')
@@ -76,6 +81,11 @@ export default function AgentLiveLocationBar() {
       setLoading(false)
     }
     load()
+
+    return () => {
+      permissionCleanupRef.current?.()
+      permissionCleanupRef.current = null
+    }
   }, [supabase])
 
   const reverseGeocodeAndSet = useCallback(async (lat: number, lon: number) => {

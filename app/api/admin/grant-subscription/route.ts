@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { verifyAdmin } from '@/lib/adminAuth'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 /**
  * POST /api/admin/grant-subscription

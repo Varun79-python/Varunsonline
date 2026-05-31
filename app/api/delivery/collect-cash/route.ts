@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
+import { createServiceClient, verifyDeliveryAgent, validateOrigin } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 /**
  * POST /api/delivery/collect-cash
@@ -18,6 +19,24 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
+    // ── CSRF protection ──────────────────────────────────────────
+    const originCheck = validateOrigin(req)
+    if (!originCheck.valid) {
+      return NextResponse.json({ error: originCheck.error }, { status: 403 })
+    }
+
+    // ── Rate limit: 10 collection attempts per minute ────────────
+    const identifier = getRateLimitIdentifier(req)
+    const rateCheck = await checkRateLimit(identifier, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+      endpoint: 'delivery-collect-cash',
+      message: 'Too many requests. Please slow down.',
+    })
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
     const auth = await verifyDeliveryAgent(req)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })

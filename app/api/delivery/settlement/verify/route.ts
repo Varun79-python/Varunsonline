@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 function safeCompare(a: string, b: string): boolean {
   const left = Buffer.from(a)

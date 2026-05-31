@@ -12,8 +12,7 @@ function createServiceClient() {
   )
 }
 
-export const dynamic = 'force-dynamic'
-
+// POST state-changing endpoint — dynamic by default, no cache.
 interface CartItem {
   product_id: string
   quantity: number
@@ -91,15 +90,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid address' }, { status: 400 })
     }
 
-    // Verify shop exists, is active, and is approved
+    // Verify shop exists, is active, approved, and subscription is valid
     const { data: shop } = await supabase
       .from('shops')
-      .select('id, owner_id, latitude, longitude, is_active, is_approved')
+      .select('id, owner_id, latitude, longitude, is_active, is_approved, subscription_end_date')
       .eq('id', shopId)
       .single()
 
     if (!shop || !shop.is_active || !shop.is_approved) {
       return NextResponse.json({ error: 'Shop not available' }, { status: 400 })
+    }
+    if (shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()) {
+      return NextResponse.json({ error: 'Shop subscription has expired. Cannot place order.' }, { status: 400 })
     }
 
     // SERVER-SIDE VALIDATION: Check shop is within allowed radius
@@ -126,6 +128,7 @@ export async function POST(req: NextRequest) {
       .from('products')
       .select('id, name, price, stock_quantity, is_available, shop_id')
       .in('id', productIds)
+      .eq('is_available', true)
 
     if (prodError || !products?.length) {
       return NextResponse.json({ error: 'Products not found' }, { status: 400 })

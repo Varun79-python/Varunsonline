@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 const MAX_WITHDRAWALS_PER_WEEK = 5
 

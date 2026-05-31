@@ -16,6 +16,7 @@ interface Order {
 interface AvailOrder {
   id: string; order_number: string; status: string; agent_earning: number
   shops: { name: string; city: string }; addresses: { city: string }
+  phase?: string
 }
 interface Agent { id: string; is_approved: boolean; is_available: boolean; wallet_balance: number; today_earnings: number; total_deliveries: number }
 type OrderUpdatePayload = { new?: { agent_id?: string }; old?: { agent_id?: string } }
@@ -29,13 +30,11 @@ export default function DeliveryDashboard() {
   const [noProfile, setNoProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
-  const [rejecting, setRejecting] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [gpsRequired, setGpsRequired] = useState(false)
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
-  const excludedAgentsRef = useRef<string[]>([])
   const alertedOrderIdRef = useRef<string | null>(null)
   const lastPushedPos = useRef<{ lat: number; lon: number } | null>(null)
   const lastPushTime = useRef<number>(0)
@@ -72,9 +71,16 @@ export default function DeliveryDashboard() {
     const authHeader = await getAuthHeader()
     const res = await fetch('/api/delivery/orders', { headers: { ...authHeader } })
     const data = await res.json()
-    if (data.gpsRequired) {
+    if (data.gpsStale || data.gpsRequired) {
       setGpsRequired(true)
       setAvailOrders([])
+    } else if (data.atCapacity) {
+      setGpsRequired(false)
+      setAvailOrders([])
+      // Quietly suppress — agent is at capacity; no need for a loud warning
+    } else if (data.blocked) {
+      setAvailOrders([])
+      showToast('🔒 Account suspended. Contact support.', false)
     } else {
       setGpsRequired(false)
       setAvailOrders(data.orders || [])
@@ -128,7 +134,11 @@ export default function DeliveryDashboard() {
             if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
               console.warn('[GPS/Delivery] Invalid coordinates, skipping DB update:', latitude, longitude)
             } else {
-            await supabase.from('delivery_agents').update({ last_lat: latitude, last_lon: longitude }).eq('id', agentId)
+            await supabase.from('delivery_agents').update({
+              last_lat: latitude,
+              last_lon: longitude,
+              gps_updated_at: new Date().toISOString(),
+            }).eq('id', agentId)
             }
             lastPushedPos.current = { lat: latitude, lon: longitude }
             lastPushTime.current = now
@@ -188,7 +198,6 @@ export default function DeliveryDashboard() {
           alertedOrderIdRef.current !== act.id
         ) {
           alertedOrderIdRef.current = act.id
-          excludedAgentsRef.current = []
           startAlert()
           showToast('🔔 New delivery assigned to you!')
         }
@@ -223,6 +232,14 @@ export default function DeliveryDashboard() {
         showToast('⚡ Order already taken! Refreshing...', false)
         await fetchAvailable(); return
       }
+      if (data.outsideRadius) {
+        showToast(`📍 You are ${data.distanceKm}km away (max ${data.maxRadiusKm}km). Get closer!`, false)
+        return
+      }
+      if (data.gpsStale || data.gpsRequired) {
+        showToast('📡 GPS is stale. Wait for location refresh...', false)
+        return
+      }
       if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`, false); return }
       const act = await fetchActive(agentId)
       setActiveOrder(act)
@@ -230,28 +247,6 @@ export default function DeliveryDashboard() {
       if (act) refreshGPS(act)
       showToast(`✅ Order ${order.order_number} accepted!`)
     } finally { setAccepting(null) }
-  }
-
-  async function rejectOrder(order: AvailOrder) {
-    if (!agentId || rejecting) return
-    setRejecting(order.id)
-    stopAlert()
-    alertedOrderIdRef.current = null
-    setAvailOrders(prev => prev.filter(o => o.id !== order.id))
-    showToast(`🚫 Order ${order.order_number} skipped.`, false)
-    try {
-      excludedAgentsRef.current = [...excludedAgentsRef.current, agentId]
-      const authHeader = await getAuthHeader()
-      await fetch('/api/delivery/reject-reassign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({
-          orderId: order.id,
-          excludeAgentIds: excludedAgentsRef.current
-        })
-      })
-    } catch { }
-    setRejecting(null)
   }
 
   async function updateStatus(orderId: string, status: string) {
@@ -488,7 +483,7 @@ export default function DeliveryDashboard() {
               activeOrder.items.map((item, idx) => (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: idx < activeOrder.items.length - 1 ? '1px solid var(--border)' : 'none', background: idx % 2 === 0 ? 'white' : 'var(--bg)' }}>
                   {item.product_image_url
-                    ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    ? <img src={item.product_image_url} alt={item.product_name} loading="lazy" decoding="async" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                     : <div style={{ width: 40, height: 40, background: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>📦</div>
                   }
                   <div style={{ flex: 1 }}>
@@ -757,27 +752,36 @@ export default function DeliveryDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {availOrders.map((order: AvailOrder) => (
                     <div key={order.id} className="dl-avail-card">
-                      <div className="dl-avail-top">
-                        <div style={{ flex: 1 }}>
-                          <div className="dl-avail-num">#{order.order_number}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
-                            <span style={{ color: '#f97316' }}>🏪</span> {order.shops?.name} → <span style={{ color: '#16a34a' }}>🏠</span> {order.addresses?.city}
-                          </div>
-                          {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer != null && (
-                            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
-                              🗺️ {(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! < 1
-                                ? `${Math.round((order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer! * 1000)}m`
-                                : `${(order as AvailOrder & { distShopToCustomer?: number }).distShopToCustomer!.toFixed(1)}km`} trip
+                        <div className="dl-avail-top">
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <div className="dl-avail-num">#{order.order_number}</div>
+                              <span style={{
+                                fontSize: '0.6rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                                background: order.phase === 'Preparing' ? '#fef3c7' : '#dcfce7',
+                                color: order.phase === 'Preparing' ? '#92400e' : '#166534',
+                                textTransform: 'uppercase', letterSpacing: '0.3px',
+                              }}>
+                                {order.phase === 'Preparing' ? '⏳ Preparing' : '📦 Ready'}
+                              </span>
                             </div>
-                          )}
+                            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
+                              <span style={{ color: '#f97316' }}>🏪</span> {order.shops?.name} → <span style={{ color: '#16a34a' }}>🏠</span> {order.addresses?.city}
+                            </div>
+                            {(order as AvailOrder & { distAgentToShop?: number }).distAgentToShop != null && (
+                              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
+                                📍 {(order as AvailOrder & { distAgentToShop?: number }).distAgentToShop! < 1
+                                  ? `${Math.round((order as AvailOrder & { distAgentToShop?: number }).distAgentToShop! * 1000)}m`
+                                  : `${(order as AvailOrder & { distAgentToShop?: number }).distAgentToShop!.toFixed(1)}km`} away
+                              </div>
+                            )}
+                          </div>
+                          <div className="dl-avail-earn">₹{order.agent_earning}</div>
                         </div>
-                        <div className="dl-avail-earn">₹{order.agent_earning}</div>
-                      </div>
                       <div className="dl-avail-actions">
-                        <button className="dl-accept-btn" disabled={accepting === order.id || !!rejecting} onClick={() => acceptOrder(order)}>
+                        <button className="dl-accept-btn" disabled={accepting === order.id} onClick={() => acceptOrder(order)}>
                           {accepting === order.id ? '⏳ Accepting...' : '✓ Accept'}
                         </button>
-                        <button className="dl-reject-btn" disabled={rejecting === order.id || !!accepting} onClick={() => rejectOrder(order)}>✕ Skip</button>
                       </div>
                     </div>
                   ))}
@@ -814,9 +818,6 @@ export default function DeliveryDashboard() {
         .dl-accept-btn { flex: 1; min-height: 50px; background: #16a34a; color: white; border: none; font-weight: 700; font-size: 0.95rem; cursor: pointer; }
         .dl-accept-btn:active { background: #15803d; }
         .dl-accept-btn:disabled { opacity: 0.6; }
-        .dl-reject-btn { width: 70px; min-height: 50px; background: #fef2f2; color: #dc2626; border: none; border-left: 1px solid #fecaca; font-weight: 600; font-size: 0.85rem; cursor: pointer; flex-shrink: 0; }
-        .dl-reject-btn:active { background: #fee2e2; }
-        .dl-reject-btn:disabled { opacity: 0.5; }
         @media (max-width: 768px) {
           .dl-mobile-header { display: flex !important; align-items: center; justify-content: space-between; background: #0f172a; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 30; }
           .dl-logout-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: white; border-radius: 8px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; }

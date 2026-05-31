@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 export default function SplashPage() {
   const router = useRouter()
@@ -34,11 +35,9 @@ export default function SplashPage() {
         textAlign: 'center',
         animation: 'pulse 2s ease-in-out infinite',
       }}>
-        <img src="/logo.png" alt="VarunsOnline" style={{
-          width: 220,
-          height: 220,
-          objectFit: 'contain',
-        }} />
+        <Image src="/logo.png" alt="VarunsOnline" width={220} height={220} priority
+          style={{ objectFit: 'contain' }}
+        />
         <style>{`@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }`}</style>
       </div>
 

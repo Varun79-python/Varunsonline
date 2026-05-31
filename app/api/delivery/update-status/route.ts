@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
+import { createServiceClient, verifyDeliveryAgent, validateOrigin } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 export async function POST(req: NextRequest) {
   try {
+    // ── CSRF protection ──────────────────────────────────────────
+    const originCheck = validateOrigin(req)
+    if (!originCheck.valid) {
+      return NextResponse.json({ error: originCheck.error }, { status: 403 })
+    }
+
     // Rate limit: 20 status updates per minute
     const identifier = getRateLimitIdentifier(req)
     const rateCheck = await checkRateLimit(identifier, {
       windowMs: 60 * 1000,
       maxRequests: 20,
+      endpoint: 'delivery-status-update',
       message: 'Too many status updates. Please slow down.',
     })
     if (!rateCheck.allowed) {

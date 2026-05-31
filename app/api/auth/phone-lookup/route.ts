@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 /**
  * Server-side phone-to-email lookup for login.

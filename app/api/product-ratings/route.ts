@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// Ratings created client-side (app/customer/orders/[id]/page.tsx upsert).
+// No revalidate here — keep dynamic to show freshly submitted ratings.
 
 /**
  * GET /api/product-ratings?product_id=xxx&limit=10

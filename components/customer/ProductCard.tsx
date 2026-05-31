@@ -38,6 +38,7 @@ export interface ProductCardData {
     shop_image_url?: string | null
     city?: string | null
     is_open?: boolean | null
+    subscription_end_date?: string | null
   }
 }
 
@@ -87,6 +88,12 @@ export default function ProductCard({ product }: ProductCardProps) {
       // If shop is closed, block add
       if (product.shop.is_open === false && delta > 0) {
         alert(`"${product.shop.name}" is currently closed.`)
+        return
+      }
+
+      // If shop's subscription has expired, block add
+      if (product.shop.subscription_end_date && new Date(product.shop.subscription_end_date) < new Date() && delta > 0) {
+        alert(`"${product.shop.name}" is temporarily unavailable.`)
         return
       }
 

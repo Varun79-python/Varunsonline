@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/authMiddleware'
 import { verifyAdmin } from '@/lib/adminAuth'
 
-export const dynamic = 'force-dynamic'
-
+// Admin list — no cache: admins need immediate reflection of settlement actions
 /**
  * Admin API for COD Settlement Management
  * GET  → list all COD settlement entries with agent info

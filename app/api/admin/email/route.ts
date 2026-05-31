@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+// Static — env var doesn't change. Cache for 1 hour.
+export const revalidate = 3600
 
 /**
  * Returns the admin email from a server-only env var.

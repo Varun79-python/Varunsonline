@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-export const dynamic = 'force-dynamic'
+// Admin-only analytics — heavy aggregation queries.
+// Keep dynamic to always show latest data.
 
 async function verifyAdmin() {
   const cookieStore = await cookies()

@@ -4,9 +4,6 @@ import { createServiceClient } from '@/lib/authMiddleware'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
 
-// Force dynamic — never statically evaluated at build time
-export const dynamic = 'force-dynamic'
-
 /**
  * POST /api/payment/create-order
  * Creates a Razorpay order for payment.

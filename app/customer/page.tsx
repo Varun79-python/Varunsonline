@@ -18,14 +18,6 @@ interface Shop {
   subscription_end_date?: string | null
 }
 
-// Derive a unified shop status for sorting + display
-type ShopStatus = 'open' | 'closed' | 'unavailable'
-function getShopStatus(s: Shop): ShopStatus {
-  if (s.subscription_end_date && new Date(s.subscription_end_date) < new Date()) return 'unavailable'
-  if (!s.is_open) return 'closed'
-  return 'open'
-}
-
 const CATEGORIES = [
   { label: 'All', icon: '🏪' },
   { label: 'Grocery', icon: '🛒' },
@@ -75,6 +67,7 @@ export default function CustomerHome() {
 
   async function loadShops(lat?: number | null, lon?: number | null, radius?: number) {
     setLoading(true)
+    const now = new Date().toISOString()
     const { data } = await supabase
       .from('shops')
       .select('id,name,category,description,shop_image_url,rating,total_orders,address_line1,city,latitude,longitude,shop_rating,delivery_rating,total_ratings,is_open,is_active,subscription_end_date')
@@ -83,19 +76,29 @@ export default function CustomerHome() {
     if (data) {
       const hasGPS = lat != null && lon != null
       const activeRadius = radius ?? radiusKm ?? 10
+
+      // Filter out shops with expired subscriptions at DB level
+      let filteredShops = data.filter((s: Shop) => {
+        if (s.subscription_end_date && new Date(s.subscription_end_date) < new Date()) return false
+        return true
+      })
+
       // If customer has GPS, compute distances and filter by radius.
-      // Otherwise, show all shops without distance (no location set).
+      // If no GPS saved, hide all shops — customer must set a delivery address first.
       const processed = hasGPS
-        ? data.map((s: Shop) => ({
+        ? filteredShops.map((s: Shop) => ({
             ...s,
             distance: s.latitude != null && s.longitude != null
               ? haversineKm(lat!, lon!, s.latitude, s.longitude) : null
           })).filter((s: Shop) => s.distance === null || (s.distance!) <= activeRadius)
-        : data.map((s: Shop) => ({ ...s, distance: null }))
-      // Sort: 1) open first, 2) closed, 3) unavailable (sub expired etc), then nearest within each group
-      const statusOrder: Record<ShopStatus, number> = { open: 0, closed: 1, unavailable: 2 }
+        : [] // No saved address = no shops shown
+
+      // Sort: 1) open first, 2) closed, then nearest within each group
+      const statusOrder: Record<string, number> = { open: 0, closed: 1 }
       const sorted = processed.sort((a: Shop, b: Shop) => {
-        const statusDiff = statusOrder[getShopStatus(a)] - statusOrder[getShopStatus(b)]
+        const aOpen = a.is_open ? 'open' : 'closed'
+        const bOpen = b.is_open ? 'open' : 'closed'
+        const statusDiff = statusOrder[aOpen] - statusOrder[bOpen]
         if (statusDiff !== 0) return statusDiff
         if (a.distance === null && b.distance === null) return 0
         if (a.distance === null) return 1
@@ -104,7 +107,7 @@ export default function CustomerHome() {
       })
       setShops(sorted)
       setFiltered(sorted)
-      console.log(`[Shops] Loaded ${sorted.length} shops (${hasGPS ? `${activeRadius}km radius` : 'no location set'})`)
+      console.log(`[Shops] Loaded ${sorted.length} shops (${hasGPS ? `${activeRadius}km radius` : 'no address set — hiding all'})`)
     }
     setLoading(false)
   }
@@ -300,21 +303,19 @@ export default function CustomerHome() {
         {!loading && filtered.length > 0 && (
           <div className="ch-grid">
             {filtered.map(shop => {
-              const status = getShopStatus(shop)
-              const isUnavailable = status === 'unavailable'
-              const isClosed = status === 'closed'
+              const isClosed = !shop.is_open
               return (
                 <div
                   key={shop.id}
                   onClick={() => router.push(`/customer/shop/${shop.id}`)}
                   className="ch-shop-card"
-                  style={isClosed || isUnavailable ? { opacity: 0.82 } : {}}
+                  style={isClosed ? { opacity: 0.82 } : {}}
                 >
                   {/* Image */}
                   <div className="ch-card-img-wrap">
                     {shop.shop_image_url
-                      ? <img src={shop.shop_image_url} alt={shop.name} className="ch-card-img"
-                          style={isClosed || isUnavailable ? { filter: 'grayscale(30%)' } : {}}
+                      ? <img src={shop.shop_image_url} alt={shop.name} className="ch-card-img" loading="lazy" decoding="async"
+                          style={isClosed ? { filter: 'grayscale(30%)' } : {}}
                         />
                       : <div className="ch-card-img-fallback">
                           <span style={{ fontSize: '2rem' }}>
@@ -327,12 +328,12 @@ export default function CustomerHome() {
                       className="ch-card-cat-pill"
                       style={{
                         background: CAT_COLOR[shop.category] || '#64748b',
-                        bottom: (isClosed || isUnavailable) ? 28 : 5
+                        bottom: isClosed ? 28 : 5
                       }}
                     >{shop.category}</div>
 
                     {/* Status badge overlay */}
-                    {status === 'open' && (
+                    {shop.is_open ? (
                       <div style={{
                         position: 'absolute', bottom: 5, left: 6,
                         background: '#16a34a', color: 'white',
@@ -343,8 +344,7 @@ export default function CustomerHome() {
                       }}>
                         <span style={{ fontSize: '0.6rem' }}>🟢</span> Open · Accepting Orders
                       </div>
-                    )}
-                    {isClosed && (
+                    ) : (
                       <div style={{
                         position: 'absolute', bottom: 5, left: 6,
                         background: 'rgba(0,0,0,0.8)', color: '#fca5a5',
@@ -353,17 +353,6 @@ export default function CustomerHome() {
                         display: 'flex', alignItems: 'center', gap: 3,
                       }}>
                         🔴 Closed · Not accepting orders
-                      </div>
-                    )}
-                    {isUnavailable && (
-                      <div style={{
-                        position: 'absolute', bottom: 5, left: 6,
-                        background: 'rgba(120,80,0,0.9)', color: '#fde68a',
-                        fontSize: '0.5rem', fontWeight: 800, padding: '3px 8px',
-                        borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.3px',
-                        display: 'flex', alignItems: 'center', gap: 3,
-                      }}>
-                        ⚠️ Temporarily Unavailable
                       </div>
                     )}
                   </div>

@@ -8,7 +8,7 @@ import OrderChat from '@/components/OrderChat/OrderChat'
 const STEPS = (paymentMethod?: string) => [
   { key: paymentMethod === 'cod' ? 'placed' : 'payment_confirmed', label: paymentMethod === 'cod' ? 'Order Placed' : 'Payment Confirmed', icon: '✅' },
   { key: 'shop_accepted', label: 'Shop Accepted', icon: '🏪' },
-  { key: 'order_packed', label: 'Order Packed', icon: '📦' },
+  { key: 'searching', label: 'Searching For Delivery Agent', icon: '🔍' },
   { key: 'agent_assigned', label: 'Agent Assigned', icon: '🛵' },
   { key: 'picked_up', label: 'Picked Up from Shop', icon: '🏃' },
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: '🚴' },
@@ -16,7 +16,7 @@ const STEPS = (paymentMethod?: string) => [
 ]
 const ORDER_RANK: Record<string, number> = {
   placed: 1, payment_pending: 0, payment_confirmed: 1, shop_accepted: 2,
-  order_packed: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7
+  order_packed: 3, searching: 3, agent_assigned: 4, picked_up: 5, out_for_delivery: 6, delivered: 7
 }
 const OTP_VISIBLE = ['shop_accepted', 'order_packed', 'agent_assigned', 'picked_up', 'out_for_delivery']
 // Customer can edit items up to (but not including) picked_up
@@ -311,7 +311,7 @@ export default function OrderDetailPage() {
             {draftItems.map((item, idx) => (
               <div key={item.product_id + idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                 {item.product_image_url
-                  ? <img src={item.product_image_url} alt={item.product_name} style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  ? <img src={item.product_image_url} alt={item.product_name} loading="lazy" decoding="async" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                   : <div style={{ width: 38, height: 38, background: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.1rem' }}>🛍️</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>

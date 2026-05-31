@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
 import { verifyAdmin } from '@/lib/adminAuth'
 
-export const dynamic = 'force-dynamic'
+// Admin list — no cache: admins expect immediate feedback after processing withdrawals
 
 // GET — fetch all withdrawal requests for admin
 export async function GET(req: NextRequest) {

@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
+import { createServiceClient, verifyDeliveryAgent, validateOrigin } from '@/lib/authMiddleware'
 import { processEarnings } from '../utils'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 const MAX_ATTEMPTS = 3
 
 export async function POST(req: NextRequest) {
   try {
+    // ── CSRF protection ──────────────────────────────────────────
+    const originCheck = validateOrigin(req)
+    if (!originCheck.valid) {
+      return NextResponse.json({ error: originCheck.error }, { status: 403 })
+    }
+
     // Rate limit: 10 OTP verifications per minute (brute force protection)
     const identifier = getRateLimitIdentifier(req)
     const rateCheck = await checkRateLimit(identifier, {
       windowMs: 60 * 1000,
       maxRequests: 10,
+      endpoint: 'delivery-verify-otp',
       message: 'Too many verification attempts. Please wait.',
     })
     if (!rateCheck.allowed) {

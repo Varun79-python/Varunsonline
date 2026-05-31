@@ -1,5 +1,6 @@
 'use client'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 interface RoleCard {
   id: string
@@ -51,7 +52,9 @@ export default function LoginPage() {
       padding: '20px 16px 40px',
     }}>
       <div style={{ textAlign: 'center', marginBottom: 32, paddingTop: 20 }}>
-        <img src="/logo.png" alt="VarunsOnline" style={{ width: 160, height: 160, objectFit: 'contain', marginBottom: 16 }} />
+        <Image src="/logo.png" alt="VarunsOnline" width={160} height={160} priority
+          style={{ objectFit: 'contain', marginBottom: 16 }}
+        />
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Welcome Back</h1>
         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Select your role to continue</p>
       </div>

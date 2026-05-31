@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 /**
  * POST /api/delivery/settlement/create-order

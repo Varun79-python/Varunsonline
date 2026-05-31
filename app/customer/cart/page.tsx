@@ -117,7 +117,7 @@ export default function CartPage() {
         {cart.map((item, idx) => (
           <div key={item.product_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 14px', borderBottom: idx < cart.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'all 0.2s ease', opacity: removingId === item.product_id ? 0 : 1 }}>
             <div style={{ width: 64, height: 64, borderRadius: 12, background: '#f8fafc', overflow: 'hidden', flexShrink: 0 }}>
-              {item.image_url ? <img src={item.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.name} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🛍️</div>}
+              {item.image_url ? <img src={item.image_url} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.name} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🛍️</div>}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#0f172a', marginBottom: 4 }}>{item.name}</div>

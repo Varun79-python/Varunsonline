@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
+// PATCH state-changing endpoint
 
 export async function PATCH(req: NextRequest) {
   try {

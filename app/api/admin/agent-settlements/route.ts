@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
 
-export const dynamic = 'force-dynamic'
-
+// Admin list — no cache: admins need immediate reflection of settlement data
 /**
  * GET /api/admin/agent-settlements
  * Returns all settlement-type wallet transactions for delivery agents,

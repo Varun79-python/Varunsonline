@@ -4,7 +4,21 @@ import { createServiceClient } from '@/lib/authMiddleware'
 import { recalcOrder } from '@/lib/order-calculations'
 import { haversineKm } from '@/lib/gps'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
+
+// Simple in-memory rate limiter: max 5 orders per customer per minute
+const orderCounters = new Map<string, { count: number; resetAt: number }>()
+function checkRateLimit(customerId: string): boolean {
+  const now = Date.now()
+  const entry = orderCounters.get(customerId)
+  if (!entry || now > entry.resetAt) {
+    orderCounters.set(customerId, { count: 1, resetAt: now + 60000 })
+    return true
+  }
+  if (entry.count >= 5) return false
+  entry.count++
+  return true
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +53,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cannot place order for another user' }, { status: 403 })
     }
 
+    // Rate limiting
+    if (!checkRateLimit(customerId)) {
+      return NextResponse.json({ error: 'Too many orders. Please wait before placing another.' }, { status: 429 })
+    }
+
     // Verify user has a customer profile
     const serviceSupabase = createServiceClient()
     const { data: profile } = await serviceSupabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
@@ -52,10 +71,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid address' }, { status: 400 })
     }
 
-    // Verify shop exists and is active
-    const { data: shop } = await serviceSupabase.from('shops').select('id, latitude, longitude, is_active').eq('id', shopId).single()
-    if (!shop || !shop.is_active) {
+    // Verify shop exists, is approved, and is active
+    const { data: shop } = await serviceSupabase.from('shops').select('id, latitude, longitude, is_active, is_approved, subscription_end_date').eq('id', shopId).single()
+    if (!shop || !shop.is_active || !shop.is_approved) {
       return NextResponse.json({ error: 'Shop not available' }, { status: 400 })
+    }
+
+    // Verify shop subscription is valid
+    if (shop.subscription_end_date && new Date(shop.subscription_end_date) < new Date()) {
+      return NextResponse.json({ error: 'Shop subscription has expired. Cannot place order.' }, { status: 400 })
+    }
+
+    // ── SERVER-SIDE DELIVERY RADIUS CHECK ──────────────────────────────────
+    // Verify the delivery address is within the shop's delivery radius
+    const { data: radiusSetting } = await serviceSupabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'shop_radius_km')
+      .maybeSingle()
+    const shopRadiusKm = radiusSetting ? Number(radiusSetting.value) : 10
+
+    if (address.latitude && address.longitude && shop.latitude && shop.longitude) {
+      const distance = haversineKm(address.latitude, address.longitude, shop.latitude, shop.longitude)
+      if (distance > shopRadiusKm) {
+        console.warn(`[COD Blocked] Shop ${shopId} is ${distance.toFixed(1)}km from address ${addressId}, radius is ${shopRadiusKm}km`)
+        return NextResponse.json({
+          error: 'This shop does not currently deliver to your saved address.'
+        }, { status: 400 })
+      }
     }
 
     // ── SERVER-SIDE RECALCULATION (never trust client financials) ──────────────
@@ -66,6 +109,7 @@ export async function POST(req: NextRequest) {
       .from('products')
       .select('id, name, price, stock_quantity')
       .in('id', productIds)
+      .eq('is_available', true)
 
     const productMap = new Map((products || []).map(p => [p.id, p]))
     let serverSubtotal = 0

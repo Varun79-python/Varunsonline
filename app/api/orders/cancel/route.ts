@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/authMiddleware'
 import { createServerClient } from '@supabase/ssr'
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 const CANCELLABLE_STATUSES = ['placed', 'payment_pending', 'payment_confirmed', 'shop_accepted', 'order_packed']
 

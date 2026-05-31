@@ -3,7 +3,7 @@ import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
 import crypto from 'crypto'
 import Razorpay from 'razorpay'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 export async function POST(req: NextRequest) {
   try {

@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendFcmToMany } from '@/lib/fcm'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 export async function POST(req: NextRequest) {
   // Lightweight internal auth — only our own server routes call this

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { logger } from '@/lib/logger'
 
-export const dynamic = 'force-dynamic'
+// POST state-changing endpoint
 
 interface VerifyPaymentPayload {
   razorpay_order_id?: string
