@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { uploadImage } from '@/lib/uploadImage'
 
 interface Product { id: string; name: string; category: string; price: number; mrp: number; stock_quantity: number; is_available: boolean; image_url: string }
 interface Shop { id: string; category: string }
@@ -16,6 +17,19 @@ export default function ProductsPage() {
   const [form, setForm] = useState({ name: '', description: '', price: '', mrp: '', unit: 'piece', stock_quantity: '', is_available: true, image_url: '' })
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleImageUpload(file: File) {
+    setUploading(true)
+    const result = await uploadImage(file, 'product-images', 'product')
+    if (result.success) {
+      setForm(f => ({ ...f, image_url: result.publicUrl }))
+    } else {
+      alert(result.error)
+    }
+    setUploading(false)
+  }
 
   useEffect(() => {
     async function load() {
@@ -133,10 +147,28 @@ export default function ProductsPage() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Image URL</label>
-                <input placeholder="https://..." value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Product Photo</label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageUpload(file)
+                      e.target.value = '' // allow re-selecting same file
+                    }}
+                  />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    style={{ padding: '10px 16px', background: uploading ? '#94a3b8' : '#f1f5f9', border: '1.5px dashed #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {uploading ? '⏳ Uploading...' : '📷 Upload Photo'}
+                  </button>
+                  <input placeholder="Or paste URL..." value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box', minWidth: 0 }} />
+                </div>
                 {form.image_url && (
-                  <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
                     <img src={form.image_url} alt="Preview" loading="lazy" decoding="async"
                       style={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 8, display: 'block' }}
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}

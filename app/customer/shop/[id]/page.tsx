@@ -154,13 +154,12 @@ export default function ShopPage() {
         @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .shimmer { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
         .fade-in { animation: fadeInUp 0.4s ease forwards; }
-        .sticky-header { position: sticky; top: 0; z-index: 100; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* Premium Sticky Header with Glassmorphism */}
-      <div className="sticky-header">
+      {/* Shop Hero Image — scrolls with the page naturally */}
+      <div>
         <div style={{ 
           background: shop.shop_image_url 
             ? `linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%), url(${shop.shop_image_url}) center/cover` 

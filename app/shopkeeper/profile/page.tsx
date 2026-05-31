@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationPicker, { type SavedLocation } from '@/components/LocationPicker'
+import { uploadImage } from '@/lib/uploadImage'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 
@@ -44,6 +45,19 @@ export default function ShopkeeperProfile() {
   const [gender, setGender] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleShopImageUpload(file: File) {
+    setUploading(true)
+    const result = await uploadImage(file, 'shop-images', 'shop_image')
+    if (result.success) {
+      update('shop_image_url', result.publicUrl)
+    } else {
+      alert(result.error)
+    }
+    setUploading(false)
+  }
 
   useEffect(() => {
     async function load() {
@@ -142,10 +156,25 @@ export default function ShopkeeperProfile() {
             🏪
           </div>
         )}
-        <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Image URL</label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) handleShopImageUpload(file)
+              e.target.value = ''
+            }}
+          />
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+            style={{ padding: '10px 16px', background: uploading ? '#94a3b8' : '#f1f5f9', border: '1.5px dashed #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            {uploading ? '⏳ Uploading...' : '📷 Upload Photo'}
+          </button>
           <input value={shop.shop_image_url ?? ''} onChange={e => update('shop_image_url', e.target.value)}
-            placeholder="https://..." style={inp} />
+            placeholder="Or paste image URL..." style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box', minWidth: 0 }} />
         </div>
       </div>
 
