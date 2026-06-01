@@ -42,6 +42,7 @@ export default function DeliveryDashboard() {
   const prevAvailIdsRef = useRef<Set<string>>(new Set())
   const firstAvailFetchRef = useRef(true)
   const activeOrderRef = useRef<Order | null>(null)
+  const dismissedOrdersRef = useRef<Map<string, number>>(new Map()) // orderId → timestamp
 
   // Keep ref in sync with state for interval callbacks
   useEffect(() => { activeOrderRef.current = activeOrder }, [activeOrder])
@@ -90,18 +91,28 @@ export default function DeliveryDashboard() {
       showToast('🔒 Account suspended. Contact support.', false)
     } else {
       const orders: AvailOrder[] = data.orders || []
+
+      // Clean up dismissals older than 30s — order reappears automatically
+      const now = Date.now()
+      for (const [id, ts] of dismissedOrdersRef.current) {
+        if (now - ts > 30000) dismissedOrdersRef.current.delete(id)
+      }
+
+      // Hide orders the agent recently dismissed (still in 30s cooldown)
+      const filtered = orders.filter(o => !dismissedOrdersRef.current.has(o.id))
+
       // Detect new available orders and play notification sound
       // (skip the very first fetch on page load — only alert for NEW arrivals)
       if (!firstAvailFetchRef.current) {
-        const newIds = orders.filter(o => !prevAvailIdsRef.current.has(o.id)).map(o => o.id)
+        const newIds = filtered.filter(o => !prevAvailIdsRef.current.has(o.id)).map(o => o.id)
         if (newIds.length > 0) {
           startAlert()
           showToast(`🔔 ${newIds.length} new order${newIds.length > 1 ? 's' : ''} available!`)
         }
       }
       firstAvailFetchRef.current = false
-      prevAvailIdsRef.current = new Set(orders.map(o => o.id))
-      setAvailOrders(orders)
+      prevAvailIdsRef.current = new Set(filtered.map(o => o.id))
+      setAvailOrders(filtered)
     }
   }, [supabase, startAlert])
 
@@ -155,7 +166,7 @@ export default function DeliveryDashboard() {
             await supabase.from('delivery_agents').update({
               last_lat: latitude,
               last_lon: longitude,
-              gps_updated_at: new Date().toISOString(),
+              last_updated: new Date().toISOString(),
             }).eq('id', agentId)
             }
             lastPushedPos.current = { lat: latitude, lon: longitude }
@@ -281,11 +292,11 @@ export default function DeliveryDashboard() {
     setDismissing(order.id)
     // Stop alert sound for this order
     stopAlert()
-    // Remove from local available list so it doesn't show again
+    // Remove from local available list
     setAvailOrders(prev => prev.filter(o => o.id !== order.id))
-    // Track the ID so it won't re-trigger sound on next fetchAvailable
-    prevAvailIdsRef.current = new Set([...prevAvailIdsRef.current, order.id])
-    showToast(`🚫 Order ${order.order_number} dismissed`)
+    // Track as dismissed so it reappears after 30s if still unassigned
+    dismissedOrdersRef.current.set(order.id, Date.now())
+    showToast(`🚫 Order ${order.order_number} dismissed, will reappear if unassigned`)
     setDismissing(null)
   }
 

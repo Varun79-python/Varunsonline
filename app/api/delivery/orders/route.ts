@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     // ── Eligibility + GPS freshness checks ──────────────────────
     const { data: agentRow } = await supabase
       .from('delivery_agents')
-      .select('is_approved, is_available, is_suspended, is_blocked, last_lat, last_lon, gps_updated_at')
+      .select('is_approved, is_available, is_suspended, is_blocked, last_lat, last_lon, last_updated')
       .eq('id', auth.agentId)
       .single()
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     const agentLat = agentRow.last_lat as number | null
     const agentLon = agentRow.last_lon as number | null
-    const gpsUpdatedAt = agentRow.gps_updated_at as string | null
+    const lastUpdated = agentRow.last_updated as string | null
     const hasGps = !!(agentLat && agentLon)
 
     if (!hasGps) {
@@ -66,8 +66,8 @@ export async function GET(req: NextRequest) {
 
     // GPS freshness check — warn if too old (but still return orders, guided by client)
     let gpsIsFresh = false
-    if (gpsUpdatedAt) {
-      const gpsAge = now.getTime() - new Date(gpsUpdatedAt).getTime()
+    if (lastUpdated) {
+      const gpsAge = now.getTime() - new Date(lastUpdated).getTime()
       gpsIsFresh = gpsAge <= GPS_FRESHNESS_MS
     }
     if (!gpsIsFresh) {
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
       .from('delivery_agents')
       .select(`
         is_approved, is_available, is_blocked, is_suspended,
-        last_lat, last_lon, gps_updated_at
+        last_lat, last_lon, last_updated
       `)
       .eq('id', auth.agentId)
       .single()
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
     // ── GPS VALIDATION ──────────────────────────────────────────
     const agentLat = agentRow.last_lat as number | null
     const agentLon = agentRow.last_lon as number | null
-    const gpsUpdatedAt = agentRow.gps_updated_at as string | null
+    const lastUpdated = agentRow.last_updated as string | null
     const hasGps = !!(agentLat && agentLon)
 
     if (!hasGps) {
@@ -204,8 +204,8 @@ export async function POST(req: NextRequest) {
 
     // GPS freshness check — reject if > 15 min old
     let gpsIsFresh = false
-    if (gpsUpdatedAt) {
-      const gpsAge = now.getTime() - new Date(gpsUpdatedAt).getTime()
+    if (lastUpdated) {
+      const gpsAge = now.getTime() - new Date(lastUpdated).getTime()
       gpsIsFresh = gpsAge <= GPS_FRESHNESS_MS
     }
     if (!gpsIsFresh) {
