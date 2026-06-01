@@ -1,5 +1,5 @@
 'use server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -335,7 +335,7 @@ export async function getAdminAgents(tab = 'all', page = 1, pageSize = 25) {
 export async function getAdminStats() {
   const supabase = await createAdminClient()
   const today = new Date().toISOString().split('T')[0]
-  
+
   const [shops, pendShops, agents, pendAgents, customers, orders, todayOrds, withdrawals, recOrders, complaints, totalRevData, subRevData] = await Promise.all([
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', true),
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
@@ -384,7 +384,7 @@ export async function getAdminStats() {
 export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'all') {
   try {
     const supabase = await createAdminClient()
-    
+
     // Get pending count for stats
     const { count: pendingCount } = await supabase
       .from('shop_documents')
@@ -400,19 +400,19 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         .select('id, user_id, status, shop_photo_url, aadhar_url, shop_name, owner_name, category, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
-      
+
       if (error) throw error
 
       // Get user IDs to fetch profiles
       const userIds = docs?.map(d => d.user_id).filter(Boolean) || []
       let profileMap: Record<string, RawProfileRow> = {}
-      
+
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, full_name, phone')
           .in('id', userIds)
-        
+
         profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
       }
 
@@ -439,16 +439,16 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
       let q = supabase.from('shops').select('*').order('created_at', { ascending: false })
       if (tab === 'active') q = q.eq('is_approved', true).eq('is_active', true)
       if (tab === 'rejected') q = q.eq('is_approved', false).not('rejection_reason', 'is', null)
-      
+
       const { data: shops } = await q
-      
+
       // Fetch rejected docs
       let rejectedDocs: RawDocRow[] = []
       if (tab === 'rejected' || tab === 'all') {
         const { data: rDocs } = await supabase.from('shop_documents')
           .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
           .eq('status', 'rejected')
-        
+
         // Get profiles for these docs
         const rejectedUserIds = (rDocs || []).map(d => d.user_id).filter(Boolean)
         let profileMap: Record<string, RawProfileRow> = {}
@@ -456,7 +456,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
           const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', rejectedUserIds)
           profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
         }
-        
+
         rejectedDocs = (rDocs || []).map((doc: RawDocRow) => ({
           ...doc,
           profiles: profileMap[doc.user_id] || null
@@ -469,9 +469,9 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         const { data: aDocs } = await supabase.from('shop_documents')
           .select('id, user_id, status, shop_photo_url, aadhar_url, created_at')
           .eq('status', 'approved')
-        
+
         const shopOwnerIds = new Set((shops || []).map((s: RawShopRow) => s.owner_id))
-        
+
         // Get profiles for remaining docs
         const approvedUserIds = (aDocs || []).map(d => d.user_id).filter(Boolean)
         let profileMap: Record<string, RawProfileRow> = {}
@@ -479,7 +479,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
           const { data: profiles } = await supabase.from('profiles').select('id, full_name, phone').in('id', approvedUserIds)
           profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {})
         }
-        
+
         approvedDocs = (aDocs || []).filter((d: RawDocRow) => !shopOwnerIds.has(d.user_id)).map((doc: RawDocRow) => ({
           ...doc,
           profiles: profileMap[doc.user_id] || null
@@ -504,7 +504,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
         rating: shop.rating || 0,
         total_orders: shop.total_orders || 0
       }))
-      
+
       const mappedRejectedDocs = rejectedDocs.map((doc: RawDocRow) => {
         const profile = doc.profiles
         return {
@@ -557,10 +557,10 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
     return { items: fetchedItems, pendingDocs: pendingCount || 0 }
   } catch (error: unknown) {
     console.error('Error in getAdminShops:', error)
-    return { 
-      items: [], 
-      pendingDocs: 0, 
-      error: error instanceof Error ? error.message : 'Failed to fetch shops. Please ensure database migrations are applied.' 
+    return {
+      items: [],
+      pendingDocs: 0,
+      error: error instanceof Error ? error.message : 'Failed to fetch shops. Please ensure database migrations are applied.'
     }
   }
 }
@@ -568,7 +568,7 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
 export async function deleteShopkeeperShop(userId: string) {
   try {
     const supabase = await createAdminClient()
-    
+
     // Find the shop
     const { data: shop, error: findErr } = await supabase
       .from('shops')
@@ -631,7 +631,7 @@ export async function deleteShopkeeperShop(userId: string) {
 export async function blockShopkeeperShop(userId: string) {
   try {
     const supabase = await createAdminClient()
-    
+
     const { error } = await supabase
       .from('shops')
       .update({ is_active: false, rejection_reason: 'BLOCKED' })
@@ -656,7 +656,7 @@ export async function blockShopkeeperShop(userId: string) {
 export async function unblockShopkeeperShop(userId: string) {
   try {
     const supabase = await createAdminClient()
-    
+
     const { error } = await supabase
       .from('shops')
       .update({ is_active: true, rejection_reason: null })
