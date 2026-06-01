@@ -550,34 +550,51 @@ export async function deleteShopkeeperShop(userId: string) {
     const supabase = await createAdminClient()
     
     // Find the shop
-    const { data: shop } = await supabase
+    const { data: shop, error: findErr } = await supabase
       .from('shops')
       .select('id')
       .eq('owner_id', userId)
       .maybeSingle()
 
+    if (findErr) return { error: `Failed to find shop: ${findErr.message}` }
+
     if (shop) {
       const shopId = shop.id
 
-      // ── PRESERVE ORDERS ──
-      // Nullify shop_id on all orders so they survive without the shop reference
-      await supabase
+      // Delete orders that reference this shop (FK constraint prevents nullifying shop_id)
+      const { error: ordersErr } = await supabase
         .from('orders')
-        .update({ shop_id: null })
+        .delete()
         .eq('shop_id', shopId)
+      if (ordersErr) return { error: `Failed to delete orders: ${ordersErr.message}` }
 
-      // Delete reviews that reference the shop (these are about the shop, not orders)
-      await supabase.from('reviews').delete().eq('shop_id', shopId)
+      // Delete reviews
+      const { error: reviewsErr } = await supabase.from('reviews').delete().eq('shop_id', shopId)
+      if (reviewsErr) return { error: `Failed to delete reviews: ${reviewsErr.message}` }
+
       // Delete coupons
-      await supabase.from('coupons').delete().eq('shop_id', shopId)
-      // Delete products
-      await supabase.from('products').delete().eq('shop_id', shopId)
-      // Delete shop
-      await supabase.from('shops').delete().eq('id', shopId)
+      const { error: couponsErr } = await supabase.from('coupons').delete().eq('shop_id', shopId)
+      if (couponsErr) return { error: `Failed to delete coupons: ${couponsErr.message}` }
+
+      // Delete products (ON DELETE CASCADE, but explicit for clarity)
+      const { error: productsErr } = await supabase.from('products').delete().eq('shop_id', shopId)
+      if (productsErr) return { error: `Failed to delete products: ${productsErr.message}` }
+
+      // Delete shop subscriptions and payments (ON DELETE CASCADE, but explicit for clarity)
+      const { error: subsErr } = await supabase.from('shop_subscriptions').delete().eq('shop_id', shopId)
+      if (subsErr) return { error: `Failed to delete subscriptions: ${subsErr.message}` }
+
+      const { error: paymentsErr } = await supabase.from('subscription_payments').delete().eq('shop_id', shopId)
+      if (paymentsErr) return { error: `Failed to delete payments: ${paymentsErr.message}` }
+
+      // Delete shop (cascades to shop_documents.shop_id)
+      const { error: shopErr } = await supabase.from('shops').delete().eq('id', shopId)
+      if (shopErr) return { error: `Failed to delete shop: ${shopErr.message}` }
     }
 
-    // Delete documents so the user can re-register from scratch
-    await supabase.from('shop_documents').delete().eq('user_id', userId)
+    // Delete documents by user_id (handles pending/rejected docs without a shop)
+    const { error: docsErr } = await supabase.from('shop_documents').delete().eq('user_id', userId)
+    if (docsErr) return { error: `Failed to delete documents: ${docsErr.message}` }
 
     return { success: true }
   } catch (err: unknown) {

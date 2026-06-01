@@ -247,7 +247,18 @@ export default function AdminDashboard() {
         .cc-section-label { font-size: 0.75rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
 
         /* ── Module Cards (horizontal scroll) ── */
-        .cc-modules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+        .cc-modules {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 32px;
+          overflow-x: auto;
+          WebkitOverflowScrolling: touch;
+          scroll-snap-type: x mandatory;
+          padding-bottom: 4px;
+        }
+        .cc-modules::-webkit-scrollbar { height: 4px; }
+        .cc-modules::-webkit-scrollbar-track { background: transparent; }
+        .cc-modules::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
         .cc-module-card {
           background: white;
           border-radius: 16px;
@@ -261,6 +272,7 @@ export default function AdminDashboard() {
           transition: transform 0.15s ease, box-shadow 0.15s ease;
           cursor: pointer;
         }
+        .cc-module-card { min-width: 140px; scroll-snap-align: start; }
         .cc-module-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.07); }
         .cc-module-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .cc-module-title { font-size: 0.85rem; font-weight: 700; color: #0F172A; text-align: center; }
@@ -354,7 +366,7 @@ export default function AdminDashboard() {
           .cc-stats-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 900px) {
-          .cc-modules { grid-template-columns: repeat(3, 1fr); }
+          .cc-modules { gap: 10px; }
         }
         @media (max-width: 640px) {
           .cc-title { font-size: 1.3rem; }

@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAdminAgents } from '@/app/admin/actions'
-import { SkeletonBlock, Skeleton, SkeletonCard } from '@/components/ui/skeleton'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 interface Agent {
   id: string
@@ -15,111 +16,14 @@ interface Agent {
   rejection_reason: string | null; upi_id: string; created_at: string
 }
 
-// Document preview component (extracted to prevent recreation on every render)
-interface DocPreviewProps {
-  url?: string | null
-  label: string
-  fallback?: string
-  getSignedUrl: (bucket: string, path: string) => Promise<string>
-  onPreview: (url: string) => void
-}
-
-function DocPreview({ url, label, fallback = 'Document not uploaded', getSignedUrl, onPreview }: DocPreviewProps) {
-  const [displayUrl, setDisplayUrl] = useState<string>('')
-  const [loading, setLoading] = useState(false)
-  const mountedRef = useRef(true)
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
-
-  useEffect(() => {
-    if (!url) { setDisplayUrl(''); return }
-
-    // Already has signed/token
-    if (url.includes('signed=') || url.includes('?token=') || url.includes('X-Amz-')) {
-      setDisplayUrl(url)
-      return
-    }
-
-    // Extract bucket and path from Supabase storage URL
-    const match = url.match(/storage\.supabase\.co.*\/object\/(?:public\/)?([^/]+)\/(.+)/i)
-    if (!match) {
-      setDisplayUrl(url)
-      return
-    }
-
-    const bucket = match[1] || ''
-    const path = match[2] || ''
-    if (!bucket || !path) {
-      setDisplayUrl(url)
-      return
-    }
-
-    setLoading(true)
-    getSignedUrl(bucket, path).then(signed => {
-      if (mountedRef.current) {
-        setDisplayUrl(signed || url)
-        setLoading(false)
-      }
-    }).catch(() => {
-      if (mountedRef.current) {
-        setDisplayUrl(url)
-        setLoading(false)
-      }
-    })
-  }, [url, getSignedUrl])
-
-  if (!url) {
-    return (
-      <div style={{ border: '1.5px solid #fca5a5', borderRadius: 8, padding: 16, textAlign: 'center', color: '#dc2626', fontSize: '0.8rem' }}>
-        ⚠️ {fallback}
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-      {loading ? (
-        <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-          <Skeleton width={160} height={120} borderRadius={8} />
-        </div>
-      ) : (
-        <img
-          src={displayUrl}
-          alt={label}
-          style={{ width: '100%', height: 160, objectFit: 'cover', cursor: 'pointer' }}
-          onClick={() => displayUrl && onPreview(displayUrl)}
-          onError={() => {
-            setDisplayUrl(url)
-          }}
-        />
-      )}
-      <div style={{ padding: '8px 12px', background: '#f8fafc', textAlign: 'center' }}>
-        <button
-          onClick={() => displayUrl && window.open(displayUrl, '_blank')}
-          style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: displayUrl ? 'pointer' : 'not-allowed', opacity: displayUrl ? 1 : 0.5 }}
-          disabled={!displayUrl}
-        >
-          ↗ View Full
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function AdminAgents() {
   const supabase = createClient()
+  const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
   const [tab, setTab] = useState<'pending' | 'active' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<Agent | null>(null)
-  const [agentOrders, setAgentOrders] = useState<{id:string;order_number:string;status:string;agent_earning:number;created_at:string}[]>([])
-  const [agentOrdersLoading, setAgentOrdersLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const pageSize = 25
@@ -198,7 +102,6 @@ export default function AdminAgents() {
         action === 'approve' ? '✅ Agent approved!' :
         action === 'reject' ? '🚫 Agent rejected.' : '🚫 Agent deactivated.'
       )
-      setSelected(null)
       load()
     } catch (err) {
       showToast('Action failed', false)
@@ -234,10 +137,9 @@ export default function AdminAgents() {
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ agentId: agent.id, action: 'reapprove' })
       })
-      const data = await res.json()
-      if (!res.ok) { showToast(`❌ ${data.error || 'Failed'}`, false); return }
+      const result = await res.json()
+      if (!res.ok) { showToast(`❌ ${result.error || 'Failed'}`, false); return }
       showToast('✅ Agent re-approved!')
-      setSelected(null)
       load()
     } catch (err) {
       showToast('Action failed', false)
@@ -267,8 +169,6 @@ export default function AdminAgents() {
       if (error) throw error
 
       // ── INSTANT UI UPDATE ──────────────────────────────────────────────
-      // Close modal first so user sees the list immediately
-      setSelected(null)
       // Remove agent from local state immediately — no wait for re-fetch
       setAgents(prev => prev.filter(a => a.id !== agent.id))
       // Show success toast (non-blocking — unlike alert())
@@ -285,72 +185,34 @@ export default function AdminAgents() {
     }
   }
 
-  // Signed URL cache (ref-based for immediate access)
-  const signedCache = useRef<Record<string, string>>({})
-
-  async function getSignedUrl(bucket: string, path: string): Promise<string> {
-    const cacheKey = `${bucket}:${path}`
-    if (signedCache.current[cacheKey]) return signedCache.current[cacheKey]
-    try {
-      const res = await fetch(`/api/storage/sign?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`)
-      const data = await res.json()
-      if (data.url) {
-        signedCache.current[cacheKey] = data.url
-        return data.url
-      }
-    } catch (err) { console.error('Sign URL error:', err) }
-    return ''
-  }
-
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div className="ag-container">
       {/* Toast */}
       {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999, background: 'white',
-          border: `1.5px solid ${toast.ok ? '#22c55e' : '#ef4444'}`,
-          borderRadius: 10, padding: '12px 20px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontWeight: 600, fontSize: '0.92rem'
-        }}>
+        <div className="ag-toast" style={{ borderColor: toast.ok ? '#22c55e' : '#ef4444' }}>
           {toast.msg}
         </div>
       )}
 
-      {/* Image Preview Modal */}
-      {previewImage && (
-        <div 
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-          }}
-          onClick={() => setPreviewImage(null)}
-        >
-          <button 
-            style={{ position: 'absolute', top: 20, right: 20, background: 'white', border: 'none', borderRadius: 20, width: 40, height: 40, fontSize: '1.2rem', cursor: 'pointer' }}
-            onClick={() => setPreviewImage(null)}
-          >
-            ✕
-          </button>
-          <img 
-            src={previewImage} 
-            alt="Preview" 
-            style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
-          />
+      <div style={{ marginBottom: 28 }}>
+        <div className="ag-section-label">Fleet Management</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.2, marginBottom: 4 }}>🛵 Delivery Agents</div>
+            <div style={{ fontSize: '0.85rem', color: '#64748B' }}>Manage delivery fleet and agent registrations</div>
+          </div>
+          <button onClick={load} className="ag-refresh-btn">🔄 Refresh</button>
         </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🛵 Delivery Agents</h2>
-        <button onClick={load} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>🔄 Refresh</button>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' }}>
         {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setPage(1) }} style={{ 
-            flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
+            flex: '0 0 auto', padding: '10px 20px', borderRadius: 20, border: '1.5px solid', 
             background: tab === t ? '#22c55e' : 'white', borderColor: tab === t ? '#22c55e' : '#e2e8f0',
-            color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+            color: tab === t ? 'white' : '#64748b', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease'
           }}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -358,80 +220,67 @@ export default function AdminAgents() {
       </div>
 
       {/* Agents List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div>}
         {!loading && agents.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🛵</div>
-            <p style={{ color: '#64748b' }}>No agents found</p>
+          <div style={{ textAlign: 'center', padding: 48, background: 'white', borderRadius: 16, border: '1.5px solid #e2e8f0' }}>
+            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🛵</div>
+            <p style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 500 }}>No agents found</p>
           </div>
         )}
         {agents.map(agent => (
-          <div key={agent.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 50, height: 50, borderRadius: 10, background: agent.is_available ? '#dcfce7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+          <div className="ag-card" key={agent.id}>
+            <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+              <div style={{ width: 54, height: 54, borderRadius: 12, background: agent.is_available ? '#dcfce7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0, border: '1px solid #f1f5f9' }}>
                 {agent.is_available ? '🟢' : '🔴'}
               </div>
-              <div style={{ flex: 1 }}>
-                <button
-                  onClick={() => {
-                    setSelected(agent)
-                    setAgentOrders([])
-                    setAgentOrdersLoading(true)
-                    supabase.from('orders').select('id,order_number,status,agent_earning,created_at')
-                      .eq('agent_id', agent.id).order('created_at', { ascending: false }).limit(20)
-                      .then(({ data }: { data: any[] | null }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
-                  }}
-                  style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontWeight: 800, fontSize: '0.95rem', color: '#0ea5e9', textDecoration: 'underline', textUnderlineOffset: 2, textAlign: 'left' }}
-                  title="View agent details"
-                >
-                  {agent.full_name || 'Unknown'}
-                </button>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{agent.phone || 'N/A'} • {agent.vehicle_type || 'N/A'}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                {agent.is_approved ? (
-                  <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Active</span>
-                ) : agent.rejection_reason ? (
-                  <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Rejected</span>
-                ) : (
-                  <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
-                )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <button
+                      onClick={() => router.push(`/admin/agents/${agent.id}`)}
+                      className="ag-name-btn"
+                    >
+                      {agent.full_name || 'Unknown'}
+                    </button>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>{agent.phone || 'N/A'} • {agent.vehicle_type || 'N/A'}</div>
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
+                    {agent.is_approved ? (
+                      <span className="ag-badge" style={{ background: '#dcfce7', color: '#16a34a' }}>Active</span>
+                    ) : agent.rejection_reason ? (
+                      <span className="ag-badge" style={{ background: '#fee2e2', color: '#dc2626' }}>Rejected</span>
+                    ) : (
+                      <span className="ag-badge" style={{ background: '#fef3c7', color: '#d97706' }}>Pending</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                🚗 {agent.vehicle_number || 'N/A'} • 📦 {agent.total_deliveries || 0} deliveries • 💰 ₹{(agent.wallet_balance || 0).toFixed(0)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+              <div style={{ fontSize: '0.78rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                <span>🚗 {agent.vehicle_number || 'N/A'}</span>
+                <span style={{ color: '#CBD5E1' }}>•</span>
+                <span>📦 {agent.total_deliveries || 0}</span>
+                <span style={{ color: '#CBD5E1' }}>•</span>
+                <span>💰 ₹{(agent.wallet_balance || 0).toFixed(0)}</span>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => {
-                  setSelected(agent)
-                  setAgentOrders([])
-                  setAgentOrdersLoading(true)
-                  supabase.from('orders').select('id,order_number,status,agent_earning,created_at')
-                    .eq('agent_id', agent.id).order('created_at', { ascending: false }).limit(20)
-                    .then(({ data }: { data: {id:string;order_number:string;status:string;agent_earning:number;created_at:string}[] | null }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
-                }} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>View</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button onClick={() => router.push(`/admin/agents/${agent.id}`)} className="ag-btn ag-btn-view">View</button>
                 {!agent.is_approved && !agent.rejection_reason && (
                   <>
-                    <button onClick={() => approve(agent)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>✓</button>
-                    <button onClick={() => reject(agent)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => approve(agent)} className="ag-btn ag-btn-approve">✓</button>
+                    <button onClick={() => reject(agent)} className="ag-btn ag-btn-reject">✕</button>
                   </>
                 )}
                 {agent.is_approved && (
-                  <button onClick={() => deactivate(agent)} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>⏸</button>
+                  <button onClick={() => deactivate(agent)} className="ag-btn" style={{ background: '#ef4444', color: 'white' }}>⏸</button>
                 )}
-                {/* Reapprove button for deactivated agents */}
                 {agent.is_approved && !agent.is_active && (
-                  <button onClick={() => reapproveAgent(agent)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
-                    ✅
-                  </button>
+                  <button onClick={() => reapproveAgent(agent)} className="ag-btn ag-btn-approve">✅</button>
                 )}
-                {/* Delete permanently button for rejected agents */}
                 {agent.rejection_reason && (
-                  <button onClick={() => deleteAgentPermanently(agent)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
-                    🗑️
-                  </button>
+                  <button onClick={() => deleteAgentPermanently(agent)} className="ag-btn" style={{ background: '#dc2626', color: 'white' }}>🗑️</button>
                 )}
               </div>
             </div>
@@ -441,11 +290,12 @@ export default function AdminAgents() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, padding: '12px 0' }}>
+        <div className="ag-pagination">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page <= 1}
-            style={{ padding: '8px 16px', background: page <= 1 ? '#f1f5f9' : '#22c55e', color: page <= 1 ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+            className="ag-page-btn"
+            style={{ background: page <= 1 ? '#f1f5f9' : '#22c55e', color: page <= 1 ? '#94a3b8' : 'white' }}
           >
             ← Prev
           </button>
@@ -453,177 +303,66 @@ export default function AdminAgents() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            style={{ padding: '8px 16px', background: page >= totalPages ? '#f1f5f9' : '#22c55e', color: page >= totalPages ? '#94a3b8' : 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
+            className="ag-page-btn"
+            style={{ background: page >= totalPages ? '#f1f5f9' : '#22c55e', color: page >= totalPages ? '#94a3b8' : 'white' }}
           >
             Next →
           </button>
         </div>
       )}
 
-      {/* Detail Modal - Responsive */}
-      {selected && (
-        <div 
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          }}
-          onClick={() => setSelected(null)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'white', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '90vh',
-              overflow: 'auto', position: 'relative'
-            }}
-          >
-            {/* Modal Header */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>🛵 Agent Details</h3>
-              <button 
-                onClick={() => setSelected(null)}
-                style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div style={{ padding: 20 }}>
-              {/* Basic Info Grid */}
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>Basic Information</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-                  {[
-                    { label: 'Full Name', value: selected.full_name },
-                    { label: 'Phone', value: selected.phone },
-                    { label: 'Email', value: selected.email },
-                    { label: 'Vehicle Type', value: selected.vehicle_type },
-                    { label: 'Vehicle Number', value: selected.vehicle_number },
-                    { label: 'UPI ID', value: selected.upi_id || '—' },
-                  ].map(f => (
-                    <div key={f.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>{f.label}</div>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{f.value || '—'}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Performance Stats */}
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>Performance</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  {[
-                    { label: 'Wallet', value: `₹${(selected.wallet_balance || 0).toFixed(0)}` },
-                    { label: "Today's", value: `₹${(selected.today_earnings || 0).toFixed(0)}` },
-                    { label: 'Deliveries', value: String(selected.total_deliveries || 0) },
-                  ].map(f => (
-                    <div key={f.label} style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 600 }}>{f.label}</div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>{f.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Documents */}
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>📄 Documents</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Aadhaar Card</div>
-<DocPreview url={selected.aadhar_url} label="Aadhaar" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>License</div>
-                      <DocPreview url={selected.license_url} label="License" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>PAN Card</div>
-                      <DocPreview url={selected.pan_url} label="PAN" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Vehicle RC</div>
-                      <DocPreview url={selected.vehicle_rc_url} label="RC" fallback="Not uploaded" getSignedUrl={getSignedUrl} onPreview={setPreviewImage} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Agent Orders */}
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>📦 Orders Delivered</h4>
-                {agentOrdersLoading ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading orders...</div> :
-                agentOrders.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No deliveries yet.</div> :
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                  {agentOrders.map(ord => (
-                    <div key={ord.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>#{ord.order_number}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(ord.created_at).toLocaleDateString('en-IN')}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#16a34a' }}>₹{ord.agent_earning?.toFixed(0)}</div>
-                        <div style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: 99, background: ord.status === 'delivered' ? '#dcfce7' : '#fef3c7', color: ord.status === 'delivered' ? '#16a34a' : '#d97706', display: 'inline-block' }}>{ord.status}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>}
-              </div>
-
-              {/* Status */}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-                <span style={{ background: selected.is_available ? '#dcfce7' : '#f1f5f9', color: selected.is_available ? '#16a34a' : '#64748b', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
-                  {selected.is_available ? '🟢 Online' : '🔴 Offline'}
-                </span>
-                <span style={{ background: selected.is_approved ? '#dcfce7' : selected.rejection_reason ? '#fee2e2' : '#fef3c7', color: selected.is_approved ? '#16a34a' : selected.rejection_reason ? '#dc2626' : '#d97706', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
-                  {selected.is_approved ? '✅ Approved' : selected.rejection_reason ? '❌ Rejected' : '⏳ Pending'}
-                </span>
-                <span style={{ background: '#f8fafc', color: '#64748b', padding: '6px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600 }}>
-                  📅 {new Date(selected.created_at).toLocaleDateString('en-IN')}
-                </span>
-              </div>
-
-              {selected.rejection_reason && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: '0.85rem', color: '#dc2626' }}>
-                  ❌ Rejection Reason: <strong>{selected.rejection_reason}</strong>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!selected.is_approved && !selected.rejection_reason && (
-                  <>
-                    <button disabled={processing} onClick={() => approve(selected)} style={{ padding: '10px 20px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                      {processing ? '⏳' : '✅ Approve'}
-                    </button>
-                    <button disabled={processing} onClick={() => reject(selected)} style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                      {processing ? '⏳' : '❌ Reject'}
-                    </button>
-                  </>
-                )}
-                {selected.is_approved && !selected.is_active && (
-                  <button disabled={processing} onClick={() => reapproveAgent(selected)} style={{ padding: '10px 20px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                    {processing ? '⏳' : '✅ Reapprove'}
-                  </button>
-                )}
-                {selected.is_approved && (
-                  <button disabled={processing} onClick={() => deactivate(selected)} style={{ padding: '10px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                    {processing ? '⏳' : '🚫 Deactivate'}
-                  </button>
-                )}
-                {selected.rejection_reason && (
-                  <button disabled={processing} onClick={() => deleteAgentPermanently(selected)} style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer' }}>
-                    {processing ? '⏳' : '🗑️ Delete Permanently'}
-                  </button>
-                )}
-                <button onClick={() => setSelected(null)} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`
+        .ag-container { max-width: 1000px; margin: 0 auto; }
+        .ag-section-label { font-size: 0.75rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .ag-toast {
+          position: fixed; top: 20; right: 20; z-index: 9999; background: white;
+          border-radius: 10px;
+          padding: 12px 20px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.12); font-weight: 600; font-size: 0.92rem;
+        }
+        .ag-refresh-btn { background: #f1f5f9; border: none; border-radius: 10px; padding: 10px 18px; font-size: 0.78rem; font-weight: 600; color: #64748b; cursor: pointer; transition: opacity 0.15s; }
+        .ag-refresh-btn:hover { opacity: 0.7; }
+        .ag-card {
+          background: white;
+          border-radius: 16px;
+          border: 1.5px solid #E2E8F0;
+          padding: 16px 18px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .ag-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .ag-badge {
+          display: inline-block;
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 4px 12px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+        .ag-name-btn { background: none; border: none; padding: 0; margin: 0; cursor: pointer; font-weight: 800; font-size: 0.95rem; color: #0ea5e9; text-decoration: underline; text-underline-offset: 2px; text-align: left; display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ag-name-btn:hover { opacity: 0.8; }
+        .ag-btn {
+          border: none;
+          border-radius: 10px;
+          padding: 8px 14px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: opacity 0.15s ease;
+          white-space: nowrap;
+        }
+        .ag-btn:hover { opacity: 0.85; }
+        .ag-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ag-btn-view { background: #f1f5f9; color: #475569; }
+        .ag-btn-approve { background: #22c55e; color: white; }
+        .ag-btn-reject { background: #dc2626; color: white; }
+        .ag-pagination { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 24px; padding: 16px 0; }
+        .ag-page-btn { border: none; border-radius: 10px; padding: 10px 20px; font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: opacity 0.15s; }
+        .ag-page-btn:hover:not(:disabled) { opacity: 0.85; }
+        .ag-page-btn:disabled { cursor: not-allowed; }
+        @media (max-width: 640px) {
+          .ag-card { padding: 14px; }
+        }
+      `}</style>
     </div>
   )
 }

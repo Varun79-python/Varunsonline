@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   getAdminShops,
@@ -46,7 +47,7 @@ interface UnifiedShop {
 }
 interface ShopOrder {
   id: string; order_number: string; status: string; total_amount: number
-  shopkeeper_earning: number; created_at: string
+  shopkeeper_earning: number; admin_earning?: number; payment_method?: string; created_at: string
 }
 
 export default function AdminShops() {
@@ -57,10 +58,14 @@ export default function AdminShops() {
   const [selectedItem, setSelectedItem] = useState<UnifiedShop | null>(null)
   const [shopOrders, setShopOrders] = useState<ShopOrder[]>([])
   const [shopOrdersLoading, setShopOrdersLoading] = useState(false)
+  const [shopOwnerProfile, setShopOwnerProfile] = useState<{ full_name?: string; phone?: string; email?: string; created_at?: string } | null>(null)
+  const [shopOrderCounts, setShopOrderCounts] = useState<{ total: number; delivered: number; cancelled: number; pending: number } | null>(null)
+  const [shopTotalRevenue, setShopTotalRevenue] = useState<number>(0)
   const [rejectReason, setRejectReason] = useState('')
   const [stats, setStats] = useState({ pendingDocs: 0 })
   const [processing, setProcessing] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const router = useRouter()
   
   const loadingRef = useRef(false)
   const mountedRef = useRef(false)
@@ -111,10 +116,22 @@ export default function AdminShops() {
     if (!loadingRef.current) load() 
   }, [tab])
 
+  function clearSelectedItem() {
+    setSelectedItem(null)
+    setRejectReason('')
+    setShopOrders([])
+    setShopOwnerProfile(null)
+    setShopOrderCounts(null)
+    setShopTotalRevenue(0)
+  }
+
   async function handleSelectShop(item: UnifiedShop) {
     setSelectedItem(item)
     setRejectReason('')
     setShopOrders([])
+    setShopOwnerProfile(null)
+    setShopOrderCounts(null)
+    setShopTotalRevenue(0)
     if (item.type === 'shop') {
       setShopOrdersLoading(true)
       try {
@@ -124,6 +141,9 @@ export default function AdminShops() {
         if (res.ok) {
           const data = await res.json()
           setShopOrders(data.orders || [])
+          setShopOwnerProfile(data.owner || null)
+          setShopOrderCounts(data.orderCounts || null)
+          setShopTotalRevenue(data.totalRevenue || 0)
         } else {
           setShopOrders([])
         }
@@ -151,7 +171,7 @@ export default function AdminShops() {
       return
     }
     setItems(prev => prev.filter(s => s.id !== item.id))
-    setSelectedItem(null)
+    clearSelectedItem()
     setProcessing(false)
     load()
   }
@@ -175,8 +195,7 @@ export default function AdminShops() {
     }
 
     setItems(prev => prev.filter(s => s.id !== selectedItem.id))
-    setSelectedItem(null)
-    setRejectReason('')
+    clearSelectedItem()
     setProcessing(false)
     load()
   }
@@ -207,7 +226,7 @@ export default function AdminShops() {
     }
     setProcessing(false)
     load()
-    setSelectedItem(null)
+    clearSelectedItem()
   }
 
   async function handleBlockShop(item: UnifiedShop) {
@@ -218,7 +237,7 @@ export default function AdminShops() {
       alert('Block failed: ' + res.error)
     } else {
       alert('Shop blocked successfully.')
-      setSelectedItem(null)
+      clearSelectedItem()
       load()
     }
     setProcessing(false)
@@ -232,7 +251,7 @@ export default function AdminShops() {
       alert('Unblock failed: ' + res.error)
     } else {
       alert('Shop unblocked successfully.')
-      setSelectedItem(null)
+      clearSelectedItem()
       load()
     }
     setProcessing(false)
@@ -246,18 +265,18 @@ export default function AdminShops() {
       alert('Delete failed: ' + res.error)
     } else {
       alert('Shop registration deleted successfully.')
-      setSelectedItem(null)
+      clearSelectedItem()
       load()
     }
     setProcessing(false)
   }
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div className="sp-container">
       {selectedItem && (
         <div 
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
-          onClick={() => { setSelectedItem(null); setRejectReason('') }}
+          onClick={() => clearSelectedItem()}
         >
           <div 
             style={{ background: 'white', borderRadius: 16, padding: 0, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto' }}
@@ -266,7 +285,7 @@ export default function AdminShops() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>📋 {selectedItem.type === 'document' ? 'Registration Details' : 'Shop Details'}</h3>
               <button 
-                onClick={() => { setSelectedItem(null); setRejectReason('') }}
+          onClick={() => clearSelectedItem()}
                 style={{ background: '#f1f5f9', border: 'none', borderRadius: 20, width: 32, height: 32, fontSize: '1rem', cursor: 'pointer' }}
               >
                 ✕
@@ -311,6 +330,12 @@ export default function AdminShops() {
                   <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Phone</div>
                   <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{selectedItem.phone || '—'}</div>
                 </div>
+                {selectedItem.email && (
+                  <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Email</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{selectedItem.email}</div>
+                  </div>
+                )}
                 {selectedItem.type === 'shop' && (
                   <>
                     <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
@@ -344,19 +369,59 @@ export default function AdminShops() {
                       <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>📦 {selectedItem.total_orders || 0}</div>
                     </div>
                     <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Status</div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Open Status</div>
                       <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{selectedItem.is_open ? '🟢 Open' : '🔴 Closed'}</div>
                     </div>
                     {selectedItem.upi_id && (
-                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
                         <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>UPI ID</div>
                         <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{selectedItem.upi_id}</div>
+                      </div>
+                    )}
+                    {selectedItem.bank_account_number && (
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Bank A/c No.</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.82rem', fontFamily: 'monospace' }}>{selectedItem.bank_account_number}</div>
+                      </div>
+                    )}
+                    {selectedItem.bank_ifsc && (
+                      <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Bank IFSC</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.82rem', fontFamily: 'monospace' }}>{selectedItem.bank_ifsc}</div>
                       </div>
                     )}
                     {selectedItem.latitude && (
                       <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
                         <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>GPS Coordinates</div>
                         <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>📍 {selectedItem.latitude?.toFixed(5)}, {selectedItem.longitude?.toFixed(5)}</div>
+                      </div>
+                    )}
+                    {/* Order Stats */}
+                    {shopOrderCounts && (
+                      <div style={{ background: '#f0fdf4', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, marginBottom: 6 }}>📊 Order Summary</div>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Total: {shopOrderCounts.total}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#16a34a' }}>✅ Delivered: {shopOrderCounts.delivered}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d97706' }}>⏳ Pending: {shopOrderCounts.pending}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>❌ Cancelled: {shopOrderCounts.cancelled}</span>
+                        </div>
+                      </div>
+                    )}
+                    {shopTotalRevenue > 0 && (
+                      <div style={{ background: '#fefce8', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>💰 Total Admin Revenue</div>
+                        <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>₹{shopTotalRevenue.toFixed(0)}</div>
+                      </div>
+                    )}
+                    {/* Owner Profile */}
+                    {shopOwnerProfile && (
+                      <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, marginBottom: 4 }}>👤 Owner Profile</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{shopOwnerProfile.full_name || '—'} {shopOwnerProfile.email ? `· ${shopOwnerProfile.email}` : ''}</div>
+                        {shopOwnerProfile.created_at && (
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 2 }}>Joined: {new Date(shopOwnerProfile.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                        )}
                       </div>
                     )}
                   </>
@@ -368,27 +433,33 @@ export default function AdminShops() {
               </div>
 
               {/* Shop Orders */}
-              {selectedItem.type === 'shop' && (
-                <div style={{ marginBottom: 20 }}>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>📦 Orders from this Shop</h4>
-                  {shopOrdersLoading ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading orders...</div> :
-                  shopOrders.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No orders yet.</div> :
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                    {shopOrders.map(ord => (
-                      <div key={ord.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>#{ord.order_number}</div>
-                          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(ord.created_at).toLocaleDateString('en-IN')}</div>
+                {selectedItem.type === 'shop' && (
+                  <div style={{ marginBottom: 20 }}>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>📦 Orders from this Shop</h4>
+                    {shopOrdersLoading ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading orders...</div> :
+                    shopOrders.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No orders yet.</div> :
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                      {shopOrders.map(ord => (
+                        <div key={ord.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>#<span>{ord.order_number}</span></div>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{new Date(ord.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>₹{ord.total_amount?.toFixed(0)}</div>
+                              <div style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 99, background: ord.status === 'delivered' ? '#dcfce7' : ord.status === 'cancelled' || ord.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: ord.status === 'delivered' ? '#16a34a' : ord.status === 'cancelled' || ord.status === 'rejected' ? '#dc2626' : '#d97706', display: 'inline-block', marginTop: 2 }}>{ord.status}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: '0.72rem', color: '#64748b' }}>
+                            <span>💵 Shop: <strong>₹{ord.shopkeeper_earning?.toFixed(0)}</strong></span>
+                            {(ord as any).payment_method && <span>💳 {(ord as any).payment_method}</span>}
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#16a34a' }}>₹{ord.shopkeeper_earning?.toFixed(0)}</div>
-                          <div style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: 99, background: ord.status === 'delivered' ? '#dcfce7' : '#fef3c7', color: ord.status === 'delivered' ? '#16a34a' : '#d97706', display: 'inline-block' }}>{ord.status}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>}
-                </div>
-              )}
+                      ))}
+                    </div>}
+                  </div>
+                )}
 
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {selectedItem.rejection_reason && selectedItem.rejection_reason !== 'BLOCKED' && (
@@ -437,7 +508,7 @@ export default function AdminShops() {
                     </div>
                   </>
                 )}
-                <button onClick={() => { setSelectedItem(null); setRejectReason('') }} style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => clearSelectedItem()} style={{ padding: 12, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>
               </div>
@@ -446,16 +517,21 @@ export default function AdminShops() {
         </div>
       )}
 
-      <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>🏪 Shops & Registrations</h2>
+      <div style={{ marginBottom: 28 }}>
+        <div className="sp-section-label">Shop Management</div>
+        <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.2, marginBottom: 4 }}>🏪 Shops & Registrations</div>
+        <div style={{ fontSize: '0.85rem', color: '#64748B' }}>Manage shop registrations and active shops</div>
+      </div>
       
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' }}>
           {(['pending', 'active', 'rejected', 'all'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); if (typeof window !== 'undefined') { const url = new URL(window.location.href); url.searchParams.set('tab', t); window.history.replaceState({}, '', url.toString()) } }} style={{ 
-            flex: '0 0 auto', padding: '10px 18px', borderRadius: 20, border: '1.5px solid', 
+            flex: '0 0 auto', padding: '10px 20px', borderRadius: 20, border: '1.5px solid', 
             background: tab === t ? '#f97316' : 'white', borderColor: tab === t ? '#f97316' : '#e2e8f0',
-            color: tab === t ? 'white' : '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+            color: tab === t ? 'white' : '#64748b', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease'
           }}>
-            {t.charAt(0).toUpperCase() + t.slice(1)} {t === 'pending' && stats.pendingDocs > 0 && <span style={{ background: 'white', color: '#f97316', padding: '2px 6px', borderRadius: 10, marginLeft: 4 }}>{stats.pendingDocs}</span>}
+            {t.charAt(0).toUpperCase() + t.slice(1)} {t === 'pending' && stats.pendingDocs > 0 && <span style={{ background: tab === t ? 'rgba(255,255,255,0.3)' : '#f97316', color: tab === t ? 'white' : 'white', padding: '2px 8px', borderRadius: 10, marginLeft: 6, fontSize: '0.75rem' }}>{stats.pendingDocs}</span>}
           </button>
         ))}
       </div>
@@ -474,77 +550,89 @@ export default function AdminShops() {
       )}
 
       {loading ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {items.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12 }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>📋</div>
-              <p style={{ color: '#64748b' }}>No records found</p>
+            <div style={{ textAlign: 'center', padding: 48, background: 'white', borderRadius: 16, border: '1.5px solid #e2e8f0' }}>
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}>📋</div>
+              <p style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 500 }}>No records found</p>
             </div>
           )}
           {items.map(item => (
-            <div key={item.id} style={{ background: 'white', borderRadius: 12, border: '1.5px solid #e2e8f0', padding: 14 }}>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+            <div className="sp-card" key={item.id}>
+              <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
                 {item.image_url ? (
-                  <img src={item.image_url} alt="" loading="lazy" decoding="async" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover' }} />
+                  <img src={item.image_url} alt="" loading="lazy" decoding="async" style={{ width: 54, height: 54, borderRadius: 12, objectFit: 'cover', flexShrink: 0, border: '1px solid #f1f5f9' }} />
                 ) : (
-                  <div style={{ width: 50, height: 50, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📋</div>
+                  <div style={{ width: 54, height: 54, borderRadius: 12, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0 }}>📋</div>
                 )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{item.name}</span>
-                    {/* ℹ️ Info button — opens detail modal for any shop/registration */}
-                    <button
-                      onClick={() => handleSelectShop(item)}
-                      title="View Details"
-                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, flexShrink: 0 }}
-                    >
-                      ℹ
-                    </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {item.type === 'shop' ? (
+                        <button
+                          onClick={() => router.push(`/admin/shops/${item.id}`)}
+                          title="View full shop details"
+                          style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0ea5e9', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%' }}
+                        >
+                          {item.name}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSelectShop(item)}
+                          title="View Details"
+                          style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', display: 'block', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        >
+                          {item.name}
+                        </button>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>{item.type === 'document' ? '📄 Registration' : `${item.category} • ${item.city || 'N/A'}`}</div>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                      {!item.is_approved && !item.rejection_reason ? (
+                        <span className="sp-badge sp-badge-pending">Pending</span>
+                      ) : item.rejection_reason === 'BLOCKED' ? (
+                        <span className="sp-badge sp-badge-blocked">Blocked</span>
+                      ) : item.is_active || (item.type === 'document' && item.is_approved) ? (
+                        <span className="sp-badge" style={{ background: '#dcfce7', color: '#16a34a' }}>{item.type === 'document' ? 'Approved' : 'Active'}</span>
+                      ) : (
+                        <span className="sp-badge" style={{ background: '#f1f5f9', color: '#64748b' }}>Inactive</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.type === 'document' ? 'Registration' : `${item.category} • ${item.city || 'N/A'}`}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  {!item.is_approved && !item.rejection_reason ? (
-                    <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Pending</span>
-                  ) : item.rejection_reason === 'BLOCKED' ? (
-                    <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Blocked</span>
-                  ) : item.is_active || (item.type === 'document' && item.is_approved) ? (
-                    <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>{item.type === 'document' ? 'Approved' : 'Active'}</span>
-                  ) : (
-                    <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: 6 }}>Inactive / Rejected</span>
-                  )}
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                  👤 {item.full_name || 'N/A'} • 📱 {item.phone || 'N/A'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+                <div style={{ fontSize: '0.78rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>👤 {item.full_name || 'N/A'}</span>
+                  <span style={{ color: '#CBD5E1' }}>•</span>
+                  <span>📱 {item.phone || 'N/A'}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   {!item.is_approved && !item.rejection_reason && (
-                    <button onClick={() => handleSelectShop(item)} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Review</button>
+                    <button onClick={() => handleSelectShop(item)} className="sp-btn" style={{ background: '#0ea5e9', color: 'white' }}>Review</button>
                   )}
                   {item.is_approved && item.type === 'shop' && (
                     item.rejection_reason === 'BLOCKED' ? (
-                      <button onClick={() => handleUnblockShop(item)} style={{ background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                      <button onClick={() => handleUnblockShop(item)} className="sp-btn" style={{ background: '#dcfce7', color: '#16a34a' }}>
                         🔓 Unblock
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => toggleActive(item)} style={{ background: item.is_active ? '#fef3c7' : '#dcfce7', color: item.is_active ? '#d97706' : '#16a34a', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                        <button onClick={() => toggleActive(item)} className="sp-btn" style={{ background: item.is_active ? '#fef3c7' : '#dcfce7', color: item.is_active ? '#d97706' : '#16a34a' }}>
                           {item.is_active ? '⏸️ Pause' : '▶️ Activate'}
                         </button>
-                        <button onClick={() => handleBlockShop(item)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                        <button onClick={() => handleBlockShop(item)} className="sp-btn" style={{ background: '#fee2e2', color: '#dc2626' }}>
                           🚫 Block
                         </button>
                       </>
                     )
                   )}
                   {item.is_approved && !item.is_active && item.type === 'shop' && item.rejection_reason !== 'BLOCKED' && (
-                    <button onClick={() => reapproveShop(item)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                    <button onClick={() => reapproveShop(item)} className="sp-btn" style={{ background: '#22c55e', color: 'white' }}>
                       ✅ Reapprove
                     </button>
                   )}
-                  <button onClick={() => handleDeleteShop(item)} style={{ background: '#be123c', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                  <button onClick={() => handleDeleteShop(item)} className="sp-btn" style={{ background: '#be123c', color: 'white' }}>
                     🗑️ Delete
                   </button>
                 </div>
@@ -553,6 +641,44 @@ export default function AdminShops() {
           ))}
         </div>
       )}
+      
+      <style>{`
+        .sp-container { max-width: 1000px; margin: 0 auto; }
+        .sp-section-label { font-size: 0.75rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .sp-card {
+          background: white;
+          border-radius: 16px;
+          border: 1.5px solid #E2E8F0;
+          padding: 16px 18px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .sp-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .sp-badge {
+          display: inline-block;
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 4px 12px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+        .sp-badge-pending { background: #fef3c7; color: #d97706; }
+        .sp-badge-blocked { background: #fee2e2; color: #dc2626; }
+        .sp-btn {
+          border: none;
+          border-radius: 10px;
+          padding: 8px 14px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: opacity 0.15s ease;
+          white-space: nowrap;
+        }
+        .sp-btn:hover { opacity: 0.85; }
+        .sp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        @media (max-width: 640px) {
+          .sp-card { padding: 14px; }
+        }
+      `}</style>
     </div>
   )
 }
