@@ -107,18 +107,22 @@ export default function ShopkeeperOrders() {
 
     try {
       setPackError(null)
-      const { error: updateErr } = await supabase
+      const { data, error: updateErr } = await supabase
         .from('orders')
         .update({ status: 'order_packed', packed_at: new Date().toISOString() })
         .eq('id', orderId)
-        .eq('status', 'shop_accepted') // atomic guard: only update if still in correct state
+        .eq('status', 'shop_accepted')
+        .select('id')
       if (updateErr) { setPackError(updateErr.message); return }
-      if (!updateErr) { // ensure at least one row was updated
-        const { error: histErr } = await supabase
-          .from('order_status_history')
-          .insert({ order_id: orderId, status: 'order_packed' })
-        if (histErr) console.error('[shopkeeper-orders] history insert error:', histErr)
+      // If 0 rows matched, the order was already claimed by a delivery agent
+      if (!data || data.length === 0) {
+        setPackError('Order was already assigned to a delivery agent. Refresh to see current status.')
+        return
       }
+      const { error: histErr } = await supabase
+        .from('order_status_history')
+        .insert({ order_id: orderId, status: 'order_packed' })
+      if (histErr) console.error('[shopkeeper-orders] history insert error:', histErr)
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'order_packed' } : o))
       setPacking(null)
     } catch (err) {

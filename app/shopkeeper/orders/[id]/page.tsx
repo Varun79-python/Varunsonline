@@ -91,7 +91,17 @@ export default function ShopkeeperOrderDetail() {
   }
 
   async function markPacked() {
-    await supabase.from('orders').update({ status: 'order_packed', packed_at: new Date().toISOString() }).eq('id', id)
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status: 'order_packed', packed_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('status', 'shop_accepted')
+      .select('id')
+    if (error) { console.error('Failed to mark as packed:', error); return }
+    if (!data || data.length === 0) {
+      alert('Order was already assigned to a delivery agent. Refresh to see current status.')
+      return
+    }
     await supabase.from('order_status_history').insert({ order_id: id, status: 'order_packed' })
     setOrder(prev => prev ? { ...prev, status: 'order_packed' } : null)
   }

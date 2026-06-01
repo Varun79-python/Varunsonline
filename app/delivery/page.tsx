@@ -41,6 +41,10 @@ export default function DeliveryDashboard() {
   const lastPushTime = useRef<number>(0)
   const prevAvailIdsRef = useRef<Set<string>>(new Set())
   const firstAvailFetchRef = useRef(true)
+  const activeOrderRef = useRef<Order | null>(null)
+
+  // Keep ref in sync with state for interval callbacks
+  useEffect(() => { activeOrderRef.current = activeOrder }, [activeOrder])
 
   // Geolocation state for proximity lock
   const [agentLat, setAgentLat] = useState<number | null>(null)
@@ -226,7 +230,16 @@ export default function DeliveryDashboard() {
     }
 
     loadData()
-    return () => { mounted = false; if (channel) { supabase.removeChannel(channel); channel = null } }
+    // Poll available orders every 10s as a fallback (realtime should catch most)
+    const availPoll = setInterval(() => {
+      if (document.hidden || activeOrderRef.current) return // skip when backgrounded or busy
+      fetchAvailable()
+    }, 10000)
+    return () => {
+      mounted = false
+      if (channel) { supabase.removeChannel(channel); channel = null }
+      clearInterval(availPoll)
+    }
   }, [fetchAvailable, fetchActive, supabase])
 
   async function acceptOrder(order: AvailOrder) {
