@@ -79,11 +79,10 @@ export default function DeliveryDashboard() {
     const authHeader = await getAuthHeader()
     const res = await fetch('/api/delivery/orders', { headers: { ...authHeader } })
     const data = await res.json()
-    if (data.gpsStale || data.gpsRequired) {
-      setGpsRequired(true)
-      setAvailOrders([])
-    } else if (data.atCapacity) {
-      setGpsRequired(false)
+    // Set GPS warning state based on API response
+    setGpsRequired(!!(data.gpsStale || data.gpsRequired))
+
+    if (data.atCapacity) {
       setAvailOrders([])
       // Quietly suppress — agent is at capacity; no need for a loud warning
     } else if (data.blocked) {

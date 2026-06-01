@@ -70,10 +70,8 @@ export async function GET(req: NextRequest) {
       const gpsAge = now.getTime() - new Date(lastUpdated).getTime()
       gpsIsFresh = gpsAge <= GPS_FRESHNESS_MS
     }
-    if (!gpsIsFresh) {
-      // GPS stale — still show orders but flag for client to prompt refresh
-      return NextResponse.json({ orders: [], gpsStale: true, gpsRequired: true })
-    }
+    const gpsStale = !gpsIsFresh
+
 
     // ── Active order limit check ────────────────────────────────────
     const { count: activeCount } = await supabase
@@ -124,7 +122,7 @@ export async function GET(req: NextRequest) {
       (o: { distAgentToShop: number | null }) => o.distAgentToShop !== null && o.distAgentToShop <= RADIUS_KM
     )
 
-    return NextResponse.json({ orders: filtered, gpsRequired: false })
+    return NextResponse.json({ orders: filtered, gpsRequired: gpsStale, gpsStale })
   } catch (err) {
     console.error('Available orders error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
