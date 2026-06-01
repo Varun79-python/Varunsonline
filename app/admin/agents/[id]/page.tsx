@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { deleteDeliveryAgent } from '@/app/admin/actions'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // ── Types ──
@@ -199,8 +200,8 @@ export default function AdminAgentDetail() {
           if (m) await supabase.storage.from('agent-documents').remove([m[1]])
         } catch { /* ignore */ }
       }
-      const { error: delErr } = await supabase.from('delivery_agents').delete().eq('id', id)
-      if (delErr) throw delErr
+      const result = await deleteDeliveryAgent(id)
+      if (result.error) throw new Error(result.error)
       alert(`✅ "${agent.full_name}" permanently deleted.`)
       router.push('/admin/agents')
     } catch { alert('❌ Failed to delete agent. Please try again.') }

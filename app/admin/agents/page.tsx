@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getAdminAgents } from '@/app/admin/actions'
+import { getAdminAgents, deleteDeliveryAgent } from '@/app/admin/actions'
 import { SkeletonCard } from '@/components/ui/skeleton'
 
 interface Agent {
@@ -164,9 +164,9 @@ export default function AdminAgents() {
         } catch (e) { console.error('Delete file error:', e) }
       }
 
-      // Delete agent from database
-      const { error } = await supabase.from('delivery_agents').delete().eq('id', agent.id)
-      if (error) throw error
+      // Delete agent from database (uses admin client to bypass RLS + WHERE clause safety)
+      const result = await deleteDeliveryAgent(agent.id)
+      if (result.error) throw new Error(result.error)
 
       // ── INSTANT UI UPDATE ──────────────────────────────────────────────
       // Remove agent from local state immediately — no wait for re-fetch

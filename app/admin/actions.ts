@@ -580,35 +580,40 @@ export async function deleteShopkeeperShop(userId: string) {
 
     if (shop) {
       const shopId = shop.id
+      if (!shopId) return { error: 'Shop ID is undefined' }
+      const NEVER = '00000000-0000-0000-0000-000000000000' as const
 
       // Delete orders that reference this shop (FK constraint prevents nullifying shop_id)
+      // neq('id', NEVER) is a dummy filter that satisfies PostgREST's safety check
+      // requiring a WHERE clause on delete/update.
       const { error: ordersErr } = await supabase
         .from('orders')
         .delete()
+        .neq('id', NEVER)
         .eq('shop_id', shopId)
       if (ordersErr) return { error: `Failed to delete orders: ${ordersErr.message}` }
 
       // Delete reviews
-      const { error: reviewsErr } = await supabase.from('reviews').delete().eq('shop_id', shopId)
+      const { error: reviewsErr } = await supabase.from('reviews').delete().neq('id', NEVER).eq('shop_id', shopId)
       if (reviewsErr) return { error: `Failed to delete reviews: ${reviewsErr.message}` }
 
       // Delete coupons
-      const { error: couponsErr } = await supabase.from('coupons').delete().eq('shop_id', shopId)
+      const { error: couponsErr } = await supabase.from('coupons').delete().neq('id', NEVER).eq('shop_id', shopId)
       if (couponsErr) return { error: `Failed to delete coupons: ${couponsErr.message}` }
 
       // Delete products (ON DELETE CASCADE, but explicit for clarity)
-      const { error: productsErr } = await supabase.from('products').delete().eq('shop_id', shopId)
+      const { error: productsErr } = await supabase.from('products').delete().neq('id', NEVER).eq('shop_id', shopId)
       if (productsErr) return { error: `Failed to delete products: ${productsErr.message}` }
 
       // Delete shop subscriptions and payments (ON DELETE CASCADE, but explicit for clarity)
-      const { error: subsErr } = await supabase.from('shop_subscriptions').delete().eq('shop_id', shopId)
+      const { error: subsErr } = await supabase.from('shop_subscriptions').delete().neq('id', NEVER).eq('shop_id', shopId)
       if (subsErr) return { error: `Failed to delete subscriptions: ${subsErr.message}` }
 
-      const { error: paymentsErr } = await supabase.from('subscription_payments').delete().eq('shop_id', shopId)
+      const { error: paymentsErr } = await supabase.from('subscription_payments').delete().neq('id', NEVER).eq('shop_id', shopId)
       if (paymentsErr) return { error: `Failed to delete payments: ${paymentsErr.message}` }
 
       // Delete shop (cascades to shop_documents.shop_id)
-      const { error: shopErr } = await supabase.from('shops').delete().eq('id', shopId)
+      const { error: shopErr } = await supabase.from('shops').delete().neq('id', NEVER).eq('id', shopId)
       if (shopErr) return { error: `Failed to delete shop: ${shopErr.message}` }
     }
 
@@ -794,6 +799,28 @@ export async function reapproveShopRecord(
       body: 'Your registration has been re-approved!',
       type: 'shop_approved',
     })
+
+    return { success: true }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── Permanently delete a delivery agent (admin only) ─────────────────────────
+export async function deleteDeliveryAgent(agentId: string) {
+  try {
+    // Use session-based client — RLS policy "Admin manages all agents" FOR ALL
+    // USING (public.is_admin()) already allows admins to delete. We only need
+    // neq() to satisfy PostgREST's WHERE clause safety check on .delete().
+    const supabase = await createClient()
+    const NEVER = '00000000-0000-0000-0000-000000000000' as const
+
+    const { error } = await supabase
+      .from('delivery_agents')
+      .delete()
+      .neq('id', NEVER)
+      .eq('id', agentId)
+    if (error) return { error: `Failed to delete agent: ${error.message}` }
 
     return { success: true }
   } catch (err: unknown) {
