@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SkeletonBlock } from '@/components/ui/skeleton'
 
@@ -19,6 +20,7 @@ interface ShopDetail {
 }
 
 export default function AdminOrders() {
+  const router = useRouter()
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
   const [search, setSearch] = useState('')
@@ -130,6 +132,9 @@ export default function AdminOrders() {
 
   return (
     <div style={{ padding: '0 4px' }}>
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
+      </button>
       <h2 style={{ marginBottom: 16, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>📦 Orders</h2>
       
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>

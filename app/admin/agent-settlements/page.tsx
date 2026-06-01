@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Transaction {
@@ -34,6 +35,7 @@ interface PendingAgent {
 }
 
 export default function AdminAgentSettlements() {
+  const router = useRouter()
   const supabase = createClient()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [agentStats, setAgentStats] = useState<AgentStat[]>([])
@@ -86,6 +88,9 @@ export default function AdminAgentSettlements() {
       {/* Header */}
       <div className="flex-between" style={{ marginBottom: 24 }}>
         <div>
+          <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            ← Command Center
+          </button>
           <h2 style={{ marginBottom: 4 }}>💳 Agent COD Settlements</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
             Track Razorpay payments from agents settling their COD cash balance

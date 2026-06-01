@@ -1,10 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Coupon { id: string; code: string; description: string; discount_type: string; discount_value: number; min_order_amount: number; used_count: number; is_active: boolean; valid_until: string }
 
 export default function AdminCoupons() {
+  const router = useRouter()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ code: '', description: '', discount_type: 'percent', discount_value: '', min_order_amount: '0', max_discount: '', valid_until: '' })
@@ -92,6 +94,9 @@ export default function AdminCoupons() {
   return (
     <div className="fade-in">
       <div className="flex-between" style={{ marginBottom: 24 }}>
+        <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Command Center
+        </button>
         <h2>🏷️ Coupons & Discounts</h2>
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Create Coupon</button>
       </div>

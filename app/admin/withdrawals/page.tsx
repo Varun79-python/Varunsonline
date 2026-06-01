@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SkeletonBlock } from '@/components/ui/skeleton'
 
@@ -20,6 +21,7 @@ interface Withdrawal {
 }
 
 export default function AdminWithdrawals() {
+  const router = useRouter()
   const supabase = createClient()
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,6 +95,9 @@ export default function AdminWithdrawals() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Command Center
+        </button>
         <h2>💸 Withdrawal Requests</h2>
         <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>🔄 Refresh</button>
       </div>

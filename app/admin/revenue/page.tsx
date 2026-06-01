@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ function TrendChart({ data }: { data: { date: string; revenue: number }[] }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function AdminRevenueAnalytics() {
+  const router = useRouter()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -171,6 +173,9 @@ export default function AdminRevenueAnalytics() {
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
+        <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Command Center
+        </button>
         <h2 style={{ fontWeight: 900, fontSize: '1.6rem', color: '#0f172a', margin: 0 }}>💎 Revenue Analytics</h2>
         <p style={{ color: '#64748b', marginTop: 4, fontSize: '0.88rem' }}>Complete financial command center — Varun&apos;s Online</p>
       </div>

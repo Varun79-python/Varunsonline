@@ -47,6 +47,9 @@ export default function AdminCustomers() {
 
   return (
     <div className="cc-container">
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
+      </button>
       <div style={{ marginBottom: 28 }}>
         <div className="cc-section-label">Customer Management</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>

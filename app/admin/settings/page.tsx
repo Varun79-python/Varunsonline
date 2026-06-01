@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Setting { key: string; value: string; description: string }
@@ -14,6 +15,7 @@ const SETTING_LABELS: Record<string, string> = {
 }
 
 export default function AdminSettings() {
+  const router = useRouter()
   const supabase = createClient()
   const [settings, setSettings] = useState<Setting[]>([])
   const [saving, setSaving] = useState(false)
@@ -44,6 +46,9 @@ export default function AdminSettings() {
 
   return (
     <div className="fade-in" style={{ maxWidth: 600 }}>
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
+      </button>
       <h2 style={{ marginBottom: 8 }}>⚙️ Platform Settings</h2>
       <p style={{ marginBottom: 28 }}>Control all pricing and platform parameters from here.</p>
 

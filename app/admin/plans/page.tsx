@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Plan {
@@ -16,6 +17,7 @@ const emptyPlan: {
 } = { name: '', description: '', plan_type: 'fixed_monthly', fee_percent: 0, monthly_fee: 299, duration_days: 30, is_active: true }
 
 export default function AdminPlans() {
+  const router = useRouter()
   const supabase = createClient()
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,6 +106,9 @@ export default function AdminPlans() {
     <div className="fade-in">
       <div className="flex-between" style={{ marginBottom: 20 }}>
         <div>
+          <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            ← Command Center
+          </button>
           <h2 style={{ marginBottom: 4 }}>📋 Subscription Plans</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Create plans here. Shopkeepers will choose their preferred plan from these options.

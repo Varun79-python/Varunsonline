@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { LoadingPage } from '@/components/ui/skeleton'
 
@@ -35,6 +36,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export default function AdminComplaintsPage() {
+  const router = useRouter()
   const supabase = createClient()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,6 +106,9 @@ export default function AdminComplaintsPage() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 24 }}>
+        <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Command Center
+        </button>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Customer Complaints</h1>
         <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Manage and resolve customer complaints</p>
       </div>

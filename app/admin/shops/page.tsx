@@ -517,6 +517,9 @@ export default function AdminShops() {
         </div>
       )}
 
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
+      </button>
       <div style={{ marginBottom: 28 }}>
         <div className="sp-section-label">Shop Management</div>
         <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.2, marginBottom: 4 }}>🏪 Shops & Registrations</div>

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface SettlementEntry {
@@ -12,6 +13,7 @@ interface SettlementEntry {
 }
 
 export default function AdminCodSettlements() {
+  const router = useRouter()
   const supabase = createClient()
   const [entries, setEntries] = useState<SettlementEntry[]>([])
   const [summary, setSummary] = useState<any>({})
@@ -66,6 +68,9 @@ export default function AdminCodSettlements() {
     <div className="fade-in">
       <div className="flex-between" style={{ marginBottom: 16 }}>
         <div>
+          <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            ← Command Center
+          </button>
           <h2 style={{ marginBottom: 4 }}>📋 COD Settlements</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Track and manage delivery agent COD collections

@@ -194,6 +194,9 @@ export default function AdminAgents() {
         </div>
       )}
 
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
+      </button>
       <div style={{ marginBottom: 28 }}>
         <div className="ag-section-label">Fleet Management</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
