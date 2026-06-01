@@ -102,7 +102,7 @@ export default function AdminCustomerDetail() {
     <div style={{ padding: 40, textAlign: 'center' }}>
       <div style={{ color: '#ef4444', fontSize: '1.1rem', fontWeight: 700, marginBottom: 8 }}>❌ Error</div>
       <div style={{ color: '#64748b', marginBottom: 16 }}>{error || 'Customer not found'}</div>
-      <button onClick={() => router.back()} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>← Go Back</button>
+      <button onClick={() => router.push('/admin')} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>← Go Back</button>
     </div>
   )
 
@@ -111,8 +111,8 @@ export default function AdminCustomerDetail() {
   return (
     <div className="cd-container">
       {/* Back */}
-      <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 18, padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-        ← Back to Customers
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 18, padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Command Center
       </button>
 
       {/* ── Header ── */}

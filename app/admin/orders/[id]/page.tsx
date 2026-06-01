@@ -144,7 +144,7 @@ export default function AdminOrderDetail() {
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '4px 0' }}>
       {/* Back */}
-      <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 18, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <button onClick={() => router.push('/admin')} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem', marginBottom: 18, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         ← Back to Orders
       </button>
 
