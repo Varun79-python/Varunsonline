@@ -285,6 +285,26 @@ export async function getAdminCustomers(page = 1, pageSize = 25) {
   return { data, count: count || 0, error }
 }
 
+export async function getAdminShopkeepers(page = 1, pageSize = 25) {
+  const supabase = await createAdminClient()
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const { count } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('role', 'shopkeeper')
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'shopkeeper')
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  return { data, count: count || 0, error }
+}
+
 export async function getAdminAgents(tab = 'all', page = 1, pageSize = 25) {
   const supabase = await createAdminClient()
   const from = (page - 1) * pageSize

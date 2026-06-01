@@ -14,6 +14,7 @@ interface RecentOrder {
 const MODULES = [
   { icon: '📦', title: 'Orders', desc: 'Track & manage all orders', href: '/admin/orders', color: '#2563EB' },
   { icon: '🏪', title: 'Shops', desc: 'Manage shop registrations', href: '/admin/shops', color: '#059669' },
+  { icon: '🧑‍💼', title: 'Shopkeepers', desc: 'Shopkeeper profiles', href: '/admin/shopkeepers', color: '#D97706' },
   { icon: '🛵', title: 'Agents', desc: 'Manage delivery fleet', href: '/admin/agents', color: '#D97706' },
   { icon: '👥', title: 'Users', desc: 'View customer profiles', href: '/admin/customers', color: '#7C3AED' },
   { icon: '💸', title: 'Payouts', desc: 'Process withdrawals', href: '/admin/withdrawals', color: '#DC2626' },
