@@ -32,12 +32,15 @@ export default function DeliveryDashboard() {
   const [accepting, setAccepting] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
+  const [dismissing, setDismissing] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [gpsRequired, setGpsRequired] = useState(false)
   const { start: startAlert, stop: stopAlert } = useOrderAlert()
   const alertedOrderIdRef = useRef<string | null>(null)
   const lastPushedPos = useRef<{ lat: number; lon: number } | null>(null)
   const lastPushTime = useRef<number>(0)
+  const prevAvailIdsRef = useRef<Set<string>>(new Set())
+  const firstAvailFetchRef = useRef(true)
 
   // Geolocation state for proximity lock
   const [agentLat, setAgentLat] = useState<number | null>(null)
@@ -82,10 +85,21 @@ export default function DeliveryDashboard() {
       setAvailOrders([])
       showToast('🔒 Account suspended. Contact support.', false)
     } else {
-      setGpsRequired(false)
-      setAvailOrders(data.orders || [])
+      const orders: AvailOrder[] = data.orders || []
+      // Detect new available orders and play notification sound
+      // (skip the very first fetch on page load — only alert for NEW arrivals)
+      if (!firstAvailFetchRef.current) {
+        const newIds = orders.filter(o => !prevAvailIdsRef.current.has(o.id)).map(o => o.id)
+        if (newIds.length > 0) {
+          startAlert()
+          showToast(`🔔 ${newIds.length} new order${newIds.length > 1 ? 's' : ''} available!`)
+        }
+      }
+      firstAvailFetchRef.current = false
+      prevAvailIdsRef.current = new Set(orders.map(o => o.id))
+      setAvailOrders(orders)
     }
-  }, [supabase])
+  }, [supabase, startAlert])
 
   const fetchActive = useCallback(async (uid: string) => {
     const authHeader = await getAuthHeader()
@@ -247,6 +261,19 @@ export default function DeliveryDashboard() {
       if (act) refreshGPS(act)
       showToast(`✅ Order ${order.order_number} accepted!`)
     } finally { setAccepting(null) }
+  }
+
+  async function dismissOrder(order: AvailOrder) {
+    if (!agentId || dismissing) return
+    setDismissing(order.id)
+    // Stop alert sound for this order
+    stopAlert()
+    // Remove from local available list so it doesn't show again
+    setAvailOrders(prev => prev.filter(o => o.id !== order.id))
+    // Track the ID so it won't re-trigger sound on next fetchAvailable
+    prevAvailIdsRef.current = new Set([...prevAvailIdsRef.current, order.id])
+    showToast(`🚫 Order ${order.order_number} dismissed`)
+    setDismissing(null)
   }
 
   async function updateStatus(orderId: string, status: string) {
@@ -779,8 +806,18 @@ export default function DeliveryDashboard() {
                           <div className="dl-avail-earn">₹{order.agent_earning}</div>
                         </div>
                       <div className="dl-avail-actions">
-                        <button className="dl-accept-btn" disabled={accepting === order.id} onClick={() => acceptOrder(order)}>
+                        <button className="dl-accept-btn" disabled={accepting === order.id || dismissing === order.id} onClick={() => acceptOrder(order)}>
                           {accepting === order.id ? '⏳ Accepting...' : '✓ Accept'}
+                        </button>
+                        <button className="dl-reject-btn" disabled={dismissing === order.id || accepting === order.id} onClick={() => dismissOrder(order)}
+                          style={{
+                            background: dismissing === order.id ? '#fee2e2' : '#fef2f2',
+                            color: '#dc2626', border: '1.5px solid #fca5a5', borderRadius: 9,
+                            padding: '10px 14px', fontWeight: 700, fontSize: '0.8rem',
+                            cursor: dismissing === order.id ? 'not-allowed' : 'pointer',
+                            opacity: dismissing === order.id ? 0.6 : 1, whiteSpace: 'nowrap',
+                          }}>
+                          {dismissing === order.id ? '...' : '✕ Reject'}
                         </button>
                       </div>
                     </div>

@@ -57,13 +57,9 @@ export default function ShopkeeperDashboard() {
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }
 
-  // Stop alert sound when all pending orders are handled
-  function maybeStopAlert(remainingOrders: Order[]) {
-    if (remainingOrders.length === 0) {
-      stopAlert()
-      alertedRef.current.clear()
-      setAlertingOrderIds(new Set())
-    }
+  // Stop alert sound when any order is accepted/rejected
+  function stopOrderAlert() {
+    stopAlert()
   }
 
   // Fetch pending orders + items via server API (bypasses RLS)
@@ -202,12 +198,10 @@ export default function ShopkeeperDashboard() {
       }
 
       // Success — remove immediately from local state
-      setPendingOrders(prev => {
-        const next = prev.filter(o => o.id !== orderId)
-        maybeStopAlert(next)
-        return next
-      })
-      // Stop alert for this specific order
+      setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+      // Stop incoming-order alert sound
+      stopOrderAlert()
+      // Stop alert tracking for this specific order
       alertedRef.current.delete(orderId)
       setAlertingOrderIds(prev => { const next = new Set(prev); next.delete(orderId); return next })
 
