@@ -130,6 +130,20 @@ export default function AdminAgents() {
 
   useEffect(() => { mountedRef.current = true }, [])
 
+  // Read initial tab from URL (client-only, avoids hydration mismatch)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tabParam = params.get('tab')
+    if (['pending', 'active', 'rejected', 'all'].includes(tabParam || '')) {
+      setTab(tabParam as 'pending' | 'active' | 'rejected' | 'all')
+    }
+  }, [])
+
+  // Reset loading guard whenever tab/page changes (handles URL param tab too)
+  useEffect(() => {
+    loadingRef.current = false
+  }, [tab, page])
+
   function showToast(msg: string, ok = true) {
     if (!mountedRef.current) return
     setToast({ msg, ok })
@@ -359,7 +373,20 @@ export default function AdminAgents() {
                 {agent.is_available ? '🟢' : '🔴'}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{agent.full_name || 'Unknown'}</div>
+                <button
+                  onClick={() => {
+                    setSelected(agent)
+                    setAgentOrders([])
+                    setAgentOrdersLoading(true)
+                    supabase.from('orders').select('id,order_number,status,agent_earning,created_at')
+                      .eq('agent_id', agent.id).order('created_at', { ascending: false }).limit(20)
+                      .then(({ data }: { data: any[] | null }) => { setAgentOrders(data || []); setAgentOrdersLoading(false) })
+                  }}
+                  style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontWeight: 800, fontSize: '0.95rem', color: '#0ea5e9', textDecoration: 'underline', textUnderlineOffset: 2, textAlign: 'left' }}
+                  title="View agent details"
+                >
+                  {agent.full_name || 'Unknown'}
+                </button>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{agent.phone || 'N/A'} • {agent.vehicle_type || 'N/A'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>

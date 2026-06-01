@@ -111,19 +111,27 @@ export default function AdminShops() {
     if (!loadingRef.current) load() 
   }, [tab])
 
-  function handleSelectShop(item: UnifiedShop) {
+  async function handleSelectShop(item: UnifiedShop) {
     setSelectedItem(item)
     setRejectReason('')
     setShopOrders([])
     if (item.type === 'shop') {
-      // Load orders for this shop
       setShopOrdersLoading(true)
-      supabase.from('orders').select('id,order_number,status,total_amount,shopkeeper_earning,created_at')
-        .eq('shop_id', item.id).order('created_at', { ascending: false }).limit(20)
-        .then(({ data }: { data: ShopOrder[] | null }) => {
-          setShopOrders(data || [])
-          setShopOrdersLoading(false)
-        })
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const headers: Record<string, string> = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+        const res = await fetch(`/api/admin/shop-detail?id=${item.id}`, { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setShopOrders(data.orders || [])
+        } else {
+          setShopOrders([])
+        }
+      } catch {
+        setShopOrders([])
+      } finally {
+        setShopOrdersLoading(false)
+      }
     }
   }
 

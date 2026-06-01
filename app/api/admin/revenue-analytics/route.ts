@@ -26,27 +26,35 @@ export async function GET(req: NextRequest) {
     // Verify admin via Authorization header OR session cookie
     const authHeader = req.headers.get('authorization')
     let userId: string | null = null
+    let userEmail: string | null = null
 
     if (authHeader?.startsWith('Bearer ')) {
       const supabase = await createAdminClient()
       const { data: { user } } = await supabase.auth.getUser(authHeader.substring(7))
       userId = user?.id ?? null
+      userEmail = user?.email ?? null
     } else {
       const session = await verifyAdmin()
       userId = session?.user?.id ?? null
+      userEmail = session?.user?.email ?? null
     }
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL
     const db = await createAdminClient()
 
-    // Verify the user has admin role
+    // Verify the user has admin role (check both profile.role and email fallback)
     const { data: profile } = await db
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
-    if (profile?.role !== 'admin') {
+      .maybeSingle()
+
+    const isAdminRole = profile?.role === 'admin'
+    const isAdminEmail = ADMIN_EMAIL && userEmail === ADMIN_EMAIL
+
+    if (!isAdminRole && !isAdminEmail) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -5,35 +5,88 @@ import { createClient } from '@/lib/supabase/client'
 interface Coupon { id: string; code: string; description: string; discount_type: string; discount_value: number; min_order_amount: number; used_count: number; is_active: boolean; valid_until: string }
 
 export default function AdminCoupons() {
-  const supabase = createClient()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ code: '', description: '', discount_type: 'percent', discount_value: '', min_order_amount: '0', max_discount: '', valid_until: '' })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // Helper: get auth headers for API calls
+  async function getAuthHeaders(): Promise<Record<string, string>> {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
+      : { 'Content-Type': 'application/json' }
+  }
 
   useEffect(() => {
-    if (!supabase) return
-    supabase?.from('coupons').select('*').order('created_at', { ascending: false }).then(({ data }: { data: Coupon[] | null }) => setCoupons(data || []))
+    loadCoupons()
   }, [])
+
+  async function loadCoupons() {
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/admin/coupons', { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setCoupons(data || [])
+      }
+    } catch {}
+  }
 
   async function save() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const payload = { ...form, discount_value: Number(form.discount_value), min_order_amount: Number(form.min_order_amount), max_discount: form.max_discount ? Number(form.max_discount) : null, code: form.code.toUpperCase(), created_by: user?.id, valid_until: form.valid_until || null }
-    const { data } = await supabase.from('coupons').insert(payload).select().single()
-    if (data) { setCoupons(prev => [data, ...prev]); setShowForm(false) }
-    setSaving(false)
+    setError('')
+    try {
+      const headers = await getAuthHeaders()
+      const payload = {
+        code: form.code.toUpperCase(),
+        description: form.description,
+        discount_type: form.discount_type,
+        discount_value: Number(form.discount_value),
+        min_order_amount: Number(form.min_order_amount),
+        max_discount: form.max_discount ? Number(form.max_discount) : null,
+        valid_until: form.valid_until || null,
+      }
+      const res = await fetch('/api/admin/coupons', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setError(err.error || 'Failed to create coupon')
+        return
+      }
+      const data = await res.json()
+      if (data) { setCoupons(prev => [data, ...prev]); setShowForm(false); setError('') }
+    } catch (e) {
+      setError('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function toggle(c: Coupon) {
-    await supabase.from('coupons').update({ is_active: !c.is_active }).eq('id', c.id)
-    setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_active: !x.is_active } : x))
+    try {
+      const headers = await getAuthHeaders()
+      await fetch('/api/admin/coupons', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ id: c.id, is_active: !c.is_active }),
+      })
+      setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_active: !x.is_active } : x))
+    } catch {}
   }
 
   async function deleteCoupon(id: string) {
     if (!confirm('Delete this coupon?')) return
-    await supabase.from('coupons').delete().eq('id', id)
-    setCoupons(prev => prev.filter(c => c.id !== id))
+    try {
+      const headers = await getAuthHeaders()
+      await fetch(`/api/admin/coupons?id=${id}`, { method: 'DELETE', headers })
+      setCoupons(prev => prev.filter(c => c.id !== id))
+    } catch {}
   }
 
   return (
@@ -61,6 +114,11 @@ export default function AdminCoupons() {
             </div>
             {/* Form body */}
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {error && (
+                <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
+                  ⚠️ {error}
+                </div>
+              )}
               {/* Coupon Code */}
               <div>
                 <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: 6 }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>

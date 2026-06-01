@@ -320,7 +320,7 @@ export async function getAdminStats() {
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', true),
     supabase.from('shops').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', true),
-    supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', false),
+    supabase.from('delivery_agents').select('id', { count: 'exact', head: true }).eq('is_approved', false).is('rejection_reason', null),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
     supabase.from('orders').select('id', { count: 'exact', head: true }),
     supabase.from('orders').select('id,admin_earning', { count: 'exact' }).gte('created_at', today).eq('payment_status', 'paid'),
@@ -559,32 +559,14 @@ export async function deleteShopkeeperShop(userId: string) {
     if (shop) {
       const shopId = shop.id
 
-      // Get all orders for this shop
-      const { data: orders } = await supabase
+      // ── PRESERVE ORDERS ──
+      // Nullify shop_id on all orders so they survive without the shop reference
+      await supabase
         .from('orders')
-        .select('id')
+        .update({ shop_id: null })
         .eq('shop_id', shopId)
 
-      const orderIds = orders?.map(o => o.id) || []
-
-      if (orderIds.length > 0) {
-        // Nullify order references in wallet transactions
-        await supabase.from('wallet_transactions').update({ order_id: null }).in('order_id', orderIds)
-        // Delete reviews referencing these orders
-        await supabase.from('reviews').delete().in('order_id', orderIds)
-        // Delete order items
-        await supabase.from('order_items').delete().in('order_id', orderIds)
-        // Delete status history
-        await supabase.from('order_status_history').delete().in('order_id', orderIds)
-        // Delete conversations
-        await supabase.from('order_conversations').delete().in('order_id', orderIds)
-        // Delete payments
-        await supabase.from('payments').delete().in('order_id', orderIds)
-        // Delete orders
-        await supabase.from('orders').delete().in('id', orderIds)
-      }
-
-      // Delete reviews
+      // Delete reviews that reference the shop (these are about the shop, not orders)
       await supabase.from('reviews').delete().eq('shop_id', shopId)
       // Delete coupons
       await supabase.from('coupons').delete().eq('shop_id', shopId)
@@ -594,7 +576,7 @@ export async function deleteShopkeeperShop(userId: string) {
       await supabase.from('shops').delete().eq('id', shopId)
     }
 
-    // Delete documents
+    // Delete documents so the user can re-register from scratch
     await supabase.from('shop_documents').delete().eq('user_id', userId)
 
     return { success: true }
@@ -602,6 +584,7 @@ export async function deleteShopkeeperShop(userId: string) {
     return { error: err instanceof Error ? err.message : String(err) }
   }
 }
+
 
 export async function blockShopkeeperShop(userId: string) {
   try {

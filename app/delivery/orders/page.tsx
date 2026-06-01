@@ -180,7 +180,7 @@ export default function DeliveryOrdersPage() {
 
   // Fetch and set agentId on mount
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: { id: string } | null } }) => {
       if (user) setAgentId(user.id)
     })
   }, [])
