@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
 import { usePushNotifications } from '@/lib/usePushNotifications'
 import ShopLocationBar from '@/components/shared/ShopLocationBar'
+import { useOrderAlert } from '@/lib/useOrderAlert'
 
 const navItems = [
   { href: '/shopkeeper', icon: '📊', label: 'Dashboard' },
@@ -21,6 +22,7 @@ export default function ShopkeeperShell({ children }: { children: React.ReactNod
   const supabase = createClient()
   const [shopName, setShopName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
+  const { start: startAlert, stop: stopAlert } = useOrderAlert()
 
   usePushNotifications(userId)
 
@@ -34,6 +36,63 @@ export default function ShopkeeperShell({ children }: { children: React.ReactNod
     }
     loadUser()
   }, [])
+
+  // Global background listener for pending shopkeeper orders
+  useEffect(() => {
+    if (!userId) return
+
+    let mounted = true
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    async function checkIncoming() {
+      if (!mounted) return
+      try {
+        const { data: shop } = await supabase.from('shops').select('id, is_active, is_approved').eq('owner_id', userId).single()
+        if (!shop || !shop.is_approved || !shop.is_active) return
+
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        
+        const res = await fetch(`/api/shopkeeper/pending-orders?shopId=${shop.id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        })
+        if (res.ok && mounted) {
+          const json = await res.json()
+          const orders = json.orders || []
+          const incoming = orders.filter((o: any) => o.status === 'payment_confirmed' || o.status === 'placed')
+          if (incoming.length > 0) {
+            startAlert()
+          } else {
+            stopAlert()
+          }
+        }
+      } catch (err) {
+        console.error('[shopkeeper-shell] checkIncoming error:', err)
+      }
+    }
+
+    checkIncoming()
+
+    // Subscribe to realtime orders changes for this shopkeeper globally
+    channel = supabase.channel(`shop-global-incoming-${userId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          checkIncoming()
+        }
+      )
+      .subscribe()
+
+    // 12s polling fallback
+    const poll = setInterval(checkIncoming, 12000)
+
+    return () => {
+      mounted = false
+      if (channel) { supabase.removeChannel(channel) }
+      clearInterval(poll)
+      stopAlert()
+    }
+  }, [userId, supabase, startAlert, stopAlert])
 
   async function handleLogout() {
     await supabase.auth.signOut()

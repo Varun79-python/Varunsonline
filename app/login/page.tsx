@@ -1,7 +1,7 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { motion } from 'motion/react'
 import { User, Bike, Store, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -49,32 +49,19 @@ const roles: RoleCard[] = [
   },
 ]
 
-/* ─── Animation variants ────────────────────────────────────────────── */
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.12,
-      delayChildren: 0.15,
-    },
-  },
-}
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] as const },
-  },
-}
-
 /* ─── Page ─────────────────────────────────────────────────────────── */
 
 export default function LoginPage() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return <div style={{ minHeight: '100vh', background: '#ffffff' }} />
+  }
 
   return (
     <div
@@ -89,14 +76,51 @@ export default function LoginPage() {
         padding: '24px 16px',
       }}
     >
+      <style>{`
+        @keyframes loginFadeInDown {
+          from { opacity: 0; transform: translateY(-12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loginFadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .anim-header {
+          animation: loginFadeInDown 0.45s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+        }
+        .anim-container {
+          animation: loginFadeInUp 0.5s cubic-bezier(0.32, 0.72, 0, 1) 0.1s forwards;
+          opacity: 0;
+        }
+        .role-btn {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 18px 20px;
+          background: #ffffff;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 14px;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+          font-family: inherit;
+          font-size: inherit;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+          outlineOffset: 2;
+        }
+        .role-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .role-btn:active {
+          transform: scale(0.98);
+        }
+      `}</style>
+
       <div style={{ width: '100%', maxWidth: 420 }}>
         {/* ── Header ──────────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
-          style={{ textAlign: 'center', marginBottom: 36 }}
-        >
+        <div className="anim-header" style={{ textAlign: 'center', marginBottom: 36 }}>
           <Image
             src="/logo.png"
             alt="VarunsOnline"
@@ -125,13 +149,11 @@ export default function LoginPage() {
           >
             Select your role to continue
           </p>
-        </motion.div>
+        </div>
 
         {/* ── Role cards ─────────────────────────────────────────── */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+        <div
+          className="anim-container"
           style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
           role="list"
           aria-label="Available roles"
@@ -139,51 +161,30 @@ export default function LoginPage() {
           {roles.map((role) => {
             const Icon = role.icon
             return (
-              <motion.button
+              <button
                 key={role.id}
-                variants={cardVariants}
                 onClick={() => router.push(role.href)}
+                className="role-btn"
                 role="listitem"
                 aria-label={`Continue as ${role.label}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  padding: '18px 20px',
-                  background: '#ffffff',
-                  border: '1.5px solid var(--border, #e2e8f0)',
-                  borderRadius: 'var(--radius, 14px)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  width: '100%',
-                  fontFamily: 'inherit',
-                  fontSize: 'inherit',
-                  boxShadow: 'var(--shadow, 0 2px 12px rgba(0,0,0,0.08))',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
-                  outlineOffset: 2,
-                }}
-                whileHover={{
-                  y: -3,
-                  boxShadow: 'var(--shadow-md, 0 4px 24px rgba(0,0,0,0.1))',
-                  borderColor: role.color,
-                  transition: { duration: 0.2, ease: 'easeOut' },
-                }}
-                whileTap={{ scale: 0.98 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = role.color
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${role.color}22`
+                  e.currentTarget.style.borderColor = role.color;
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${role.color}22`;
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border, #e2e8f0)'
-                  e.currentTarget.style.boxShadow = 'var(--shadow, 0 2px 12px rgba(0,0,0,0.08))'
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)';
                 }}
+                style={{
+                  '--hover-border': role.color
+                } as any}
               >
                 {/* Icon */}
                 <div
                   style={{
                     width: 52,
                     height: 52,
-                    borderRadius: 'var(--radius-sm, 8px)',
+                    borderRadius: 8,
                     background: role.bgColor,
                     display: 'flex',
                     alignItems: 'center',
@@ -227,17 +228,19 @@ export default function LoginPage() {
                   strokeWidth={2}
                   aria-hidden="true"
                 />
-              </motion.button>
+              </button>
             )
           })}
-        </motion.div>
+        </div>
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.85 }}
-          style={{ textAlign: 'center', marginTop: 36 }}
+        <div
+          style={{
+            textAlign: 'center',
+            marginTop: 36,
+            animation: 'loginFadeInUp 0.5s ease 0.2s forwards',
+            opacity: 0
+          }}
         >
           <p
             style={{
@@ -251,7 +254,7 @@ export default function LoginPage() {
             <a
               href="/terms"
               style={{
-                color: 'var(--primary, #f97316)',
+                color: '#f97316',
                 textDecoration: 'none',
                 fontWeight: 600,
               }}
@@ -262,7 +265,7 @@ export default function LoginPage() {
             <a
               href="/privacy"
               style={{
-                color: 'var(--primary, #f97316)',
+                color: '#f97316',
                 textDecoration: 'none',
                 fontWeight: 600,
               }}
@@ -270,8 +273,9 @@ export default function LoginPage() {
               Privacy Policy
             </a>
           </p>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
 }
+

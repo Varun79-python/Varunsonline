@@ -34,11 +34,15 @@ export async function GET(req: NextRequest) {
     const now = new Date()
 
     // ── Eligibility + GPS freshness checks ──────────────────────
-    const { data: agentRow } = await supabase
+    const { data: agentRow, error: dbError } = await supabase
       .from('delivery_agents')
       .select('is_approved, is_available, is_suspended, is_blocked, last_lat, last_lon, last_updated')
       .eq('id', auth.agentId)
       .single()
+
+    if (dbError) {
+      console.error('[delivery-orders-api] DB agent query error:', dbError.message, dbError)
+    }
 
     if (!agentRow) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

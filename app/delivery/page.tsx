@@ -100,15 +100,6 @@ export default function DeliveryDashboard() {
       // Hide orders the agent recently dismissed (still in 30s cooldown)
       const filtered = orders.filter(o => !dismissedOrdersRef.current.has(o.id))
 
-      // Detect new available orders and play notification sound
-      // (skip the very first fetch on page load — only alert for NEW arrivals)
-      if (!firstAvailFetchRef.current) {
-        const newIds = filtered.filter(o => !prevAvailIdsRef.current.has(o.id)).map(o => o.id)
-        if (newIds.length > 0) {
-          startAlert()
-          showToast(`🔔 ${newIds.length} new order${newIds.length > 1 ? 's' : ''} available!`)
-        }
-      }
       firstAvailFetchRef.current = false
       prevAvailIdsRef.current = new Set(filtered.map(o => o.id))
       setAvailOrders(filtered)

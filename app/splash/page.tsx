@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 
 export default function SplashPage() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [phase, setPhase] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
   const rafRef = useRef<number | null>(null)
@@ -12,6 +13,7 @@ export default function SplashPage() {
   const TOTAL_MS = 3600
 
   useEffect(() => {
+    setMounted(true)
     setPhase(1)
     const animate = (ts: number) => {
       if (!startRef.current) startRef.current = ts
@@ -30,6 +32,10 @@ export default function SplashPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (!mounted) {
+    return <div style={{ minHeight: '100dvh', background: '#ffffff' }} />
+  }
 
   return (
     <div style={{

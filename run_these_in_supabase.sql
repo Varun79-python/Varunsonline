@@ -369,3 +369,54 @@ CREATE POLICY "Public view available products"
   );
 
 SELECT '✅ Shop visibility RLS fixed — closed shops now visible, products browsable.' AS status;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 13. FIX: Available orders RLS — allow delivery agents to view unassigned orders
+--
+-- Old logic only allowed viewing assigned orders. Delivery agents must see unassigned orders
+-- in 'shop_accepted' or 'order_packed' status to receive realtime updates.
+-- ═══════════════════════════════════════════════════════════════════════════
+DROP POLICY IF EXISTS "Agent views unassigned orders" ON public.orders;
+CREATE POLICY "Agent views unassigned orders"
+  ON public.orders FOR SELECT
+  USING (
+    agent_id IS NULL 
+    AND status IN ('shop_accepted', 'order_packed')
+    AND EXISTS (
+      SELECT 1 FROM public.profiles 
+      WHERE id = auth.uid() 
+      AND role = 'delivery_agent'
+    )
+  );
+
+SELECT '✅ Delivery available orders RLS policy added successfully.' AS status;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 14. FIX: Hardening & Missing Delivery Columns (is_suspended, gps_updated_at)
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE public.delivery_agents
+  ADD COLUMN IF NOT EXISTS gps_updated_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS suspension_reason TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_orders_status_unassigned_created_at
+  ON public.orders (status, created_at DESC)
+  WHERE agent_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_delivery_agents_is_available
+  ON public.delivery_agents (is_available);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_agents_is_suspended
+  ON public.delivery_agents (is_suspended)
+  WHERE is_suspended = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_order_status_history_changed_by
+  ON public.order_status_history (changed_by, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_orders_payment_method
+  ON public.orders (payment_method)
+  WHERE payment_method IS NOT NULL;
+
+SELECT '✅ Hardening & suspension system columns/indexes added successfully.' AS status;
+

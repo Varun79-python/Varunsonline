@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SkeletonBlock } from '@/components/ui/skeleton'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { useOrderAlert } from '@/lib/useOrderAlert'
 
 interface AvailableOrder {
   id: string; order_number: string; status: string; agent_earning: number
@@ -40,6 +41,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 export default function DeliveryOrdersPage() {
   const supabase = createClient()
   const router = useRouter()
+  const { start: startAlert, stop: stopAlert } = useOrderAlert()
   const [availableOrders, setAvailableOrders] = useState<AvailableOrder[]>([])
   const [availableLoading, setAvailableLoading] = useState(true)
   const [myOrders, setMyOrders] = useState<MyOrder[]>([])
@@ -54,6 +56,8 @@ export default function DeliveryOrdersPage() {
 
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [acceptError, setAcceptError] = useState<string | null>(null)
+
+
 
   // Load available orders (unassigned, packed, within 5km)
   async function loadAvailable() {
@@ -154,6 +158,10 @@ export default function DeliveryOrdersPage() {
   useEffect(() => {
     const ch = supabase.channel('delivery-available-orders')
       .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: 'status=eq.shop_accepted' },
+        () => { loadAvailable() }
+      )
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: 'status=eq.order_packed' },
         () => { loadAvailable() }
       )
@@ -170,27 +178,28 @@ export default function DeliveryOrdersPage() {
     return () => { supabase.removeChannel(ch) }
   }, [])
 
+  // Fetch and set agentId on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setAgentId(user.id)
+    })
+  }, [])
+
   // Realtime update for my orders
   useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    if (!agentId) return
 
-    async function setupRealtime() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user?.id) return
-      channel = supabase.channel('dl-my-orders-' + user.id)
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'orders', filter: `agent_id=eq.${user.id}` },
-          () => { loadMyOrders() }
-        )
-        .subscribe()
-    }
-
-    setupRealtime()
+    const channel = supabase.channel(`dl-my-orders-realtime-${agentId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `agent_id=eq.${agentId}` },
+        () => { loadMyOrders() }
+      )
+      .subscribe()
 
     return () => {
-      if (channel) supabase.removeChannel(channel)
+      supabase.removeChannel(channel)
     }
-  }, [activeTab])
+  }, [agentId])
 
   useEffect(() => {
     loadMyOrders()
@@ -210,7 +219,10 @@ export default function DeliveryOrdersPage() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>🔥 Available Orders</h3>
-          <button onClick={loadAvailable} style={{ padding: '6px 14px', background: '#f97316', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>🔄 Refresh</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => { startAlert(); setTimeout(stopAlert, 2000) }} style={{ padding: '6px 14px', background: '#0284c7', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>🔊 Test Alarm</button>
+            <button onClick={loadAvailable} style={{ padding: '6px 14px', background: '#f97316', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>🔄 Refresh</button>
+          </div>
         </div>
         {gpsWarning && (
           <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.75rem', color: '#92400e', fontWeight: 600 }}>

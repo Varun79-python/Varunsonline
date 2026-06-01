@@ -46,6 +46,7 @@ async function ensureCtxRunning(ctx: AudioContext): Promise<void> {
 export function useOrderAlert() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playingRef = useRef(false)
+  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Lazily create the Audio element once
   function getAudio(): HTMLAudioElement | null {
@@ -84,29 +85,33 @@ export function useOrderAlert() {
 
   const start = useCallback(() => {
     if (playingRef.current) return   // already playing — idempotent
+    playingRef.current = true
     const audio = getAudio()
 
     if (audio) {
       audio.currentTime = 0
       audio.play().then(() => {
-        // Only mark as playing AFTER the browser actually starts playback.
-        // This prevents playingRef from being stuck at true when autoplay is blocked.
-        playingRef.current = true
+        // Successfully playing looping MP3 sound
       }).catch(() => {
-        // Autoplay blocked (or file error) — play Web Audio beep instead.
-        // Do NOT set playingRef.current = true, so the next incoming order
-        // will attempt playback again (and possibly succeed if the user has
-        // interacted with the page by then).
+        // Autoplay blocked (or file error) — play repeating Web Audio beep instead.
+        if (beepIntervalRef.current) clearInterval(beepIntervalRef.current)
         beep()
+        beepIntervalRef.current = setInterval(beep, 1500)
       })
     } else {
       // Audio element could not be created (SSR or repeated file error)
+      if (beepIntervalRef.current) clearInterval(beepIntervalRef.current)
       beep()
+      beepIntervalRef.current = setInterval(beep, 1500)
     }
   }, [])
 
   const stop = useCallback(() => {
     playingRef.current = false
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current)
+      beepIntervalRef.current = null
+    }
     const audio = audioRef.current
     if (!audio) return
     audio.pause()

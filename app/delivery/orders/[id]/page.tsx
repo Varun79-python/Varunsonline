@@ -75,22 +75,29 @@ export default function DeliveryOrderDetail() {
         .select('id, order_id, product_name, quantity, unit_price, total_price, product_image_url')
         .eq('order_id', id)
       setOrderItems(items || [])
-
-      const ch = supabase.channel('dl-order-' + id)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-          (payload: RealtimePostgresChangesPayload<Order>) => {
-            const updated = payload.new as Order
-            setOrder(prev => prev ? ({ ...prev, ...updated }) : null)
-            // If QR payment was confirmed, show success
-            if (updated.payment_status === 'cod_qr_verified' && updated.status === 'delivered') {
-              setQrStep('confirmed')
-              setPaymentMsg({ text: '✅ QR payment verified! Order delivered.', ok: true })
-            }
-          }
-        ).subscribe()
-      return () => { supabase.removeChannel(ch) }
     }
     load()
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+
+    const ch = supabase.channel('dl-order-' + id)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        (payload: RealtimePostgresChangesPayload<Order>) => {
+          const updated = payload.new as Order
+          setOrder(prev => prev ? ({ ...prev, ...updated }) : null)
+          // If QR payment was confirmed, show success
+          if (updated.payment_status === 'cod_qr_verified' && updated.status === 'delivered') {
+            setQrStep('confirmed')
+            setPaymentMsg({ text: '✅ QR payment verified! Order delivered.', ok: true })
+          }
+        }
+      ).subscribe()
+
+    return () => {
+      supabase.removeChannel(ch)
+    }
   }, [id])
 
   async function updateStatus(newStatus: string, field: string) {

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
 import { usePushNotifications } from '@/lib/usePushNotifications'
 import AgentLiveLocationBar from '@/components/shared/AgentLiveLocationBar'
+import { useOrderAlert } from '@/lib/useOrderAlert'
 
 const navItems = [
   { href: '/delivery', icon: '📊', label: 'Dashboard' },
@@ -20,6 +21,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
   const [checking, setChecking] = useState(true)
   const [agentName, setAgentName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
+  const { start: startAlert, stop: stopAlert } = useOrderAlert()
 
   // Register FCM token once user is authenticated
   usePushNotifications(userId)
@@ -54,6 +56,59 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
     checkAuth()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run once on mount only — pathname changes must NOT re-trigger auth checks
+
+  // Global Realtime listener for incoming available orders
+  useEffect(() => {
+    if (!userId) return
+
+    let mounted = true
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    async function checkAvailable() {
+      if (!mounted) return
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/delivery/orders', {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        })
+        if (res.ok && mounted) {
+          const json = await res.json()
+          const orders = json.orders || []
+          if (orders.length > 0) {
+            startAlert()
+          } else {
+            stopAlert()
+          }
+        }
+      } catch (err) {
+        console.error('[delivery-layout] checkAvailable error:', err)
+      }
+    }
+
+    // Run check initially
+    checkAvailable()
+
+    // Subscribe to realtime updates for unassigned orders globally
+    channel = supabase.channel('delivery-global-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          checkAvailable()
+        }
+      )
+      .subscribe()
+
+    // 12s polling fallback
+    const poll = setInterval(checkAvailable, 12000)
+
+    return () => {
+      mounted = false
+      if (channel) { supabase.removeChannel(channel) }
+      clearInterval(poll)
+      stopAlert()
+    }
+  }, [userId, supabase, startAlert, stopAlert])
 
   async function handleLogout() {
     await supabase.auth.signOut()
