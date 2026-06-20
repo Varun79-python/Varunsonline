@@ -8,10 +8,10 @@ export default function SplashPage() {
   const [fadeOut, setFadeOut] = useState(false)
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setFadeOut(true), 2800)
+    const fadeTimer = setTimeout(() => setFadeOut(true), 2400)
     const redirectTimer = setTimeout(() => {
       router.replace('/login')
-    }, 3500)
+    }, 3000)
 
     return () => {
       clearTimeout(fadeTimer)
@@ -20,213 +20,111 @@ export default function SplashPage() {
   }, [router])
 
   return (
-    <>
-      <style jsx>{`
-        .splash {
-          position: fixed;
-          inset: 0;
-          width: 100vw;
-          height: 100vh;
-          overflow: hidden;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background:
-            radial-gradient(circle at top left, rgba(0,229,255,.15), transparent 30%),
-            radial-gradient(circle at bottom right, rgba(124,58,237,.20), transparent 35%),
-            linear-gradient(135deg,#050816 0%,#0f172a 45%,#1e1b4b 100%);
-          transition: opacity .7s ease;
-          opacity: ${fadeOut ? 0 : 1};
-        }
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(160deg, #faf6f0 0%, #fff7ed 40%, #fef2e8 100%)',
+        transition: 'opacity 0.6s ease',
+        opacity: fadeOut ? 0 : 1,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          width: 120,
+          height: 120,
+          borderRadius: 28,
+          background: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 8px 32px rgba(249,115,22,0.15), 0 2px 8px rgba(249,115,22,0.08)',
+          animation: 'splashBounce 2s ease-in-out infinite',
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="Varun's Online"
+          style={{
+            width: 72,
+            height: 72,
+            objectFit: 'contain',
+          }}
+        />
+      </div>
 
-        .particles {
-          position: absolute;
-          inset: 0;
-          overflow: hidden;
-        }
+      {/* Brand */}
+      <h1
+        style={{
+          marginTop: 24,
+          fontSize: 'clamp(1.6rem, 5vw, 2.4rem)',
+          fontWeight: 800,
+          color: '#0f172a',
+          letterSpacing: '-0.03em',
+          animation: 'splashFadeUp 0.6s ease 0.2s both',
+        }}
+      >
+        Varun&apos;s Online
+      </h1>
 
-        .particle {
-          position: absolute;
-          border-radius: 50%;
-          background: rgba(255,255,255,.2);
-          animation: float linear infinite;
-        }
+      <p
+        style={{
+          marginTop: 6,
+          fontSize: '0.9rem',
+          color: '#94a3b8',
+          fontWeight: 500,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          animation: 'splashFadeUp 0.6s ease 0.3s both',
+        }}
+      >
+        Shop Local · Order Fast
+      </p>
 
-        /* ── HERO CARD ── */
-        .hero-card {
-          position: relative;
-          z-index: 10;
-        }
+      {/* Progress bar */}
+      <div
+        style={{
+          width: 160,
+          height: 3,
+          marginTop: 40,
+          borderRadius: 999,
+          background: '#e2e8f0',
+          overflow: 'hidden',
+          animation: 'splashFadeUp 0.6s ease 0.4s both',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            borderRadius: 999,
+            background: 'linear-gradient(90deg, #f97316, #ea580c)',
+            animation: 'splashProgress 2.4s ease-in-out forwards',
+          }}
+        />
+      </div>
 
-        .center {
-          z-index: 2;
-          text-align: center;
-          padding: 24px;
+      <style>{`
+        @keyframes splashBounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
         }
-
-        .glow {
-          position: absolute;
-          width: 300px;
-          height: 300px;
-          border-radius: 50%;
-          background: radial-gradient(
-            circle,
-            rgba(0,229,255,.25),
-            rgba(124,58,237,.15),
-            transparent
-          );
-          filter: blur(40px);
-          animation: pulse 3s infinite ease-in-out;
+        @keyframes splashFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
-        .logoBox {
-          position: relative;
-          width: 140px;
-          height: 140px;
-          margin: auto;
-          border-radius: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          backdrop-filter: blur(20px);
-          background: rgba(255,255,255,.08);
-          border: 1px solid rgba(255,255,255,.12);
-          box-shadow:
-            0 0 40px rgba(0,229,255,.25),
-            0 0 100px rgba(124,58,237,.20);
-          animation: floatLogo 4s infinite ease-in-out;
-        }
-
-        .logo {
-          width: 80px;
-          height: 80px;
-          object-fit: contain;
-        }
-
-        .title {
-          margin-top: 28px;
-          font-size: clamp(2rem,5vw,4rem);
-          font-weight: 900;
-          color: white;
-          letter-spacing: -2px;
-        }
-
-        .tagline {
-          margin-top: 10px;
-          color: #94a3b8;
-          font-size: 1rem;
-          letter-spacing: .15em;
-          text-transform: uppercase;
-        }
-
-        .loader {
-          width: 220px;
-          height: 6px;
-          margin: 35px auto 0;
-          border-radius: 999px;
-          overflow: hidden;
-          background: rgba(255,255,255,.1);
-        }
-
-        .loaderFill {
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(
-            90deg,
-            #00e5ff,
-            #7c3aed
-          );
-          animation: loading 3s linear forwards;
-        }
-
-        .powered {
-          margin-top: 20px;
-          color: rgba(255,255,255,.5);
-          font-size: 12px;
-          letter-spacing: .2em;
-        }
-
-        @keyframes loading {
+        @keyframes splashProgress {
           from { width: 0%; }
           to { width: 100%; }
         }
-
-        @keyframes pulse {
-          0%,100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.15);
-          }
-        }
-
-        @keyframes floatLogo {
-          0%,100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-12px);
-          }
-        }
-
-        @keyframes float {
-          from {
-            transform: translateY(100vh);
-            opacity: 0;
-          }
-          20% {
-            opacity: .7;
-          }
-          100% {
-            transform: translateY(-120px);
-            opacity: 0;
-          }
-        }
       `}</style>
-
-      <div className="splash">
-        <div className="particles">
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="particle"
-              style={{
-                width: `${4 + Math.random() * 8}px`,
-                height: `${4 + Math.random() * 8}px`,
-                left: `${Math.random() * 100}%`,
-                animationDuration: `${10 + Math.random() * 10}s`,
-                animationDelay: `${Math.random() * 5}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="center">
-          <div className="glow" />
-
-          <div className="logoBox">
-            <img
-              src="/logo.png"
-              alt="Varun's Online"
-              className="logo"
-            />
-          </div>
-
-          <h1 className="title">VARUN'S ONLINE</h1>
-
-          <p className="tagline">
-            Shop Local • Order Fast
-          </p>
-
-          <div className="loader">
-            <div className="loaderFill" />
-          </div>
-
-          <div className="powered">
-            LOCAL COMMERCE REIMAGINED
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   )
 }
