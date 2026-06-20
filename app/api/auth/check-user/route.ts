@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { logger } from '@/lib/logger'
+import { logger } from '@/modules/infrastructure/services/logger'
 
 /**
  * This endpoint no longer reveals whether a user exists.

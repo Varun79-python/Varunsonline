@@ -1,5 +1,5 @@
 'use server'
-import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient } from '@/modules/infrastructure/supabase/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -567,7 +567,9 @@ export async function getAdminShops(tab: 'pending' | 'active' | 'rejected' | 'al
 
 export async function deleteShopkeeperShop(userId: string) {
   try {
-    const supabase = await createAdminClient()
+    // Use session-based client — RLS policies allow admin full access
+    const supabase = await createClient()
+    const NEVER = '00000000-0000-0000-0000-000000000000' as const
 
     // Find the shop
     const { data: shop, error: findErr } = await supabase
@@ -581,7 +583,6 @@ export async function deleteShopkeeperShop(userId: string) {
     if (shop) {
       const shopId = shop.id
       if (!shopId) return { error: 'Shop ID is undefined' }
-      const NEVER = '00000000-0000-0000-0000-000000000000' as const
 
       // Delete orders that reference this shop (FK constraint prevents nullifying shop_id)
       // neq('id', NEVER) is a dummy filter that satisfies PostgREST's safety check
@@ -618,7 +619,7 @@ export async function deleteShopkeeperShop(userId: string) {
     }
 
     // Delete documents by user_id (handles pending/rejected docs without a shop)
-    const { error: docsErr } = await supabase.from('shop_documents').delete().eq('user_id', userId)
+    const { error: docsErr } = await supabase.from('shop_documents').delete().neq('id', NEVER).eq('user_id', userId)
     if (docsErr) return { error: `Failed to delete documents: ${docsErr.message}` }
 
     return { success: true }

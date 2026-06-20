@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import OrderChat from '@/components/OrderChat/OrderChat'
+import OrderChat from '@/modules/shared-ui/components/OrderChat'
 
 const STATUS_STEPS = [
   { key: 'agent_assigned', label: 'Assigned', icon: '📋' },

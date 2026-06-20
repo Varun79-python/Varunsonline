@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { deleteDeliveryAgent } from '@/app/admin/actions'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton } from '@/modules/shared-ui/components/ui/skeleton'
 
 // ── Types ──
 interface AgentDetail {

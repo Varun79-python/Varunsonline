@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
-import { logger } from '@/lib/logger'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
+import { checkRateLimit, getRateLimitIdentifier } from '@/modules/authentication/services/rateLimit'
+import { logger } from '@/modules/infrastructure/services/logger'
 
 // POST state-changing endpoint
 

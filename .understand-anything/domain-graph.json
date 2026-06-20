@@ -1,0 +1,1959 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "varunsonline",
+    "languages": ["TypeScript", "TSX", "CSS", "SQL"],
+    "frameworks": ["Next.js", "React", "Supabase", "Tailwind CSS", "Capacitor"],
+    "description": "Multi-role e-commerce and delivery platform connecting customers, shopkeepers, and delivery agents with real-time order tracking, payments, and subscription management.",
+    "analyzedAt": "2026-06-05T00:00:00.000Z",
+    "gitCommitHash": "797dfbc039a175532cea0e4deff394959dc2cf91"
+  },
+  "nodes": [
+    {
+      "id": "domain:user-authentication",
+      "type": "domain",
+      "name": "User Authentication",
+      "summary": "Handles login, phone lookup, OAuth callback, and password management for all user roles (customer, shopkeeper, delivery agent, admin) with lockout tracking and rate limiting.",
+      "tags": ["auth", "login", "security", "multi-role"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": ["profiles", "login_attempts", "delivery_agents", "shops"],
+        "businessRules": ["Always return generic error to prevent account enumeration", "Lockout check before Supabase auth call to prevent timing oracle", "Role-specific lockout thresholds", "Phone lookup rate-limited to 10 per minute"],
+        "crossDomainInteractions": ["Authenticated users across all domains", "Login tracking writes to profiles table"]
+      }
+    },
+    {
+      "id": "domain:order-management",
+      "type": "domain",
+      "name": "Order Management",
+      "summary": "Full order lifecycle from placement to delivery, including COD and paid orders, cancellations, shopkeeper acceptance/packing, delivery status transitions, OTP verification, and cash collection.",
+      "tags": ["orders", "fulfillment", "COD", "delivery", "lifecycle"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": ["orders", "order_items", "order_status_history", "products", "addresses", "shops", "coupons"],
+        "businessRules": ["Orders have strict state machine transitions", "COD orders require OTP verification + cash collection before delivery", "Online orders verify Razorpay payment before marking delivered", "Rate limit 5 cancellations per minute", "Stock deducted atomically via RPC"],
+        "crossDomainInteractions": ["Triggers payment processing for COD QR and online orders", "Triggers earnings processing for shopkeeper/agent wallets", "Sends notifications via FCM to shopkeepers on new orders"]
+      }
+    },
+    {
+      "id": "domain:payment-processing",
+      "type": "domain",
+      "name": "Payment Processing",
+      "summary": "Razorpay integration for order payments, subscription payments, COD QR payments at delivery, and COD settlement payback from delivery agents to the platform.",
+      "tags": ["razorpay", "payments", "verification", "webhooks"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": ["orders", "subscription_payments", "agent_cod_settlement_ledger", "wallet_transactions", "shop_subscriptions"],
+        "businessRules": ["HMAC signature verification for all Razorpay callbacks", "Idempotent webhook processing prevents double-crediting", "COD QR settlement requires Razorpay webhook verification before marking delivered", "COD cash settlement auto-recovered from future delivery earnings"],
+        "crossDomainInteractions": ["Order placement triggers payment order creation", "Webhook handler updates order status and activates subscriptions", "COD settlement ties into agent wallet balance"]
+      }
+    },
+    {
+      "id": "domain:subscription-management",
+      "type": "domain",
+      "name": "Subscription Management",
+      "summary": "Shop subscription lifecycle including plan CRUD by admin, subscription purchase by shopkeepers, free subscription grants, and automated expiry checking via cron job.",
+      "tags": ["subscriptions", "plans", "shopkeeper", "cron", "billing"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entities": ["subscription_plans", "shop_subscriptions", "subscription_payments", "shops"],
+        "businessRules": ["Subscriptions auto-expire via daily cron", "Sends reminders 7, 3, and 1 day before expiry", "Free subscriptions can be granted by admin with reason codes", "New subscriptions extend from current end date (stacking) if active subscription exists"],
+        "crossDomainInteractions": ["Payment processing for subscription payments via Razorpay", "Admin manages plans in admin panel", "Expired subscriptions deactivate shops"]
+      }
+    },
+    {
+      "id": "domain:admin-operations",
+      "type": "domain",
+      "name": "Admin Operations",
+      "summary": "Back-office management of agents, shops, customers, orders, coupons, withdrawals, and revenue analytics with comprehensive financial reporting.",
+      "tags": ["admin", "management", "analytics", "CRUD", "compliance"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": ["subscription_plans", "coupons", "withdraw_requests", "delivery_agents", "shops", "profiles", "orders", "agent_cod_settlement_ledger"],
+        "businessRules": ["Admin verified via Authorization header or session cookie", "Revenue analytics is a read-only aggregation query", "Withdrawal processing requires manual admin action", "COD settlement oversight tracks all agent dues"],
+        "crossDomainInteractions": ["Overviews all other domains", "Manages plans used by subscription management", "Processes withdrawal requests from wallet domain"]
+      }
+    },
+    {
+      "id": "domain:wallet-and-payouts",
+      "type": "domain",
+      "name": "Wallet and Payouts",
+      "summary": "Manages earnings distribution, wallet balances, and withdrawal requests for shopkeepers and delivery agents with fraud prevention and COD settlement auto-recovery.",
+      "tags": ["wallet", "earnings", "payouts", "withdrawals", "settlement"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entities": ["wallet_transactions", "withdraw_requests", "delivery_agents", "shops", "agent_cod_settlement_ledger"],
+        "businessRules": ["Max 5 withdrawals per week per user (resets Monday)", "Withdrawable balance = wallet_balance - pending_cod_due", "Auto-recovery of COD dues from future delivery earnings", "Immediate wallet deduction on withdrawal request with rollback on failure", "Rate limit 3 withdrawal requests per hour"],
+        "crossDomainInteractions": ["Earnings processing triggered by order delivery", "Withdrawal requests reviewed and processed by admin", "COD settlement payback via Razorpay updates wallet"]
+      }
+    },
+    {
+      "id": "flow:login",
+      "type": "flow",
+      "name": "Login",
+      "summary": "Authenticates users via email/phone and password across all roles (customer, shopkeeper, delivery, admin) with lockout detection and login attempt tracking.",
+      "tags": ["auth", "login", "authentication"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/auth/login/route.ts:56",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:phone-lookup",
+      "type": "flow",
+      "name": "Phone Lookup",
+      "summary": "Resolves phone number to email by querying the profiles table with rate limiting (10 lookups/minute).",
+      "tags": ["auth", "phone", "lookup"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/api/auth/phone-lookup/route.ts:13",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:auth-callback",
+      "type": "flow",
+      "name": "Auth Callback",
+      "summary": "Handles OAuth redirect callback from Supabase Auth, exchanges authorization code for session.",
+      "tags": ["auth", "OAuth", "callback"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/auth/callback/route.ts:23",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:place-cod-order",
+      "type": "flow",
+      "name": "Place COD Order",
+      "summary": "Creates a Cash-on-Delivery order with server-side validation of products, pricing, delivery radius, and coupon application, then inserts order items and deducts stock.",
+      "tags": ["orders", "COD", "checkout"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/orders/place-cod/route.ts:23",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:place-paid-order",
+      "type": "flow",
+      "name": "Place Paid Order",
+      "summary": "Creates an order with online payment, validates customer identity, address ownership, shop subscription, delivery radius, product availability, and pricing before inserting the order with 'payment_pending' status.",
+      "tags": ["orders", "payment", "checkout"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/orders/secure-place/route.ts:29",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:cancel-order",
+      "type": "flow",
+      "name": "Cancel Order",
+      "summary": "Cancels an order if it's in a cancellable state, with automatic Razorpay refund initiation for online payments and idempotent status transition.",
+      "tags": ["orders", "cancel", "refund"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/orders/cancel/route.ts:10",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:shopkeeper-order-action",
+      "type": "flow",
+      "name": "Shopkeeper Order Action",
+      "summary": "Enables shopkeepers to accept, reject (with stock restoration), or pack orders with strict state machine validation.",
+      "tags": ["orders", "shopkeeper", "accept", "reject", "pack"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/shopkeeper/order-action/route.ts:7",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:delivery-status-update",
+      "type": "flow",
+      "name": "Delivery Status Update",
+      "summary": "Advances delivery order status through the state machine (agent_assigned → picked_up → out_for_delivery → delivered) with strict validation and earnings processing on delivery.",
+      "tags": ["delivery", "status", "transition", "earnings"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/delivery/update-status/route.ts:8",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:delivery-verify-otp",
+      "type": "flow",
+      "name": "Delivery Verify OTP",
+      "summary": "Verifies the delivery OTP presented to the customer at delivery, with max 3 attempts lockout. For COD orders, marks OTP verified without delivering; for online orders, marks delivered immediately.",
+      "tags": ["delivery", "OTP", "verification", "security"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/delivery/verify-otp/route.ts:10",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:collect-cod-cash",
+      "type": "flow",
+      "name": "Collect COD Cash",
+      "summary": "Handles COD payment collection at delivery time via cash or QR, creates settlement ledger entries for cash payments, processes earnings, and tracks agent COD dues.",
+      "tags": ["delivery", "COD", "cash", "settlement", "payment"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/delivery/collect-cash/route.ts:20",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:create-payment-order",
+      "type": "flow",
+      "name": "Create Payment Order",
+      "summary": "Creates a Razorpay payment order for online order payment, COD QR collection, or subscription purchase with amount validation and access control.",
+      "tags": ["payment", "razorpay", "order"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/payment/create-order/route.ts:18",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:verify-payment",
+      "type": "flow",
+      "name": "Verify Payment",
+      "summary": "Verifies Razorpay payment signature using HMAC-SHA256, then updates order status to 'payment_confirmed' and records payment details.",
+      "tags": ["payment", "verify", "signature", "razorpay"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/payment/verify/route.ts:21",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:handle-razorpay-webhook",
+      "type": "flow",
+      "name": "Handle Razorpay Webhook",
+      "summary": "Processes Razorpay payment.captured webhook events for subscription activation/renewal, online order confirmation, and COD QR payment verification, with idempotency and FCM notifications.",
+      "tags": ["webhook", "razorpay", "payment", "subscription", "notification"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/webhooks/razorpay/route.ts:20",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:cod-settlement-payback",
+      "type": "flow",
+      "name": "COD Settlement Payback",
+      "summary": "Allows delivery agents to pay back COD cash owed to the platform via Razorpay, including creating a settlement order and verifying the payment to update wallet balance.",
+      "tags": ["settlement", "COD", "razorpay", "delivery"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/delivery/settlement/create-order/route.ts:13",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:admin-manage-plans",
+      "type": "flow",
+      "name": "Admin Manage Plans",
+      "summary": "Full CRUD for subscription plans (create, read, update, delete) with admin authentication.",
+      "tags": ["admin", "subscription", "plans", "CRUD"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/plans/route.ts:8",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:purchase-subscription",
+      "type": "flow",
+      "name": "Purchase Subscription",
+      "summary": "Creates a Razorpay order for shop subscription payment, initiated by the shopkeeper for their shop.",
+      "tags": ["subscription", "payment", "shopkeeper", "razorpay"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/api/shopkeeper/create-subscription-order/route.ts:7",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:grant-free-subscription",
+      "type": "flow",
+      "name": "Grant Free Subscription",
+      "summary": "Admin grants a free subscription to a shop with reason tracking (promotion, manual_approval, testing, etc.), creates subscription record without payment.",
+      "tags": ["admin", "subscription", "grant", "free"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/grant-subscription/route.ts:15",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:cron-check-subscriptions",
+      "type": "flow",
+      "name": "Cron Check Subscriptions",
+      "summary": "Daily cron job that deactivates expired subscriptions, sends expiry reminders (7/3/1 day before), and resets weekly withdrawal counters on Monday.",
+      "tags": ["cron", "subscription", "expiry", "reminder", "maintenance"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/cron/check-subscriptions/route.ts:18",
+        "entryType": "cron"
+      }
+    },
+    {
+      "id": "flow:admin-manage-coupons",
+      "type": "flow",
+      "name": "Admin Manage Coupons",
+      "summary": "Full CRUD for discount coupons: list, create, update (toggle active, modify terms), and delete with admin authentication.",
+      "tags": ["admin", "coupons", "discount", "CRUD"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/coupons/route.ts:34",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:admin-manage-withdrawals",
+      "type": "flow",
+      "name": "Admin Manage Withdrawals",
+      "summary": "Lists and processes withdrawal requests from shopkeepers and delivery agents, with admin authentication.",
+      "tags": ["admin", "withdrawal", "payout", "management"],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/withdrawals/route.ts:8",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:admin-revenue-analytics",
+      "type": "flow",
+      "name": "Admin Revenue Analytics",
+      "summary": "Provides comprehensive revenue analytics including order metrics, customer payment breakdown, agent/shopkeeper earnings, subscription revenue, and P&L summary.",
+      "tags": ["admin", "analytics", "revenue", "reporting"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/revenue-analytics/route.ts:24",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:admin-manage-users",
+      "type": "flow",
+      "name": "Admin Manage Users",
+      "summary": "View and manage delivery agents, shopkeepers, shops, and customers with detailed profiles, order history, and performance stats.",
+      "tags": ["admin", "users", "agents", "shops", "customers"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/admin/agent-detail/route.ts:27",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:request-withdrawal",
+      "type": "flow",
+      "name": "Request Withdrawal",
+      "summary": "Allows shopkeepers and delivery agents to request a withdrawal from their wallet with fraud prevention checks: balance validation, weekly limit, pending withdrawal, rate limiting, and COD settlement hold.",
+      "tags": ["wallet", "withdrawal", "payout", "fraud-prevention"],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "app/api/withdraw/request/route.ts:21",
+        "entryType": "http"
+      }
+    },
+    {
+      "id": "flow:process-earnings",
+      "type": "flow",
+      "name": "Process Earnings",
+      "summary": "Internal flow that credits shopkeeper and delivery agent wallets upon order delivery, with auto-recovery of agent COD dues from earnings.",
+      "tags": ["wallet", "earnings", "credit", "settlement", "auto-recovery"],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app/api/delivery/utils.ts:15",
+        "entryType": "manual"
+      }
+    },
+    {
+      "id": "step:login:validate-input",
+      "type": "step",
+      "name": "Validate Input",
+      "summary": "Parse request body, validate password presence, resolve email from phone if needed.",
+      "tags": ["validation"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/login/route.ts",
+      "lineRange": "58-70"
+    },
+    {
+      "id": "step:login:check-lockout",
+      "type": "step",
+      "name": "Check Account Lockout",
+      "summary": "Check if the account is locked before attempting authentication to prevent timing oracles.",
+      "tags": ["security", "lockout"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/login/route.ts",
+      "lineRange": "77-87"
+    },
+    {
+      "id": "step:login:supabase-authenticate",
+      "type": "step",
+      "name": "Supabase Authenticate",
+      "summary": "Authenticate with Supabase using email and password via signInWithPassword.",
+      "tags": ["auth", "supabase"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/login/route.ts",
+      "lineRange": "90-109"
+    },
+    {
+      "id": "step:login:handle-failure",
+      "type": "step",
+      "name": "Handle Failed Login",
+      "summary": "Record failed login attempt with IP, user agent, role, and failure reason for audit tracking.",
+      "tags": ["audit", "security"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/login/route.ts",
+      "lineRange": "112-121"
+    },
+    {
+      "id": "step:login:handle-success",
+      "type": "step",
+      "name": "Handle Successful Login",
+      "summary": "Reset failure counters, update last_login timestamp, return success response.",
+      "tags": ["audit", "session"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/login/route.ts",
+      "lineRange": "124-138"
+    },
+    {
+      "id": "step:phone-lookup:rate-limit-check",
+      "type": "step",
+      "name": "Rate Limit Check",
+      "summary": "Verify the caller hasn't exceeded 10 phone lookups per minute.",
+      "tags": ["rate-limit", "security"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/phone-lookup/route.ts",
+      "lineRange": "22-30"
+    },
+    {
+      "id": "step:phone-lookup:query-profile",
+      "type": "step",
+      "name": "Query Profile by Phone",
+      "summary": "Look up the user profile by phone number to retrieve associated email.",
+      "tags": ["lookup", "query"],
+      "complexity": "simple",
+      "filePath": "app/api/auth/phone-lookup/route.ts",
+      "lineRange": "32-45"
+    },
+    {
+      "id": "step:auth-callback:exchange-code",
+      "type": "step",
+      "name": "Exchange Auth Code",
+      "summary": "Exchange the OAuth authorization code for a session via Supabase.",
+      "tags": ["OAuth", "session"],
+      "complexity": "simple",
+      "filePath": "app/auth/callback/route.ts",
+      "lineRange": "23-50"
+    },
+    {
+      "id": "step:place-cod-order:validate-auth",
+      "type": "step",
+      "name": "Validate Authentication",
+      "summary": "Extract and verify Bearer token, authenticate user, verify customer role.",
+      "tags": ["auth", "validation"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "23-66"
+    },
+    {
+      "id": "step:place-cod-order:verify-ownership",
+      "type": "step",
+      "name": "Verify Address and Shop",
+      "summary": "Verify the customer owns the address, the shop is active and approved, and subscription is valid.",
+      "tags": ["validation", "ownership"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "68-83"
+    },
+    {
+      "id": "step:place-cod-order:check-delivery-radius",
+      "type": "step",
+      "name": "Check Delivery Radius",
+      "summary": "Calculate distance between shop and delivery address, reject if outside configured radius.",
+      "tags": ["validation", "geo", "gps"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "86-102"
+    },
+    {
+      "id": "step:place-cod-order:verify-pricing",
+      "type": "step",
+      "name": "Verify Pricing and Stock",
+      "summary": "Fetch products from DB, verify availability, calculate server-side subtotal and delivery charge.",
+      "tags": ["validation", "pricing", "stock"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "105-140"
+    },
+    {
+      "id": "step:place-cod-order:apply-coupon",
+      "type": "step",
+      "name": "Apply Coupon",
+      "summary": "Validate coupon code, calculate discount server-side using coupon rules.",
+      "tags": ["coupon", "discount"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "142-169"
+    },
+    {
+      "id": "step:place-cod-order:create-order",
+      "type": "step",
+      "name": "Create Order and Items",
+      "summary": "Insert order record with recalculated financials, insert order items, record status history, increment coupon usage.",
+      "tags": ["database", "insert"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "174-227"
+    },
+    {
+      "id": "step:place-cod-order:deduct-stock",
+      "type": "step",
+      "name": "Deduct Stock",
+      "summary": "Atomically decrement product stock quantities via RPC with fallback to direct UPDATE.",
+      "tags": ["stock", "atomic", "RPC"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "265-297"
+    },
+    {
+      "id": "step:place-cod-order:notify-shopkeeper",
+      "type": "step",
+      "name": "Notify Shopkeeper",
+      "summary": "Send push notification to the shop owner about the new COD order.",
+      "tags": ["notification", "FCM"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/place-cod/route.ts",
+      "lineRange": "253-263"
+    },
+    {
+      "id": "step:place-paid-order:rate-limit",
+      "type": "step",
+      "name": "Rate Limit Check",
+      "summary": "Verify the customer hasn't exceeded 5 order placements per minute.",
+      "tags": ["rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "34-48"
+    },
+    {
+      "id": "step:place-paid-order:validate-auth",
+      "type": "step",
+      "name": "Validate Authentication and Role",
+      "summary": "Authenticate via Bearer token, verify user is a customer with proper role.",
+      "tags": ["auth", "validation"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "50-70"
+    },
+    {
+      "id": "step:place-paid-order:validate-request",
+      "type": "step",
+      "name": "Validate Request and Entities",
+      "summary": "Verify required fields, address ownership, shop active/approved status, subscription validity, and delivery radius.",
+      "tags": ["validation", "ownership", "geo"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "72-123"
+    },
+    {
+      "id": "step:place-paid-order:verify-products",
+      "type": "step",
+      "name": "Verify Products and Pricing",
+      "summary": "Fetch products from DB, verify availability, stock, shop ownership, and calculate server-side pricing.",
+      "tags": ["validation", "pricing", "stock"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "125-168"
+    },
+    {
+      "id": "step:place-paid-order:calculate-financials",
+      "type": "step",
+      "name": "Calculate Financials and Apply Coupon",
+      "summary": "Compute delivery charge based on distance, validate and apply coupon, calculate all financials via recalcOrder.",
+      "tags": ["financial", "coupon", "calculation"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "170-224"
+    },
+    {
+      "id": "step:place-paid-order:create-order-record",
+      "type": "step",
+      "name": "Create Order and Items",
+      "summary": "Insert order with payment_pending status, insert order items, deduct stock, record status history, increment coupon usage.",
+      "tags": ["database", "insert"],
+      "complexity": "complex",
+      "filePath": "app/api/orders/secure-place/route.ts",
+      "lineRange": "226-318"
+    },
+    {
+      "id": "step:cancel-order:rate-limit",
+      "type": "step",
+      "name": "Rate Limit Check",
+      "summary": "Verify the customer hasn't exceeded 5 cancellation requests per minute.",
+      "tags": ["rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/cancel/route.ts",
+      "lineRange": "12-21"
+    },
+    {
+      "id": "step:cancel-order:verify-ownership",
+      "type": "step",
+      "name": "Verify Ownership and Status",
+      "summary": "Authenticate customer via session cookie, verify the order belongs to the customer, check it is in a cancellable state.",
+      "tags": ["auth", "ownership", "validation"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/cancel/route.ts",
+      "lineRange": "23-60"
+    },
+    {
+      "id": "step:cancel-order:atomic-cancel",
+      "type": "step",
+      "name": "Atomic Cancel",
+      "summary": "Atomically update order status to cancelled with race condition protection via status filter.",
+      "tags": ["atomic", "status"],
+      "complexity": "simple",
+      "filePath": "app/api/orders/cancel/route.ts",
+      "lineRange": "58-74"
+    },
+    {
+      "id": "step:cancel-order:process-refund",
+      "type": "step",
+      "name": "Process Refund",
+      "summary": "Initiate Razorpay refund for online payment orders, update payment_status to refunded.",
+      "tags": ["refund", "razorpay", "payment"],
+      "complexity": "moderate",
+      "filePath": "app/api/orders/cancel/route.ts",
+      "lineRange": "76-120"
+    },
+    {
+      "id": "step:shopkeeper-order-action:verify-auth",
+      "type": "step",
+      "name": "Verify Shopkeeper Auth",
+      "summary": "Authenticate the shopkeeper and verify they own the shop via verifyShopkeeper.",
+      "tags": ["auth", "shopkeeper"],
+      "complexity": "simple",
+      "filePath": "app/api/shopkeeper/order-action/route.ts",
+      "lineRange": "20-23"
+    },
+    {
+      "id": "step:shopkeeper-order-action:validate-action",
+      "type": "step",
+      "name": "Validate Order and Action",
+      "summary": "Fetch order, verify shop ownership, validate state machine transition for accept/reject/pack.",
+      "tags": ["validation", "state-machine"],
+      "complexity": "moderate",
+      "filePath": "app/api/shopkeeper/order-action/route.ts",
+      "lineRange": "30-83"
+    },
+    {
+      "id": "step:shopkeeper-order-action:restore-stock",
+      "type": "step",
+      "name": "Restore Stock on Reject",
+      "summary": "Increment product stock quantities when a shopkeeper rejects an order.",
+      "tags": ["stock", "restore"],
+      "complexity": "simple",
+      "filePath": "app/api/shopkeeper/order-action/route.ts",
+      "lineRange": "56-72"
+    },
+    {
+      "id": "step:shopkeeper-order-action:update-status",
+      "type": "step",
+      "name": "Update Order Status",
+      "summary": "Persist the new status (shop_accepted, rejected, order_packed) and record status history.",
+      "tags": ["database", "status"],
+      "complexity": "simple",
+      "filePath": "app/api/shopkeeper/order-action/route.ts",
+      "lineRange": "85-98"
+    },
+    {
+      "id": "step:delivery-status-update:csrf-check",
+      "type": "step",
+      "name": "CSRF and Rate Limit Check",
+      "summary": "Validate request origin for CSRF protection and check rate limit (20/min).",
+      "tags": ["security", "csrf", "rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/update-status/route.ts",
+      "lineRange": "10-26"
+    },
+    {
+      "id": "step:delivery-status-update:verify-auth",
+      "type": "step",
+      "name": "Verify Agent and Ownership",
+      "summary": "Authenticate delivery agent and verify the order is assigned to them.",
+      "tags": ["auth", "ownership"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/update-status/route.ts",
+      "lineRange": "28-46"
+    },
+    {
+      "id": "step:delivery-status-update:validate-transition",
+      "type": "step",
+      "name": "Validate State Transition",
+      "summary": "Ensure the status transition follows the strict state machine (agent_assigned->picked_up->out_for_delivery->delivered).",
+      "tags": ["validation", "state-machine"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/update-status/route.ts",
+      "lineRange": "56-73"
+    },
+    {
+      "id": "step:delivery-status-update:persist-status",
+      "type": "step",
+      "name": "Persist Status and Process Earnings",
+      "summary": "Update order status with timestamps, record history, process wallet earnings on delivery.",
+      "tags": ["database", "status", "earnings"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/update-status/route.ts",
+      "lineRange": "74-93"
+    },
+    {
+      "id": "step:delivery-verify-otp:csrf-and-rate-limit",
+      "type": "step",
+      "name": "CSRF and Rate Limit Check",
+      "summary": "Validate request origin and enforce 10 OTP verifications per minute.",
+      "tags": ["security", "csrf", "rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/verify-otp/route.ts",
+      "lineRange": "12-28"
+    },
+    {
+      "id": "step:delivery-verify-otp:verify-auth",
+      "type": "step",
+      "name": "Verify Agent and Order",
+      "summary": "Authenticate delivery agent, fetch order, verify assignment, check not already delivered or verified.",
+      "tags": ["auth", "ownership"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/verify-otp/route.ts",
+      "lineRange": "30-52"
+    },
+    {
+      "id": "step:delivery-verify-otp:validate-otp",
+      "type": "step",
+      "name": "Validate OTP",
+      "summary": "Compare entered OTP against stored delivery_otp with max 3 attempts lockout.",
+      "tags": ["validation", "otp", "security"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/verify-otp/route.ts",
+      "lineRange": "54-76"
+    },
+    {
+      "id": "step:delivery-verify-otp:mark-delivered",
+      "type": "step",
+      "name": "Mark Delivered or OTP Verified",
+      "summary": "For COD: mark OTP verified (await cash collection). For online: mark delivered immediately and process earnings.",
+      "tags": ["status", "COD", "delivery"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/verify-otp/route.ts",
+      "lineRange": "78-116"
+    },
+    {
+      "id": "step:collect-cod-cash:csrf-and-rate-limit",
+      "type": "step",
+      "name": "CSRF and Rate Limit Check",
+      "summary": "Validate request origin and enforce 10 collection attempts per minute.",
+      "tags": ["security", "csrf", "rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/collect-cash/route.ts",
+      "lineRange": "22-38"
+    },
+    {
+      "id": "step:collect-cod-cash:verify-auth",
+      "type": "step",
+      "name": "Verify Agent and Order",
+      "summary": "Authenticate delivery agent, verify order is COD, agent is assigned, OTP is verified, and order is out_for_delivery.",
+      "tags": ["auth", "ownership", "validation"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/collect-cash/route.ts",
+      "lineRange": "40-74"
+    },
+    {
+      "id": "step:collect-cod-cash:handle-qr",
+      "type": "step",
+      "name": "Handle QR Payment",
+      "summary": "Set order to cod_pending status awaiting webhook verification for QR payments.",
+      "tags": ["QR", "payment", "webhook"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/collect-cash/route.ts",
+      "lineRange": "81-106"
+    },
+    {
+      "id": "step:collect-cod-cash:handle-cash",
+      "type": "step",
+      "name": "Handle Cash Collection",
+      "summary": "Atomically mark order delivered, process earnings, create COD settlement ledger entry, update agent pending dues, record wallet transaction.",
+      "tags": ["cash", "settlement", "earnings", "ledger"],
+      "complexity": "complex",
+      "filePath": "app/api/delivery/collect-cash/route.ts",
+      "lineRange": "109-189"
+    },
+    {
+      "id": "step:create-payment-order:rate-limit",
+      "type": "step",
+      "name": "Rate Limit Check",
+      "summary": "Verify the requester hasn't exceeded 10 payment requests per minute.",
+      "tags": ["rate-limit"],
+      "complexity": "simple",
+      "filePath": "app/api/payment/create-order/route.ts",
+      "lineRange": "23-37"
+    },
+    {
+      "id": "step:create-payment-order:verify-auth",
+      "type": "step",
+      "name": "Verify Authentication",
+      "summary": "Authenticate user via Bearer token and verify identity.",
+      "tags": ["auth", "validation"],
+      "complexity": "simple",
+      "filePath": "app/api/payment/create-order/route.ts",
+      "lineRange": "39-55"
+    },
+    {
+      "id": "step:create-payment-order:validate-amount-and-access",
+      "type": "step",
+      "name": "Validate Amount and Access Rights",
+      "summary": "Validate the amount is positive, verify order ownership (customer) or agent assignment (COD QR), ensure amount matches order total.",
+      "tags": ["validation", "amount", "access-control"],
+      "complexity": "moderate",
+      "filePath": "app/api/payment/create-order/route.ts",
+      "lineRange": "57-111"
+    },
+    {
+      "id": "step:create-payment-order:create-razorpay-order",
+      "type": "step",
+      "name": "Create Razorpay Order",
+      "summary": "Create a Razorpay order with amount, currency, receipt, and notes for webhook correlation.",
+      "tags": ["razorpay", "payment"],
+      "complexity": "simple",
+      "filePath": "app/api/payment/create-order/route.ts",
+      "lineRange": "113-144"
+    },
+    {
+      "id": "step:verify-payment:verify-signature",
+      "type": "step",
+      "name": "Verify Razorpay Signature",
+      "summary": "Compute HMAC-SHA256 signature from order_id and payment_id, compare using timing-safe comparison.",
+      "tags": ["verification", "crypto", "security"],
+      "complexity": "moderate",
+      "filePath": "app/api/payment/verify/route.ts",
+      "lineRange": "29-44"
+    },
+    {
+      "id": "step:verify-payment:update-order-status",
+      "type": "step",
+      "name": "Update Order Status",
+      "summary": "Update order to payment_confirmed status, store payment IDs, verify order ID match for security.",
+      "tags": ["database", "status", "security"],
+      "complexity": "moderate",
+      "filePath": "app/api/payment/verify/route.ts",
+      "lineRange": "46-101"
+    },
+    {
+      "id": "step:handle-razorpay-webhook:verify-signature",
+      "type": "step",
+      "name": "Verify Webhook Signature",
+      "summary": "Compute and compare HMAC-SHA256 signature of the raw request body using the Razorpay webhook secret.",
+      "tags": ["webhook", "security", "crypto"],
+      "complexity": "simple",
+      "filePath": "app/api/webhooks/razorpay/route.ts",
+      "lineRange": "22-37"
+    },
+    {
+      "id": "step:handle-razorpay-webhook:process-subscription",
+      "type": "step",
+      "name": "Process Subscription Payment",
+      "summary": "Handle subscription activation/renewal: validate plan, check idempotency, compute start/end dates, deactivate old subs, create new subscription, activate shop, send FCM notification.",
+      "tags": ["subscription", "activation", "renewal"],
+      "complexity": "complex",
+      "filePath": "app/api/webhooks/razorpay/route.ts",
+      "lineRange": "52-178"
+    },
+    {
+      "id": "step:handle-razorpay-webhook:process-order-payment",
+      "type": "step",
+      "name": "Process Order Payment Confirmation",
+      "summary": "Confirm online order payment: update order status to payment_confirmed, record payment IDs, send FCM to shopkeeper.",
+      "tags": ["order", "payment", "confirmation"],
+      "complexity": "moderate",
+      "filePath": "app/api/webhooks/razorpay/route.ts",
+      "lineRange": "184-243"
+    },
+    {
+      "id": "step:handle-razorpay-webhook:process-cod-qr",
+      "type": "step",
+      "name": "Process COD QR Payment",
+      "summary": "Handle COD QR payment at delivery: mark order delivered, verify payment, process earnings, record transactions, send FCM notifications.",
+      "tags": ["COD", "QR", "delivery", "verification"],
+      "complexity": "moderate",
+      "filePath": "app/api/webhooks/razorpay/route.ts",
+      "lineRange": "249-315"
+    },
+    {
+      "id": "step:cod-settlement-payback:create-order",
+      "type": "step",
+      "name": "Create Settlement Order",
+      "summary": "Authenticate agent, check pending COD balance, create Razorpay order for settlement payback.",
+      "tags": ["settlement", "razorpay", "COD"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/settlement/create-order/route.ts",
+      "lineRange": "13-80"
+    },
+    {
+      "id": "step:cod-settlement-payback:verify-payment",
+      "type": "step",
+      "name": "Verify Settlement Payment",
+      "summary": "Verify Razorpay payment signature, check idempotency, update agent wallet balance (reduce debt), log settlement transaction.",
+      "tags": ["verification", "settlement", "wallet"],
+      "complexity": "moderate",
+      "filePath": "app/api/delivery/settlement/verify/route.ts",
+      "lineRange": "22-131"
+    },
+    {
+      "id": "step:admin-manage-plans:list-plans",
+      "type": "step",
+      "name": "List Plans",
+      "summary": "Fetch all subscription plans ordered by creation date with admin auth.",
+      "tags": ["admin", "list", "plans"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/plans/route.ts",
+      "lineRange": "8-24"
+    },
+    {
+      "id": "step:admin-manage-plans:create-plan",
+      "type": "step",
+      "name": "Create Plan",
+      "summary": "Create a new subscription plan with name, description, type, pricing, and duration.",
+      "tags": ["admin", "create", "plans"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/plans/route.ts",
+      "lineRange": "27-48"
+    },
+    {
+      "id": "step:admin-manage-plans:update-plan",
+      "type": "step",
+      "name": "Update Plan",
+      "summary": "Update an existing subscription plan's fields.",
+      "tags": ["admin", "update", "plans"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/plans/route.ts",
+      "lineRange": "51-73"
+    },
+    {
+      "id": "step:admin-manage-plans:delete-plan",
+      "type": "step",
+      "name": "Delete Plan",
+      "summary": "Delete a subscription plan by ID with a sentinel ID guard.",
+      "tags": ["admin", "delete", "plans"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/plans/route.ts",
+      "lineRange": "76-98"
+    },
+    {
+      "id": "step:purchase-subscription:create-razorpay-order",
+      "type": "step",
+      "name": "Create Razorpay Subscription Order",
+      "summary": "Authenticate shopkeeper, verify shop ownership, create Razorpay order with subscription notes.",
+      "tags": ["shopkeeper", "subscription", "razorpay"],
+      "complexity": "simple",
+      "filePath": "app/api/shopkeeper/create-subscription-order/route.ts",
+      "lineRange": "7-38"
+    },
+    {
+      "id": "step:grant-free-subscription:verify-admin",
+      "type": "step",
+      "name": "Verify Admin and Validate Input",
+      "summary": "Authenticate admin, validate shopId, planId, and grant reason against allowed values.",
+      "tags": ["admin", "validation"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/grant-subscription/route.ts",
+      "lineRange": "15-34"
+    },
+    {
+      "id": "step:grant-free-subscription:verify-entities",
+      "type": "step",
+      "name": "Verify Shop and Plan Exist",
+      "summary": "Confirm the shop and subscription plan exist in the database.",
+      "tags": ["validation", "lookup"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/grant-subscription/route.ts",
+      "lineRange": "36-46"
+    },
+    {
+      "id": "step:grant-free-subscription:create-subscription",
+      "type": "step",
+      "name": "Create Free Subscription",
+      "summary": "Deactivate old subscriptions, create new free subscription record, activate shop, record payment history.",
+      "tags": ["subscription", "grant", "activation"],
+      "complexity": "moderate",
+      "filePath": "app/api/admin/grant-subscription/route.ts",
+      "lineRange": "48-124"
+    },
+    {
+      "id": "step:cron-check-subscriptions:verify-cron-secret",
+      "type": "step",
+      "name": "Verify Cron Secret",
+      "summary": "Validate the CRON_SECRET authorization header.",
+      "tags": ["security", "cron"],
+      "complexity": "simple",
+      "filePath": "app/api/cron/check-subscriptions/route.ts",
+      "lineRange": "18-29"
+    },
+    {
+      "id": "step:cron-check-subscriptions:deactivate-expired",
+      "type": "step",
+      "name": "Deactivate Expired Subscriptions",
+      "summary": "Find and deactivate expired shop subscriptions, deactivate associated shops, notify shopkeepers via FCM.",
+      "tags": ["subscription", "expiry", "deactivation"],
+      "complexity": "moderate",
+      "filePath": "app/api/cron/check-subscriptions/route.ts",
+      "lineRange": "39-88"
+    },
+    {
+      "id": "step:cron-check-subscriptions:send-reminders",
+      "type": "step",
+      "name": "Send Expiry Reminders",
+      "summary": "Send push notification reminders to shopkeepers 7, 3, and 1 day before subscription expiry.",
+      "tags": ["notification", "reminder", "subscription"],
+      "complexity": "moderate",
+      "filePath": "app/api/cron/check-subscriptions/route.ts",
+      "lineRange": "91-139"
+    },
+    {
+      "id": "step:cron-check-subscriptions:reset-withdrawal-counters",
+      "type": "step",
+      "name": "Reset Weekly Withdrawal Counters",
+      "summary": "Reset weekly withdrawal counters for delivery agents and shops on Monday.",
+      "tags": ["maintenance", "withdrawal", "weekly-reset"],
+      "complexity": "simple",
+      "filePath": "app/api/cron/check-subscriptions/route.ts",
+      "lineRange": "141-157"
+    },
+    {
+      "id": "step:admin-manage-coupons:list-coupons",
+      "type": "step",
+      "name": "List Coupons",
+      "summary": "Fetch all coupons ordered by creation date with admin authentication.",
+      "tags": ["admin", "list", "coupons"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/coupons/route.ts",
+      "lineRange": "34-50"
+    },
+    {
+      "id": "step:admin-manage-coupons:create-coupon",
+      "type": "step",
+      "name": "Create Coupon",
+      "summary": "Create a new discount coupon with code, discount type/value, min order, max discount, validity.",
+      "tags": ["admin", "create", "coupon"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/coupons/route.ts",
+      "lineRange": "52-87"
+    },
+    {
+      "id": "step:admin-manage-coupons:update-coupon",
+      "type": "step",
+      "name": "Update Coupon",
+      "summary": "Update coupon fields including toggle active status, modify discount terms.",
+      "tags": ["admin", "update", "coupon"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/coupons/route.ts",
+      "lineRange": "89-127"
+    },
+    {
+      "id": "step:admin-manage-coupons:delete-coupon",
+      "type": "step",
+      "name": "Delete Coupon",
+      "summary": "Delete a coupon by ID with sentinel ID guard.",
+      "tags": ["admin", "delete", "coupon"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/coupons/route.ts",
+      "lineRange": "129-152"
+    },
+    {
+      "id": "step:admin-manage-withdrawals:list-withdrawals",
+      "type": "step",
+      "name": "List Withdrawal Requests",
+      "summary": "Fetch all withdrawal requests with user details for admin review.",
+      "tags": ["admin", "list", "withdrawal"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/withdrawals/route.ts",
+      "lineRange": "8-28"
+    },
+    {
+      "id": "step:admin-manage-withdrawals:process-withdrawal",
+      "type": "step",
+      "name": "Process Withdrawal",
+      "summary": "Admin approves or rejects a pending withdrawal request.",
+      "tags": ["admin", "process", "withdrawal"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/withdrawals/route.ts",
+      "lineRange": "30-60"
+    },
+    {
+      "id": "step:admin-revenue-analytics:verify-admin",
+      "type": "step",
+      "name": "Verify Admin Access",
+      "summary": "Authenticate admin via Authorization header or session cookie, check admin role or email match.",
+      "tags": ["admin", "auth", "authorization"],
+      "complexity": "moderate",
+      "filePath": "app/api/admin/revenue-analytics/route.ts",
+      "lineRange": "24-59"
+    },
+    {
+      "id": "step:admin-revenue-analytics:aggregate-metrics",
+      "type": "step",
+      "name": "Aggregate Financial Metrics",
+      "summary": "Run parallel queries for orders, payments, subscriptions, wallets, and settlements to compute revenue, costs, and P&L.",
+      "tags": ["analytics", "aggregation", "revenue"],
+      "complexity": "complex",
+      "filePath": "app/api/admin/revenue-analytics/route.ts",
+      "lineRange": "61-250"
+    },
+    {
+      "id": "step:admin-revenue-analytics:build-response",
+      "type": "step",
+      "name": "Build Analytics Response",
+      "summary": "Organize computed metrics into order analytics, customer breakdown, agent/shopkeeper stats, admin P&L, trends, and subscription plan revenue.",
+      "tags": ["analytics", "reporting"],
+      "complexity": "moderate",
+      "filePath": "app/api/admin/revenue-analytics/route.ts",
+      "lineRange": "252-348"
+    },
+    {
+      "id": "step:admin-manage-users:list-agents",
+      "type": "step",
+      "name": "List Agents",
+      "summary": "List all delivery agents with order counts and performance stats.",
+      "tags": ["admin", "list", "agents"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/agents/route.ts",
+      "lineRange": "45-125"
+    },
+    {
+      "id": "step:admin-manage-users:view-agent-detail",
+      "type": "step",
+      "name": "View Agent Detail",
+      "summary": "Fetch full delivery agent profile including documents, orders delivered, and performance stats.",
+      "tags": ["admin", "detail", "agent"],
+      "complexity": "moderate",
+      "filePath": "app/api/admin/agent-detail/[id]/route.ts",
+      "lineRange": "25-84"
+    },
+    {
+      "id": "step:admin-manage-users:view-shop-detail",
+      "type": "step",
+      "name": "View Shop Detail",
+      "summary": "Fetch full shop details including owner info, products, orders, and subscription status.",
+      "tags": ["admin", "detail", "shop"],
+      "complexity": "moderate",
+      "filePath": "app/api/admin/shop-detail/[id]/route.ts",
+      "lineRange": "25-84"
+    },
+    {
+      "id": "step:admin-manage-users:view-customer-detail",
+      "type": "step",
+      "name": "View Customer Detail",
+      "summary": "Fetch customer profile with order history.",
+      "tags": ["admin", "detail", "customer"],
+      "complexity": "simple",
+      "filePath": "app/api/admin/customer-detail/[id]/route.ts",
+      "lineRange": "25-84"
+    },
+    {
+      "id": "step:request-withdrawal:validate-input",
+      "type": "step",
+      "name": "Validate Input and Auth",
+      "summary": "Authenticate user via Bearer token, validate required fields, payment method details, and user type.",
+      "tags": ["auth", "validation"],
+      "complexity": "moderate",
+      "filePath": "app/api/withdraw/request/route.ts",
+      "lineRange": "21-71"
+    },
+    {
+      "id": "step:request-withdrawal:rate-limit-check",
+      "type": "step",
+      "name": "Rate and Duplicate Check",
+      "summary": "Enforce 3 withdrawal requests per hour limit and check no pending withdrawal already exists.",
+      "tags": ["rate-limit", "duplicate"],
+      "complexity": "simple",
+      "filePath": "app/api/withdraw/request/route.ts",
+      "lineRange": "73-95"
+    },
+    {
+      "id": "step:request-withdrawal:check-balances",
+      "type": "step",
+      "name": "Check Balances and Fraud Prevention",
+      "summary": "Fetch user balance and pending COD dues, verify withdrawable balance, check account not blocked, validate weekly limit (5/week).",
+      "tags": ["fraud-prevention", "balance", "validation"],
+      "complexity": "moderate",
+      "filePath": "app/api/withdraw/request/route.ts",
+      "lineRange": "97-163"
+    },
+    {
+      "id": "step:request-withdrawal:lock-and-create",
+      "type": "step",
+      "name": "Lock Funds and Create Request",
+      "summary": "Immediately deduct withdrawal amount from wallet, create withdrawal request record, rollback on failure.",
+      "tags": ["wallet", "deduction", "rollback"],
+      "complexity": "moderate",
+      "filePath": "app/api/withdraw/request/route.ts",
+      "lineRange": "165-197"
+    },
+    {
+      "id": "step:process-earnings:check-duplicate",
+      "type": "step",
+      "name": "Check Duplicate Processing",
+      "summary": "Verify earnings have not already been processed for this order to prevent double-crediting.",
+      "tags": ["idempotency", "earnings"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/utils.ts",
+      "lineRange": "16-28"
+    },
+    {
+      "id": "step:process-earnings:credit-agent-auto-recover",
+      "type": "step",
+      "name": "Credit Agent with Auto-Recovery",
+      "summary": "Credit agent's delivery earnings to wallet, auto-recover pending COD dues from earnings, update settlement ledger.",
+      "tags": ["wallet", "agent", "auto-recovery", "COD"],
+      "complexity": "complex",
+      "filePath": "app/api/delivery/utils.ts",
+      "lineRange": "42-129"
+    },
+    {
+      "id": "step:process-earnings:credit-shopkeeper",
+      "type": "step",
+      "name": "Credit Shopkeeper Earnings",
+      "summary": "Credit 100% of subtotal to shopkeeper's wallet, update total earnings and order count.",
+      "tags": ["wallet", "shopkeeper", "earnings"],
+      "complexity": "simple",
+      "filePath": "app/api/delivery/utils.ts",
+      "lineRange": "132-161"
+    }
+  ],
+  "edges": [
+    {
+      "source": "domain:user-authentication",
+      "target": "flow:login",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:user-authentication",
+      "target": "flow:phone-lookup",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:user-authentication",
+      "target": "flow:auth-callback",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:place-cod-order",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:place-paid-order",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:cancel-order",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:shopkeeper-order-action",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:delivery-status-update",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:delivery-verify-otp",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:order-management",
+      "target": "flow:collect-cod-cash",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "flow:create-payment-order",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "flow:verify-payment",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "flow:handle-razorpay-webhook",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "flow:cod-settlement-payback",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:subscription-management",
+      "target": "flow:admin-manage-plans",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:subscription-management",
+      "target": "flow:purchase-subscription",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:subscription-management",
+      "target": "flow:grant-free-subscription",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:subscription-management",
+      "target": "flow:cron-check-subscriptions",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "flow:admin-manage-coupons",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "flow:admin-manage-withdrawals",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "flow:admin-revenue-analytics",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "flow:admin-manage-users",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:wallet-and-payouts",
+      "target": "flow:request-withdrawal",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:wallet-and-payouts",
+      "target": "flow:process-earnings",
+      "type": "contains_flow",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:login",
+      "target": "step:login:validate-input",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:login",
+      "target": "step:login:check-lockout",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:login",
+      "target": "step:login:supabase-authenticate",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:login",
+      "target": "step:login:handle-failure",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:login",
+      "target": "step:login:handle-success",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:phone-lookup",
+      "target": "step:phone-lookup:rate-limit-check",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:phone-lookup",
+      "target": "step:phone-lookup:query-profile",
+      "type": "flow_step",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:auth-callback",
+      "target": "step:auth-callback:exchange-code",
+      "type": "flow_step",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:validate-auth",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:verify-ownership",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:check-delivery-radius",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:verify-pricing",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:apply-coupon",
+      "type": "flow_step",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:create-order",
+      "type": "flow_step",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:deduct-stock",
+      "type": "flow_step",
+      "weight": 0.9
+    },
+    {
+      "source": "flow:place-cod-order",
+      "target": "step:place-cod-order:notify-shopkeeper",
+      "type": "flow_step",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:rate-limit",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:validate-auth",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:validate-request",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:verify-products",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:calculate-financials",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:place-paid-order",
+      "target": "step:place-paid-order:create-order-record",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:cancel-order",
+      "target": "step:cancel-order:rate-limit",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:cancel-order",
+      "target": "step:cancel-order:verify-ownership",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:cancel-order",
+      "target": "step:cancel-order:atomic-cancel",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:cancel-order",
+      "target": "step:cancel-order:process-refund",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:shopkeeper-order-action",
+      "target": "step:shopkeeper-order-action:verify-auth",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:shopkeeper-order-action",
+      "target": "step:shopkeeper-order-action:validate-action",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:shopkeeper-order-action",
+      "target": "step:shopkeeper-order-action:restore-stock",
+      "type": "flow_step",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:shopkeeper-order-action",
+      "target": "step:shopkeeper-order-action:update-status",
+      "type": "flow_step",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:delivery-status-update",
+      "target": "step:delivery-status-update:csrf-check",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:delivery-status-update",
+      "target": "step:delivery-status-update:verify-auth",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:delivery-status-update",
+      "target": "step:delivery-status-update:validate-transition",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:delivery-status-update",
+      "target": "step:delivery-status-update:persist-status",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:delivery-verify-otp",
+      "target": "step:delivery-verify-otp:csrf-and-rate-limit",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:delivery-verify-otp",
+      "target": "step:delivery-verify-otp:verify-auth",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:delivery-verify-otp",
+      "target": "step:delivery-verify-otp:validate-otp",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:delivery-verify-otp",
+      "target": "step:delivery-verify-otp:mark-delivered",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:collect-cod-cash",
+      "target": "step:collect-cod-cash:csrf-and-rate-limit",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:collect-cod-cash",
+      "target": "step:collect-cod-cash:verify-auth",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:collect-cod-cash",
+      "target": "step:collect-cod-cash:handle-qr",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:collect-cod-cash",
+      "target": "step:collect-cod-cash:handle-cash",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:create-payment-order",
+      "target": "step:create-payment-order:rate-limit",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:create-payment-order",
+      "target": "step:create-payment-order:verify-auth",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:create-payment-order",
+      "target": "step:create-payment-order:validate-amount-and-access",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:create-payment-order",
+      "target": "step:create-payment-order:create-razorpay-order",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:verify-payment",
+      "target": "step:verify-payment:verify-signature",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:verify-payment",
+      "target": "step:verify-payment:update-order-status",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:handle-razorpay-webhook",
+      "target": "step:handle-razorpay-webhook:verify-signature",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:handle-razorpay-webhook",
+      "target": "step:handle-razorpay-webhook:process-subscription",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:handle-razorpay-webhook",
+      "target": "step:handle-razorpay-webhook:process-order-payment",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:handle-razorpay-webhook",
+      "target": "step:handle-razorpay-webhook:process-cod-qr",
+      "type": "flow_step",
+      "weight": 0.9
+    },
+    {
+      "source": "flow:cod-settlement-payback",
+      "target": "step:cod-settlement-payback:create-order",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:cod-settlement-payback",
+      "target": "step:cod-settlement-payback:verify-payment",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:admin-manage-plans",
+      "target": "step:admin-manage-plans:list-plans",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:admin-manage-plans",
+      "target": "step:admin-manage-plans:create-plan",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:admin-manage-plans",
+      "target": "step:admin-manage-plans:update-plan",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:admin-manage-plans",
+      "target": "step:admin-manage-plans:delete-plan",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:purchase-subscription",
+      "target": "step:purchase-subscription:create-razorpay-order",
+      "type": "flow_step",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:grant-free-subscription",
+      "target": "step:grant-free-subscription:verify-admin",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:grant-free-subscription",
+      "target": "step:grant-free-subscription:verify-entities",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:grant-free-subscription",
+      "target": "step:grant-free-subscription:create-subscription",
+      "type": "flow_step",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:cron-check-subscriptions",
+      "target": "step:cron-check-subscriptions:verify-cron-secret",
+      "type": "flow_step",
+      "weight": 0.1
+    },
+    {
+      "source": "flow:cron-check-subscriptions",
+      "target": "step:cron-check-subscriptions:deactivate-expired",
+      "type": "flow_step",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:cron-check-subscriptions",
+      "target": "step:cron-check-subscriptions:send-reminders",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:cron-check-subscriptions",
+      "target": "step:cron-check-subscriptions:reset-withdrawal-counters",
+      "type": "flow_step",
+      "weight": 0.9
+    },
+    {
+      "source": "flow:admin-manage-coupons",
+      "target": "step:admin-manage-coupons:list-coupons",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:admin-manage-coupons",
+      "target": "step:admin-manage-coupons:create-coupon",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:admin-manage-coupons",
+      "target": "step:admin-manage-coupons:update-coupon",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:admin-manage-coupons",
+      "target": "step:admin-manage-coupons:delete-coupon",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:admin-manage-withdrawals",
+      "target": "step:admin-manage-withdrawals:list-withdrawals",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:admin-manage-withdrawals",
+      "target": "step:admin-manage-withdrawals:process-withdrawal",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:admin-revenue-analytics",
+      "target": "step:admin-revenue-analytics:verify-admin",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:admin-revenue-analytics",
+      "target": "step:admin-revenue-analytics:aggregate-metrics",
+      "type": "flow_step",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:admin-revenue-analytics",
+      "target": "step:admin-revenue-analytics:build-response",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:admin-manage-users",
+      "target": "step:admin-manage-users:list-agents",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:admin-manage-users",
+      "target": "step:admin-manage-users:view-agent-detail",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:admin-manage-users",
+      "target": "step:admin-manage-users:view-shop-detail",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:admin-manage-users",
+      "target": "step:admin-manage-users:view-customer-detail",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:request-withdrawal",
+      "target": "step:request-withdrawal:validate-input",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:request-withdrawal",
+      "target": "step:request-withdrawal:rate-limit-check",
+      "type": "flow_step",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:request-withdrawal",
+      "target": "step:request-withdrawal:check-balances",
+      "type": "flow_step",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:request-withdrawal",
+      "target": "step:request-withdrawal:lock-and-create",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:process-earnings",
+      "target": "step:process-earnings:check-duplicate",
+      "type": "flow_step",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:process-earnings",
+      "target": "step:process-earnings:credit-agent-auto-recover",
+      "type": "flow_step",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:process-earnings",
+      "target": "step:process-earnings:credit-shopkeeper",
+      "type": "flow_step",
+      "weight": 0.8
+    },
+    {
+      "source": "domain:order-management",
+      "target": "domain:payment-processing",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Order placement triggers Razorpay payment order creation and webhook confirmation"
+    },
+    {
+      "source": "domain:order-management",
+      "target": "domain:wallet-and-payouts",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Order delivery triggers earnings processing for shopkeepers and delivery agents"
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "domain:subscription-management",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Razorpay webhook processes subscription payments and activates/renews shop subscriptions"
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "domain:subscription-management",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Admin manages subscription plans and grants free subscriptions to shops"
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "domain:wallet-and-payouts",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Admin reviews and processes withdrawal requests from shopkeepers and delivery agents"
+    },
+    {
+      "source": "domain:admin-operations",
+      "target": "domain:order-management",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Admin views order details, manages COD settlements, and oversees all order activity"
+    },
+    {
+      "source": "domain:user-authentication",
+      "target": "domain:order-management",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "Authenticated users (customers, shopkeepers, delivery agents) participate in order lifecycle"
+    },
+    {
+      "source": "domain:payment-processing",
+      "target": "domain:wallet-and-payouts",
+      "type": "cross_domain",
+      "weight": 0.6,
+      "description": "COD settlement payback from delivery agents updates wallet balances"
+    }
+  ],
+  "layers": [],
+  "tour": []
+}

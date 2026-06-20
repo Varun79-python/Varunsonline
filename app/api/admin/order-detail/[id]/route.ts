@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
+import { createServiceClient, verifyAdmin } from '@/modules/authentication/services/authMiddleware'
 
 // Admin order detail — no cache: order status changes in realtime, admin needs fresh data
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

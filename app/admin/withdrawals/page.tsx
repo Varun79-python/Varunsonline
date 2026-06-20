@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { SkeletonBlock } from '@/components/ui/skeleton'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { SkeletonBlock } from '@/modules/shared-ui/components/ui/skeleton'
 
 interface Withdrawal {
   id: string
@@ -210,12 +210,13 @@ export default function AdminWithdrawals() {
                   <th>Amount</th>
                   <th>Send To</th>
                   <th>Status</th>
+                  <th>Note</th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
                 {done.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>No processed requests yet</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>No processed requests yet</td></tr>
                 )}
                 {done.map(w => (
                   <tr key={w.id}>
@@ -232,6 +233,9 @@ export default function AdminWithdrawals() {
                       <span className={`badge ${w.status === 'paid' ? 'badge-green' : 'badge-red'}`}>
                         {w.status === 'paid' ? '✅ Paid' : '❌ Rejected'}
                       </span>
+                    </td>
+                    <td style={{ fontSize: '0.8rem', color: w.admin_note ? '#64748b' : '#cbd5e1', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {w.admin_note || '—'}
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                       {new Date(w.requested_at).toLocaleDateString('en-IN')}

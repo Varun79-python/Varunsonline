@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 
 interface SettlementEntry {
   id: string; agent_id: string; order_id: string

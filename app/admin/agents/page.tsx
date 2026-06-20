@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { getAdminAgents, deleteDeliveryAgent } from '@/app/admin/actions'
-import { SkeletonCard } from '@/components/ui/skeleton'
+import { SkeletonCard } from '@/modules/shared-ui/components/ui/skeleton'
 
 interface Agent {
   id: string

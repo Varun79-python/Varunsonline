@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { checkShopkeeperStatus, checkDeliveryAgentStatus } from '@/app/admin/actions'
 
 export default function ApprovalStatusPage() {

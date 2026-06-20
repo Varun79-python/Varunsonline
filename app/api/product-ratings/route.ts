@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
 
 // Ratings created client-side (app/customer/orders/[id]/page.tsx upsert).
 // No revalidate here — keep dynamic to show freshly submitted ratings.

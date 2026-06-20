@@ -14,8 +14,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { POST } from './route'
-import { recalcOrder } from '@/lib/order-calculations'
-import { haversineKm } from '@/lib/gps'
+import { recalcOrder } from '@/modules/infrastructure/services/order-calculations'
+import { haversineKm } from '@/modules/gps-location/services/gps'
 
 // ---------------------------------------------------------------------------
 // Setup

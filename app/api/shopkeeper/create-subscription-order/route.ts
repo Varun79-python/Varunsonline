@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
-import { verifyShopkeeper } from '@/lib/authMiddleware'
+import { verifyShopkeeper } from '@/modules/authentication/services/authMiddleware'
 
 // POST state-changing endpoint
 

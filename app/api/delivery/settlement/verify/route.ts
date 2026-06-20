@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
+import { createServiceClient, verifyDeliveryAgent } from '@/modules/authentication/services/authMiddleware'
 
 // POST state-changing endpoint
 

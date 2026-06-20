@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { SkeletonBlock } from '@/components/ui/skeleton'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { SkeletonBlock } from '@/modules/shared-ui/components/ui/skeleton'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { useOrderAlert } from '@/lib/useOrderAlert'
+import { useOrderAlert } from '@/modules/notifications/hooks/useOrderAlert'
 
 interface AvailableOrder {
   id: string; order_number: string; status: string; agent_earning: number

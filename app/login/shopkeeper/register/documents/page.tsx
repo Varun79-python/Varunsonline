@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { submitShopkeeperDocuments } from '@/app/admin/actions'
-import { LoadingPage } from '@/components/ui/skeleton'
+import { LoadingPage } from '@/modules/shared-ui/components/ui/skeleton'
 
 const SHOP_CATEGORIES = [
   'Grocery', 'Vegetables & Fruits', 'Dairy & Eggs', 'Bakery',

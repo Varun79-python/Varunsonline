@@ -6,7 +6,7 @@
  * Uses service_role key (bypasses RLS).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/modules/infrastructure/supabase/server'
 
 async function verifyAdmin(authHeader: string | null): Promise<boolean> {
   if (!authHeader?.startsWith('Bearer ')) return false

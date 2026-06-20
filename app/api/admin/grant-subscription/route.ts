@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
-import { verifyAdmin } from '@/lib/adminAuth'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
+import { verifyAdmin } from '@/modules/authentication/services/adminAuth'
 
 // POST state-changing endpoint
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
+import { createServiceClient, verifyAdmin } from '@/modules/authentication/services/authMiddleware'
 
 // Plans change infrequently. Cache GET for 5 minutes.
 // POST/PATCH/DELETE are state-changing (dynamic by default).
@@ -83,9 +83,11 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Plan ID required' }, { status: 400 })
 
     const supabase = createServiceClient()
+    const NEVER = '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase
       .from('subscription_plans')
       .delete()
+      .neq('id', NEVER)
       .eq('id', id)
     if (error) throw error
     return NextResponse.json({ success: true })

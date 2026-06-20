@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/modules/infrastructure/supabase/server'
 import { redirect } from 'next/navigation'
-import ShopkeeperShell from '@/components/shopkeeper/ShopkeeperShell'
+import ShopkeeperShell from '@/modules/shopkeeper/components/ShopkeeperShell'
 
 export default async function ShopkeeperLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()

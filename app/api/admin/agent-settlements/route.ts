@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyAdmin } from '@/lib/authMiddleware'
+import { createServiceClient, verifyAdmin } from '@/modules/authentication/services/authMiddleware'
 
 // Admin list — no cache: admins need immediate reflection of settlement data
 /**

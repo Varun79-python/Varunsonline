@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent, validateOrigin } from '@/lib/authMiddleware'
-import { haversineKm } from '@/lib/gps'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
-import { logger } from '@/lib/logger'
+import { createServiceClient, verifyDeliveryAgent, validateOrigin } from '@/modules/authentication/services/authMiddleware'
+import { haversineKm } from '@/modules/gps-location/services/gps'
+import { checkRateLimit, getRateLimitIdentifier } from '@/modules/authentication/services/rateLimit'
+import { logger } from '@/modules/infrastructure/services/logger'
 
 export const dynamic = 'force-dynamic'
 

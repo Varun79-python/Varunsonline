@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
 
 // Dynamic — uses request.url for shop_id param, so always fresh.
 // No revalidate needed — Next.js detects request.url usage automatically.

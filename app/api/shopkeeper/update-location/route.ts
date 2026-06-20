@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
+import { createServiceClient, verifyShopkeeper } from '@/modules/authentication/services/authMiddleware'
 
 // PATCH state-changing endpoint
 

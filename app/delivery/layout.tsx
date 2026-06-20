@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import Sidebar from '@/components/Sidebar'
-import { usePushNotifications } from '@/lib/usePushNotifications'
-import AgentLiveLocationBar from '@/components/shared/AgentLiveLocationBar'
-import { useOrderAlert } from '@/lib/useOrderAlert'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import Sidebar from '@/modules/shared-ui/components/Sidebar'
+import { usePushNotifications } from '@/modules/notifications/hooks/usePushNotifications'
+import AgentLiveLocationBar from '@/modules/gps-location/components/AgentLiveLocationBar'
+import { useOrderAlert } from '@/modules/notifications/hooks/useOrderAlert'
 
 const navItems = [
   { href: '/delivery', icon: '📊', label: 'Dashboard' },

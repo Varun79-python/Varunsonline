@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/lib/customerGps'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { formatCustomerGPSError, getCustomerGPSPosition, isPoorCustomerGPSAccuracy } from '@/modules/gps-location/services/customerGps'
 
 interface Address { id: string; label: string; house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }
 interface CartItem { product_id: string; name: string; price: number; quantity: number; shop_id: string; shop_name: string; image_url: string }

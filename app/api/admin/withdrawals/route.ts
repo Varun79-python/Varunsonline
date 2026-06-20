@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
-import { verifyAdmin } from '@/lib/adminAuth'
+import { createServiceClient, validateOrigin } from '@/modules/authentication/services/authMiddleware'
+import { verifyAdmin } from '@/modules/authentication/services/adminAuth'
 
 // Admin list — no cache: admins expect immediate feedback after processing withdrawals
 

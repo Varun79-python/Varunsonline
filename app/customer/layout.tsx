@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { redirect } from 'next/navigation'
-import CustomerShell from '@/components/customer/CustomerShell'
+import CustomerShell from '@/modules/customer/components/CustomerShell'
 
 export default async function CustomerLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Skeleton } from '@/components/ui/skeleton'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { Skeleton } from '@/modules/shared-ui/components/ui/skeleton'
 
 export default function AdminLoginPage() {
   const supabase = createClient()

@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { haversineKm } from '@/lib/gps'
-import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
-import ShopReviews from '@/components/shared/ShopReviews'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { haversineKm } from '@/modules/gps-location/services/gps'
+import { useCustomerLocation } from '@/modules/customer/components/useCustomerLocation'
+import ShopReviews from '@/modules/shared-ui/components/ShopReviews'
 
 interface Product {
   id: string; name: string; description: string; price: number; mrp: number

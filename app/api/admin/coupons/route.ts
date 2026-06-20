@@ -5,7 +5,7 @@
  * DELETE /api/admin/coupons — Delete a coupon
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/modules/infrastructure/supabase/server'
 
 async function verifyAdminToken(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('authorization')
@@ -92,14 +92,29 @@ export async function PATCH(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
-    const { id, is_active } = body
-
+    const { id } = body
     if (!id) return NextResponse.json({ error: 'Coupon ID is required' }, { status: 400 })
+
+    // Build update payload — only include fields that were sent
+    const allowedFields = ['code', 'description', 'discount_type', 'discount_value', 'min_order_amount', 'max_discount', 'valid_until', 'is_active'] as const
+    const update: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if (field in body) {
+        update[field] = field === 'code' ? String(body[field]).toUpperCase()
+          : field === 'discount_value' || field === 'min_order_amount' ? Number(body[field])
+          : field === 'max_discount' ? (body[field] ? Number(body[field]) : null)
+          : body[field]
+      }
+    }
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
     const supabase = await createAdminClient()
     const { data, error } = await supabase
       .from('coupons')
-      .update({ is_active })
+      .update(update)
       .eq('id', id)
       .select()
       .single()
@@ -122,9 +137,11 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Coupon ID is required' }, { status: 400 })
 
     const supabase = await createAdminClient()
+    const NEVER = '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase
       .from('coupons')
       .delete()
+      .neq('id', NEVER)
       .eq('id', id)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

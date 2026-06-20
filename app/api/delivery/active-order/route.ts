@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyDeliveryAgent } from '@/lib/authMiddleware'
-import { haversineKm } from '@/lib/gps'
+import { createServiceClient, verifyDeliveryAgent } from '@/modules/authentication/services/authMiddleware'
+import { haversineKm } from '@/modules/gps-location/services/gps'
 
 export const dynamic = 'force-dynamic'
 

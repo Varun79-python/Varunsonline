@@ -17,7 +17,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { pushToUser } from '@/lib/pushHelper'
+import { pushToUser } from '@/modules/notifications/services/pushHelper'
 
 // POST state-changing endpoint
 

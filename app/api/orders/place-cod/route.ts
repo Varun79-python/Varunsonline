@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServiceClient } from '@/lib/authMiddleware'
-import { recalcOrder } from '@/lib/order-calculations'
-import { haversineKm } from '@/lib/gps'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
+import { recalcOrder } from '@/modules/infrastructure/services/order-calculations'
+import { haversineKm } from '@/modules/gps-location/services/gps'
 
 // POST state-changing endpoint
 

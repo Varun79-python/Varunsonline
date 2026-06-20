@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import {
   getAdminShops,
   approveShopkeeperDocuments,
@@ -14,7 +14,7 @@ import {
   toggleShopActive,
   reapproveShopRecord,
 } from '@/app/admin/actions'
-import { SkeletonCard, Skeleton } from '@/components/ui/skeleton'
+import { SkeletonCard, Skeleton } from '@/modules/shared-ui/components/ui/skeleton'
 
 interface UnifiedShop {
   id: string // shop.id or shop_documents.id

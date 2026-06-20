@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { pushToUser } from '@/lib/pushHelper'
+import { pushToUser } from '@/modules/notifications/services/pushHelper'
 import { processEarnings } from '@/app/api/delivery/utils'
 
 export const runtime = 'nodejs'

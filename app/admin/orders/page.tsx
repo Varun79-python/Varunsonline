@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { SkeletonBlock } from '@/components/ui/skeleton'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { SkeletonBlock } from '@/modules/shared-ui/components/ui/skeleton'
 
 interface Order {
   id: string; order_number: string; status: string; total_amount: number; admin_earning: number;

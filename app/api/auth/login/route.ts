@@ -25,12 +25,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { logger } from '@/lib/logger'
+import { logger } from '@/modules/infrastructure/services/logger'
 import {
   checkAccountLockout,
   handleFailedLogin,
   handleSuccessfulLogin,
-} from '@/lib/loginTracker'
+} from '@/modules/authentication/services/loginTracker'
 
 // ── Request / Response types ──────────────────────────────────────────────────
 

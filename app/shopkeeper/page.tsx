@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 import { type RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { useOrderAlert } from '@/lib/useOrderAlert'
+import { useOrderAlert } from '@/modules/notifications/hooks/useOrderAlert'
 import { getShopkeeperShopData } from '@/app/admin/actions'
 
 interface Shop { id: string; name: string; is_approved: boolean; is_active: boolean; is_open: boolean; is_profile_complete: boolean; wallet_balance: number; total_earnings: number; total_orders: number; rating: number; subscription_end_date?: string | null; subscription_fee_percent?: number; rejection_reason?: string | null }

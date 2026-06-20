@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 
 function generateCaptcha(length = 5): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'

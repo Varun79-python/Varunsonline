@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
 import { createServerClient } from '@supabase/ssr'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
+import { checkRateLimit, getRateLimitIdentifier } from '@/modules/authentication/services/rateLimit'
 
 // POST state-changing endpoint
 

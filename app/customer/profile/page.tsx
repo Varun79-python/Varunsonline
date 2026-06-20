@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import LocationPicker, { type SavedLocation } from '@/components/LocationPicker'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import LocationPicker, { type SavedLocation } from '@/modules/gps-location/components/LocationPicker'
 
 const GENDER_OPTIONS = [
   { value: '', label: 'Select Gender' },
@@ -74,7 +74,7 @@ export default function CustomerProfile() {
 
   async function deleteAddress(id: string) {
     if (!confirm('Delete this address?')) return
-    await supabase.from('addresses').delete().eq('id', id)
+    await supabase.from('addresses').delete().neq('id', '00000000-0000-0000-0000-000000000000').eq('id', id)
     setAddresses(prev => prev.filter(a => a.id !== id))
   }
 

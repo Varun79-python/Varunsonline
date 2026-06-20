@@ -1,15 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/modules/infrastructure/supabase/client'
 
-interface Coupon { id: string; code: string; description: string; discount_type: string; discount_value: number; min_order_amount: number; used_count: number; is_active: boolean; valid_until: string }
+interface Coupon { id: string; code: string; description: string; discount_type: string; discount_value: number; min_order_amount: number; max_discount?: number | null; used_count: number; is_active: boolean; valid_until: string }
 
 export default function AdminCoupons() {
   const router = useRouter()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ code: '', description: '', discount_type: 'percent', discount_value: '', min_order_amount: '0', max_discount: '', valid_until: '' })
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
+  const emptyForm = { code: '', description: '', discount_type: 'percent', discount_value: '', min_order_amount: '0', max_discount: '', valid_until: '' }
+  const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,6 +39,35 @@ export default function AdminCoupons() {
     } catch {}
   }
 
+  function resetForm(c?: Coupon | null) {
+    if (c) {
+      setForm({
+        code: c.code,
+        description: c.description || '',
+        discount_type: c.discount_type,
+        discount_value: String(c.discount_value),
+        min_order_amount: String(c.min_order_amount),
+        max_discount: c.max_discount != null ? String(c.max_discount) : '',
+        valid_until: c.valid_until ? c.valid_until.slice(0, 16) : '',
+      })
+    } else {
+      setForm(emptyForm)
+    }
+    setError('')
+  }
+
+  function openEdit(c: Coupon) {
+    setEditingCoupon(c)
+    resetForm(c)
+    setShowForm(true)
+  }
+
+  function openCreate() {
+    setEditingCoupon(null)
+    resetForm(null)
+    setShowForm(true)
+  }
+
   async function save() {
     setSaving(true)
     setError('')
@@ -51,18 +82,39 @@ export default function AdminCoupons() {
         max_discount: form.max_discount ? Number(form.max_discount) : null,
         valid_until: form.valid_until || null,
       }
-      const res = await fetch('/api/admin/coupons', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        setError(err.error || 'Failed to create coupon')
-        return
+
+      if (editingCoupon) {
+        // Update existing coupon
+        const res = await fetch('/api/admin/coupons', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ id: editingCoupon.id, ...payload }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          setError(err.error || 'Failed to update coupon')
+          return
+        }
+        const updated: Coupon = await res.json()
+        setCoupons(prev => prev.map(x => x.id === updated.id ? updated : x))
+        setShowForm(false)
+        setEditingCoupon(null)
+        setError('')
+      } else {
+        // Create new coupon
+        const res = await fetch('/api/admin/coupons', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          setError(err.error || 'Failed to create coupon')
+          return
+        }
+        const data = await res.json()
+        if (data) { setCoupons(prev => [data, ...prev]); setShowForm(false); setError('') }
       }
-      const data = await res.json()
-      if (data) { setCoupons(prev => [data, ...prev]); setShowForm(false); setError('') }
     } catch (e) {
       setError('Network error. Please try again.')
     } finally {
@@ -98,7 +150,7 @@ export default function AdminCoupons() {
           ← Command Center
         </button>
         <h2>🏷️ Coupons & Discounts</h2>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Create Coupon</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Create Coupon</button>
       </div>
 
       {showForm && (
@@ -106,7 +158,7 @@ export default function AdminCoupons() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
           overflowY: 'auto',
           zIndex: 9999, padding: '24px 16px'
-        }} onClick={e => e.target === e.currentTarget && setShowForm(false)}>
+        }} onClick={e => { if (e.target === e.currentTarget) { setShowForm(false); setEditingCoupon(null); setError('') } }}>
           <div style={{
             background: 'white', borderRadius: 16, width: '100%', maxWidth: 500,
             margin: '0 auto',
@@ -114,8 +166,8 @@ export default function AdminCoupons() {
           }} onClick={e => e.stopPropagation()}>
             {/* Modal header */}
             <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>🏷️ Create Coupon</h3>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#64748b', lineHeight: 1, padding: '2px 6px' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>{editingCoupon ? '✏️ Edit Coupon' : '🏷️ Create Coupon'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingCoupon(null); setError('') }} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#64748b', lineHeight: 1, padding: '2px 6px' }}>✕</button>
             </div>
             {/* Form body */}
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -175,9 +227,9 @@ export default function AdminCoupons() {
               <button
                 style={{ flex: 1, padding: '12px', background: '#f97316', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', opacity: saving || !form.code || !form.discount_value ? 0.6 : 1 }}
                 onClick={save} disabled={saving || !form.code || !form.discount_value}>
-                {saving ? 'Creating...' : '✅ Create Coupon'}
+                {saving ? 'Saving...' : editingCoupon ? '✅ Update Coupon' : '✅ Create Coupon'}
               </button>
-              <button style={{ padding: '12px 20px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }} onClick={() => setShowForm(false)}>Cancel</button>
+              <button style={{ padding: '12px 20px', background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }} onClick={() => { setShowForm(false); setEditingCoupon(null); setError('') }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -220,6 +272,7 @@ export default function AdminCoupons() {
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => toggle(c)}>{c.is_active ? 'Disable' : 'Enable'}</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>✏️</button>
                     <button className="btn btn-danger btn-sm" onClick={() => deleteCoupon(c.id)}>🗑️</button>
                   </div>
                 </td>

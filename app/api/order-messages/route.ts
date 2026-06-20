@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/authMiddleware'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
 
 export const dynamic = 'force-dynamic'
 

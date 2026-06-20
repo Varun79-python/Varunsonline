@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
-import ProductCard from '@/components/customer/ProductCard'
-import FilterChips from '@/components/customer/FilterChips'
-import ProductFilters from '@/components/customer/ProductFilters'
-import type { FilterState } from '@/components/customer/ProductFilters'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { useCustomerLocation } from '@/modules/customer/components/useCustomerLocation'
+import ProductCard from '@/modules/customer/components/ProductCard'
+import FilterChips from '@/modules/customer/components/FilterChips'
+import ProductFilters from '@/modules/customer/components/ProductFilters'
+import type { FilterState } from '@/modules/customer/components/ProductFilters'
 
 /* ── SVG Icons ────────────────────────────────────────────────────── */
 const SearchIcon = () => (

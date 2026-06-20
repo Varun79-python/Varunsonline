@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import OrderChat from '@/components/OrderChat/OrderChat'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import OrderChat from '@/modules/shared-ui/components/OrderChat'
 
 const STATUS_STEPS = (paymentMethod?: string) => [
   { key: paymentMethod === 'cod' ? 'placed' : 'payment_confirmed', label: paymentMethod === 'cod' ? 'Order Placed' : 'Payment Confirmed', icon: '💳' },

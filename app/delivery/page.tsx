@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useOrderAlert } from '@/lib/useOrderAlert'
-import { haversineKm } from '@/lib/gps'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { useOrderAlert } from '@/modules/notifications/hooks/useOrderAlert'
+import { haversineKm } from '@/modules/gps-location/services/gps'
 
 interface Shop { name: string; address_line1: string; city: string; latitude: number; longitude: number }
 interface Address { house_name: string; street_name: string; landmark: string; city: string; latitude: number; longitude: number; phone?: string }

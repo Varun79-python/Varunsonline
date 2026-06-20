@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { LoadingPage } from '@/components/ui/skeleton'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { LoadingPage } from '@/modules/shared-ui/components/ui/skeleton'
 
 interface Complaint {
   id: string
@@ -14,6 +14,8 @@ interface Complaint {
   status: string
   created_at: string
   resolved_at: string | null
+  admin_reply?: string | null
+  replied_at?: string | null
   customer_name?: string
   customer_email?: string
   order_number?: string
@@ -43,6 +45,8 @@ export default function AdminComplaintsPage() {
   const [filter, setFilter] = useState<string>('all')
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [updating, setUpdating] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   async function loadComplaints() {
     const { data, error } = await supabase
@@ -81,6 +85,31 @@ export default function AdminComplaintsPage() {
     loadComplaints()
   }, [])
 
+  async function sendReply(complaint: Complaint) {
+    if (!replyText.trim()) return
+    setSendingReply(true)
+    const { error } = await supabase
+      .from('customer_complaints')
+      .update({ admin_reply: replyText.trim(), replied_at: new Date().toISOString() })
+      .eq('id', complaint.id)
+    if (!error) {
+      setComplaints(prev => prev.map(c => c.id === complaint.id ? { ...c, admin_reply: replyText.trim(), replied_at: new Date().toISOString() } : c))
+      setSelectedComplaint(prev => prev ? { ...prev, admin_reply: replyText.trim(), replied_at: new Date().toISOString() } : null)
+      setReplyText('')
+    }
+    setSendingReply(false)
+  }
+
+  function openComplaint(c: Complaint) {
+    setSelectedComplaint(c)
+    setReplyText('')
+  }
+
+  function closeComplaint() {
+    setSelectedComplaint(null)
+    setReplyText('')
+  }
+
   async function updateStatus(id: string, newStatus: string) {
     setUpdating(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -93,7 +122,7 @@ export default function AdminComplaintsPage() {
     const { error } = await supabase.from('customer_complaints').update(updates).eq('id', id)
     if (!error) {
       setComplaints(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
-      setSelectedComplaint(null)
+      closeComplaint()
     }
     setUpdating(false)
   }
@@ -129,7 +158,7 @@ export default function AdminComplaintsPage() {
           {filtered.map(complaint => {
             const sc = STATUS_CONFIG[complaint.status] || STATUS_CONFIG.pending
             return (
-              <div key={complaint.id} onClick={() => setSelectedComplaint(complaint)} style={{ background: 'white', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' }}>
+              <div key={complaint.id} onClick={() => openComplaint(complaint)} style={{ background: 'white', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a', marginBottom: 4 }}>{complaint.subject}</div>
@@ -149,11 +178,11 @@ export default function AdminComplaintsPage() {
       )}
 
       {selectedComplaint && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={() => setSelectedComplaint(null)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={closeComplaint}>
           <div style={{ background: 'white', borderRadius: 20, maxWidth: 500, width: '100%', maxHeight: '90vh', overflow: 'auto', padding: 24 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>Complaint Details</h2>
-              <button onClick={() => setSelectedComplaint(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+              <button onClick={closeComplaint} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>×</button>
             </div>
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Customer</div>
@@ -191,6 +220,33 @@ export default function AdminComplaintsPage() {
                   )
                 })}
               </div>
+            </div>
+            {/* ── Admin Reply ── */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Admin Response</div>
+              {selectedComplaint.admin_reply ? (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.9rem', color: '#166534', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{selectedComplaint.admin_reply}</div>
+                  {selectedComplaint.replied_at && (
+                    <div style={{ fontSize: '0.72rem', color: '#86efac', marginTop: 6 }}>Replied {new Date(selectedComplaint.replied_at).toLocaleString('en-IN')}</div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: 12, fontStyle: 'italic' }}>No response yet</div>
+              )}
+              <textarea
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                placeholder="Write your response to the customer..."
+                rows={3}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: '0.9rem', color: '#1e293b', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <button
+                onClick={() => sendReply(selectedComplaint)}
+                disabled={sendingReply || !replyText.trim()}
+                style={{ marginTop: 8, padding: '10px 18px', background: sendingReply || !replyText.trim() ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', cursor: sendingReply ? 'not-allowed' : 'pointer' }}>
+                {sendingReply ? 'Sending...' : '✉️ Send Response'}
+              </button>
             </div>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Submitted: {new Date(selectedComplaint.created_at).toLocaleString('en-IN')}</div>
           </div>

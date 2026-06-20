@@ -12,8 +12,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { createServiceClient } from '@/lib/authMiddleware'
-import { recalcOrder, loadPlatformSettings } from '@/lib/order-calculations'
+import { createServiceClient } from '@/modules/authentication/services/authMiddleware'
+import { recalcOrder, loadPlatformSettings } from '@/modules/infrastructure/services/order-calculations'
 
 export const dynamic = 'force-dynamic'
 
@@ -167,10 +167,12 @@ export async function PATCH(
       .select('*')
       .eq('order_id', orderId)
 
-    // Step B: delete old items
+    // Step B: delete old items (neq satisfies PostgREST WHERE clause safety check)
+    const NEVER_ID = '00000000-0000-0000-0000-000000000000'
     const { error: deleteErr } = await svc
       .from('order_items')
       .delete()
+      .neq('id', NEVER_ID)
       .eq('order_id', orderId)
     if (deleteErr) {
       console.error('[items PATCH] delete error:', deleteErr)

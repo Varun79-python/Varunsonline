@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { haversineKm } from '@/lib/gps'
-import { useCustomerLocation } from '@/components/customer/useCustomerLocation'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { haversineKm } from '@/modules/gps-location/services/gps'
+import { useCustomerLocation } from '@/modules/customer/components/useCustomerLocation'
 
 interface Shop {
   id: string; name: string; category: string; description: string

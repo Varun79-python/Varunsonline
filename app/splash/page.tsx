@@ -125,93 +125,6 @@ export default function SplashPage() {
           animation: particleFloat linear infinite;
         }
 
-        /* ── SCENE ILLUSTRATION LAYER ── */
-        .scene-layer {
-          position: absolute;
-          inset: 0;
-          z-index: 4;
-          pointer-events: none;
-        }
-
-        .illustration-wrapper {
-          position: absolute;
-          bottom: 10%;
-        }
-        .store-wrapper {
-          left: 3%;
-          animation: slideInLeft 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both,
-                     floatY 6s ease-in-out 1.2s infinite;
-        }
-        .customer-wrapper {
-          right: 3%;
-          animation: slideInRight 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both,
-                     floatY 6s ease-in-out 1.3s infinite;
-        }
-
-        .illustration {
-          height: auto;
-          object-fit: contain;
-          filter: drop-shadow(0 20px 40px rgba(0,0,0,0.10));
-        }
-        .store-img  { width: 300px; max-width: 22vw; }
-        .customer-img { width: 280px; max-width: 20vw; }
-
-        /* ── RIDER ── */
-        .rider-container {
-          position: absolute;
-          bottom: 4%;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 5;
-          pointer-events: none;
-          animation: riderEntry 1s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both,
-                     riderBob 3.5s ease-in-out 1.1s infinite;
-        }
-        .rider-img {
-          width: 260px;
-          max-width: 30vw;
-          height: auto;
-          filter: drop-shadow(0 16px 32px rgba(0,0,0,0.12));
-        }
-
-        /* ── SPEED LINES (behind rider) ── */
-        .speed-lines {
-          position: absolute;
-          bottom: 6%;
-          left: calc(50% - 200px);
-          width: 160px;
-          z-index: 4;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          pointer-events: none;
-          animation: fadeInLeft 1s ease 0.8s both;
-        }
-        .speed-line {
-          height: 2px;
-          border-radius: 99px;
-          background: linear-gradient(90deg, transparent, rgba(99,102,241,0.35));
-          animation: speedLine 1.5s ease-in-out infinite;
-        }
-        .speed-line:nth-child(1) { width: 100%; animation-delay: 0s; }
-        .speed-line:nth-child(2) { width: 70%;  animation-delay: 0.15s; }
-        .speed-line:nth-child(3) { width: 85%;  animation-delay: 0.3s; }
-        .speed-line:nth-child(4) { width: 55%;  animation-delay: 0.1s; }
-
-        /* ── GROUND SHADOW ── */
-        .ground-shadow {
-          position: absolute;
-          bottom: 3.5%;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 200px;
-          height: 18px;
-          border-radius: 50%;
-          background: radial-gradient(ellipse, rgba(0,0,0,0.1) 0%, transparent 70%);
-          z-index: 4;
-          animation: shadowPulse 3.5s ease-in-out 1.1s infinite;
-        }
-
         /* ── HERO CARD ── */
         .hero-card {
           position: relative;
@@ -495,44 +408,7 @@ export default function SplashPage() {
           50%       { transform: translateY(-7px); }
         }
 
-        @keyframes floatY {
-          0%, 100% { transform: translateY(0); }
-          50%       { transform: translateY(-8px); }
-        }
 
-        @keyframes slideInLeft {
-          from { opacity: 0; transform: translateX(-40px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(40px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-
-        @keyframes riderEntry {
-          from { opacity: 0; transform: translate(-50%, 30px); }
-          to   { opacity: 1; transform: translate(-50%, 0); }
-        }
-        @keyframes riderBob {
-          0%, 100% { transform: translate(-50%, 0); }
-          50%       { transform: translate(-50%, -5px); }
-        }
-
-        @keyframes shadowPulse {
-          0%, 100% { transform: translateX(-50%) scaleX(1);   opacity: 0.9; }
-          50%       { transform: translateX(-50%) scaleX(0.82); opacity: 0.5; }
-        }
-
-        @keyframes speedLine {
-          0%   { opacity: 0; transform: scaleX(0); transform-origin: right; }
-          40%  { opacity: 1; }
-          100% { opacity: 0; transform: scaleX(1); transform-origin: right; }
-        }
-
-        @keyframes fadeInLeft {
-          from { opacity: 0; transform: translateX(-20px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -544,14 +420,7 @@ export default function SplashPage() {
         }
 
         /* ── RESPONSIVE ── */
-        @media (max-width: 1024px) {
-          .store-img    { width: 220px; }
-          .customer-img { width: 200px; }
-        }
         @media (max-width: 768px) {
-          .illustration-wrapper { display: none !important; }
-          .speed-lines          { display: none !important; }
-          .rider-img            { width: 210px; max-width: 55vw; }
           .hero-card            { padding: 40px 24px 32px; }
           .brand-title          { font-size: 28px; }
           .loader-track         { width: 150px; }
@@ -602,45 +471,7 @@ export default function SplashPage() {
           />
         ))}
 
-        {/* ── SCENE LAYER ── */}
-        <div className="scene-layer">
-          {/* Store */}
-          <div className="illustration-wrapper store-wrapper">
-            <img
-              src="/splash/shop.png"
-              alt="Local Store"
-              className="illustration store-img"
-            />
-          </div>
 
-          {/* Customer */}
-          <div className="illustration-wrapper customer-wrapper">
-            <img
-              src="/splash/customer.png"
-              alt="Happy Customer"
-              className="illustration customer-img"
-            />
-          </div>
-
-          {/* Speed lines */}
-          <div className="speed-lines">
-            {[0, 1, 2, 3].map(i => (
-              <div key={i} className="speed-line" />
-            ))}
-          </div>
-
-          {/* Ground shadow */}
-          <div className="ground-shadow" />
-
-          {/* Rider */}
-          <div className="rider-container">
-            <img
-              src="/splash/rider.png"
-              alt="Delivery Rider"
-              className="rider-img"
-            />
-          </div>
-        </div>
 
         {/* ── HERO CARD ── */}
         <div className="hero-card">

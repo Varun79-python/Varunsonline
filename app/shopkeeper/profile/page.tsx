@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import LocationPicker, { type SavedLocation } from '@/components/LocationPicker'
-import { uploadImage } from '@/lib/uploadImage'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import LocationPicker, { type SavedLocation } from '@/modules/gps-location/components/LocationPicker'
+import { uploadImage } from '@/modules/infrastructure/services/uploadImage'
 
 const SHOP_CATEGORIES = ['Grocery', 'Pharmacy', 'Bakery', 'Restaurant', 'Electronics', 'Clothing', 'Stationery', 'Other']
 

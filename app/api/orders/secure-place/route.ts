@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
-import { logger } from '@/lib/logger'
-import { recalcOrder } from '@/lib/order-calculations'
-import { haversineKm } from '@/lib/gps'
+import { checkRateLimit, getRateLimitIdentifier } from '@/modules/authentication/services/rateLimit'
+import { logger } from '@/modules/infrastructure/services/logger'
+import { recalcOrder } from '@/modules/infrastructure/services/order-calculations'
+import { haversineKm } from '@/modules/gps-location/services/gps'
 
 function createServiceClient() {
   return createClient(

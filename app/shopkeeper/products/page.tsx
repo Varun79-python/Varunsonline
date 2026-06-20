@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { uploadImage } from '@/lib/uploadImage'
+import { createClient } from '@/modules/infrastructure/supabase/client'
+import { uploadImage } from '@/modules/infrastructure/services/uploadImage'
 
 interface Product { id: string; name: string; category: string; price: number; mrp: number; stock_quantity: number; is_available: boolean; image_url: string }
 interface Shop { id: string; category: string }
@@ -87,7 +87,7 @@ export default function ProductsPage() {
 
   async function deleteProduct(id: string) {
     if (!confirm('Delete this product?')) return
-    await supabase.from('products').delete().eq('id', id)
+    await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000').eq('id', id)
     setProducts(prev => prev.filter(p => p.id !== id))
   }
 

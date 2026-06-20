@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, verifyShopkeeper } from '@/lib/authMiddleware'
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit'
+import { createServiceClient, verifyShopkeeper } from '@/modules/authentication/services/authMiddleware'
+import { checkRateLimit, getRateLimitIdentifier } from '@/modules/authentication/services/rateLimit'
 
 // POST state-changing endpoint
 

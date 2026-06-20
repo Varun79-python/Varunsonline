@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient, validateOrigin } from '@/lib/authMiddleware'
+import { createServiceClient, validateOrigin } from '@/modules/authentication/services/authMiddleware'
 
 // POST state-changing endpoint
 
@@ -20,8 +20,17 @@ const MAX_WITHDRAWALS_PER_WEEK = 5
  */
 export async function POST(req: NextRequest) {
   try {
+    // Read JWT from Authorization header — the client sends it, but
+    // createServiceClient() (service_role) has no session, so we must
+    // pass the token explicitly to getUser().
+    const authHeader = req.headers.get('authorization')
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+    if (!token) {
+      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
+    }
+
     const supabase = createServiceClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
 
     if (authErr || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

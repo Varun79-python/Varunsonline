@@ -14,7 +14,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { sendFcmToMany } from '@/lib/fcm'
+import { sendFcmToMany } from '@/modules/notifications/services/fcm'
 
 // POST state-changing endpoint
 
