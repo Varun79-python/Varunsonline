@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { User, Bike, Store, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -251,7 +252,7 @@ export default function LoginPage() {
             }}
           >
             By continuing, you agree to our{' '}
-            <a
+            <Link
               href="/terms"
               style={{
                 color: '#f97316',
@@ -260,9 +261,9 @@ export default function LoginPage() {
               }}
             >
               Terms
-            </a>
+            </Link>
             {' & '}
-            <a
+            <Link
               href="/privacy"
               style={{
                 color: '#f97316',
@@ -271,7 +272,7 @@ export default function LoginPage() {
               }}
             >
               Privacy Policy
-            </a>
+            </Link>
           </p>
         </div>
       </div>

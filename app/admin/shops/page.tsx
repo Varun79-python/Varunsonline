@@ -72,6 +72,11 @@ export default function AdminShops() {
 
   useEffect(() => { mountedRef.current = true }, [])
 
+  // Reset loading guard whenever tab changes (allows re-fetch)
+  useEffect(() => {
+    loadingRef.current = false
+  }, [tab])
+
   async function load() {
     if (loadingRef.current) return
     loadingRef.current = true
@@ -113,7 +118,7 @@ export default function AdminShops() {
   }, [])
 
   useEffect(() => { 
-    if (!loadingRef.current) load() 
+    load() 
   }, [tab])
 
   function clearSelectedItem() {

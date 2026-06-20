@@ -29,6 +29,7 @@ const CartEmptyIcon = () => (
 export default function CartPage() {
   const router = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [couponCode, setCouponCode] = useState('')
   const [couponDiscount, setCouponDiscount] = useState(0)
   const [couponMsg, setCouponMsg] = useState('')
@@ -39,6 +40,7 @@ export default function CartPage() {
 
   useEffect(() => {
     setCart(JSON.parse(localStorage.getItem('vo_cart') || '[]'))
+    setLoading(false)
     void (async () => {
       const { data } = await supabase
         .from('platform_settings')
@@ -86,6 +88,12 @@ export default function CartPage() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0)
   const pfee = Math.round((subtotal * platformFee) / 100)
   const total = subtotal + deliveryCharge + pfee - couponDiscount
+
+  if (loading) return (
+    <div style={{ padding: '60px 20px', display: 'flex', justifyContent: 'center', marginTop: 60 }}>
+      <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    </div>
+  )
 
   if (cart.length === 0) return (
     <div style={{ textAlign: 'center', padding: '80px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

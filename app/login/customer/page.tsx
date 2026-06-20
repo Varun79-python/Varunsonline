@@ -297,7 +297,7 @@ export default function CustomerLoginPage() {
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <span style={{ color: '#64748b', fontSize: '0.9rem' }}>{isLogin ? "Don't have an account?" : 'Already have an account?'} </span>
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); setForm(f => ({ ...f, confirmPassword: '' })) }} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{isLogin ? 'Register' : 'Login'}</button>
+          <button onClick={() => { setIsLogin(!isLogin); setError(''); setShowReset(false); setForm(f => ({ ...f, confirmPassword: '' })) }} style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{isLogin ? 'Register' : 'Login'}</button>
         </div>
       </div>
 
